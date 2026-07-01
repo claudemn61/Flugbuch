@@ -15,20 +15,18 @@
   #root { min-height: 100vh; }
   * { -webkit-touch-callout: none; }
   input, textarea, button { -webkit-user-select: text; user-select: text; }
-  #load-error { display:none; color:#f87171; font-family:monospace; font-size:12px; padding:20px; white-space:pre-wrap; }
+  #load-status { color:#fcd34d; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; }
 </style>
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
 </head>
 <body>
+<div id="load-status">Lade React/Babel…</div>
 <div id="root"></div>
-<div id="load-error"></div>
 
 <script>
-  // Drop-in replacement for the Claude.ai artifact "window.storage" API,
-  // backed by the browser's real localStorage so the app works standalone.
   (function () {
     const PREFIX = "flugbuch:";
     function keyFor(key) { return PREFIX + key; }
@@ -66,15 +64,58 @@
     };
   })();
 
-  // Surface any load-time error visibly instead of a silent blank page.
   window.addEventListener("error", function (e) {
-    const el = document.getElementById("load-error");
+    const el = document.getElementById("load-status");
     el.style.display = "block";
-    el.textContent = "Fehler beim Laden:\n" + (e.error ? (e.error.stack || e.error.message) : e.message);
+    el.style.color = "#f87171";
+    el.textContent = "JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message) + " (Zeile " + e.lineno + ")";
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    const el = document.getElementById("load-status");
+    el.style.display = "block";
+    el.style.color = "#f87171";
+    el.textContent = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+  });
+
+  // Check that all 3 libraries actually loaded before trying to render
+  function checkAndRender() {
+    const status = document.getElementById("load-status");
+    if (typeof React === "undefined") { status.textContent = "FEHLER: React konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    if (typeof ReactDOM === "undefined") { status.textContent = "FEHLER: ReactDOM konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    if (typeof Babel === "undefined") { status.textContent = "FEHLER: Babel konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    status.textContent = "React/Babel geladen ✓ — kompiliere App…";
+
+    let compiled;
+    try {
+      const appSource = document.getElementById("app-source").textContent;
+      compiled = Babel.transform(appSource, { presets: ["react"] }).code;
+    } catch (e) {
+      status.style.color = "#f87171";
+      status.textContent = "BABEL-KOMPILIER-FEHLER:\n" + (e.message || String(e));
+      return;
+    }
+    try {
+      const runApp = new Function("React", "ReactDOM", compiled + "\n; return FlugbuchApp;");
+      const FlugbuchApp = runApp(React, ReactDOM);
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(React.createElement(FlugbuchApp));
+      // Only hide the status line after a short delay, so we can still see it
+      // if an error happens asynchronously right after the initial render call.
+      setTimeout(function() {
+        if (!status.textContent.includes("FEHLER")) status.style.display = "none";
+      }, 800);
+    } catch (e) {
+      status.style.color = "#f87171";
+      status.textContent = "RENDER-FEHLER:\n" + (e.message || String(e)) + "\n\n" + (e.stack || "");
+    }
+  }
+
+  window.addEventListener("load", function() {
+    setTimeout(checkAndRender, 300);
   });
 </script>
 
-<script type="text/babel" data-presets="react">
+<script type="text/plain" id="app-source">
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ── IGC Parser ─────────────────────────────────────────────────────────────
@@ -2470,9 +2511,6 @@ function FlugbuchApp() {
   );
 }
 
-
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<FlugbuchApp />);
 </script>
 </body>
 </html>
