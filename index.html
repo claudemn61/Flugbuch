@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Flugbuch</title>
+
+<!-- iOS "Add to Home Screen" support: fullscreen, no browser chrome -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Flugbuch" />
+<meta name="theme-color" content="#0a1628" />
+
+<style>
+  html, body { margin:0; padding:0; background:#0a1628; -webkit-tap-highlight-color: transparent; }
+  #root { min-height: 100vh; }
+  * { -webkit-touch-callout: none; }
+  input, textarea, button { -webkit-user-select: text; user-select: text; }
+</style>
+
+<!-- React 18 (UMD builds) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- Babel standalone: compiles JSX in the browser, no build step needed -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- localStorage-backed replacement for the Claude.ai "window.storage" API -->
+<script src="storage-shim.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react" src="app.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<FlugbuchApp />);
+</script>
+</body>
+</html>
