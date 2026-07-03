@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Gleitschirm</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Gleitschirm" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png" />
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png" />
+<meta name="theme-color" content="#5c6470" />
+
+<style>
+  html, body { margin:0; padding:0; background:#5c6470; -webkit-tap-highlight-color: transparent; }
+  #root { min-height: 100vh; }
+  * { -webkit-touch-callout: none; }
+  input, textarea, button { -webkit-user-select: text; user-select: text; }
+  #load-status { color:#fcd34d; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+</head>
+<body>
+<div id="load-status">Lade React/Babel…</div>
+<div id="root"></div>
+
+<script>
+  window.addEventListener("error", function (e) {
+    const el = document.getElementById("load-status");
+    el.style.display = "block";
+    el.style.color = "#f87171";
+    el.textContent = "JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message) + " (Zeile " + e.lineno + ")";
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    const el = document.getElementById("load-status");
+    el.style.display = "block";
+    el.style.color = "#f87171";
+    el.textContent = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+  });
+
+  async function checkAndRender() {
+    const status = document.getElementById("load-status");
+    if (typeof React === "undefined") { status.textContent = "FEHLER: React konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    if (typeof ReactDOM === "undefined") { status.textContent = "FEHLER: ReactDOM konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    if (typeof Babel === "undefined") { status.textContent = "FEHLER: Babel konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
+    status.textContent = "React/Babel geladen ✓ — lade Seite…";
+
+    let appSource;
+    try {
+      const resp = await fetch("app.jsx");
+      if (!resp.ok) { status.textContent = "FEHLER beim Laden von app.jsx: HTTP " + resp.status; status.style.color = "#f87171"; return; }
+      appSource = await resp.text();
+      status.textContent = "Code geladen ✓ (" + appSource.length + " Zeichen) — kompiliere…";
+    } catch (e) {
+      status.style.color = "#f87171";
+      status.textContent = "FEHLER beim Laden von app.jsx:\n" + (e.message || String(e));
+      return;
+    }
+
+    let compiled;
+    try {
+      compiled = Babel.transform(appSource, { presets: ["react"] }).code;
+      status.textContent = "Kompiliert ✓ — starte Seite…";
+    } catch (e) {
+      status.style.color = "#f87171";
+      status.textContent = "BABEL-KOMPILIER-FEHLER:\n" + (e.message || String(e));
+      return;
+    }
+    try {
+      const runApp = new Function("React", "ReactDOM", compiled + "\n; return HomeApp;");
+      const HomeApp = runApp(React, ReactDOM);
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(React.createElement(HomeApp));
+      setTimeout(function() {
+        if (!status.textContent.includes("FEHLER")) status.style.display = "none";
+      }, 800);
+    } catch (e) {
+      status.style.color = "#f87171";
+      status.textContent = "RENDER-FEHLER:\n" + (e.message || String(e)) + "\n\n" + (e.stack || "");
+    }
+  }
+
+  window.addEventListener("load", function() {
+    setTimeout(checkAndRender, 300);
+  });
+</script>
+
+</body>
+</html>
