@@ -542,9 +542,6 @@ function HomeApp() {
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
             cursor: "pointer",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
           }}
         >
           {!photoUrl && (
@@ -557,7 +554,7 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
-          <div style={{ position: "relative", padding: "16px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
               mein<span style={{ color: "#f59e0b" }}>flug</span>buch
             </div>
