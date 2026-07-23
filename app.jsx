@@ -535,14 +535,11 @@ function HomeApp() {
           onClick={() => fileRef.current && fileRef.current.click()}
           style={{
             position: "relative",
-            borderBottomLeftRadius: 22,
-            borderBottomRightRadius: 22,
             overflow: "hidden",
             aspectRatio: isWide ? "21/6" : "21/9",
             background: photoUrl
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
-            borderBottom: "1px solid rgba(255,255,255,0.14)",
             cursor: "pointer",
             display: "flex",
             flexDirection: "column",
@@ -559,7 +556,10 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
-          <div style={{ position: "relative", padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 8px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
+          <div style={{ position: "relative", padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 8px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+              v{APP_VERSION}
+            </span>
             <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
               style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
               ⚙️
@@ -569,9 +569,6 @@ function HomeApp() {
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
               mein<span style={{ color: "#f59e0b" }}>flug</span>buch
             </div>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
-              v{APP_VERSION}
-            </span>
           </div>
         </div>
       </div>
