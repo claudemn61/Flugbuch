@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "2.8";
+const APP_VERSION = "2.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "2.9", note: "Home: Titel \"meinflugbuch\" liegt jetzt direkt auf dem Foto (mit Verlaufs-Schatten für Lesbarkeit), statt in einer eigenen Box darüber." },
   { v: "2.8", note: "Home-Hintergrund auf dasselbe Dunkelblau wie Flugbuch (#040e20) umgestellt, statt dem bisherigen Grau-Blau." },
   { v: "2.7", note: "Neu: Höhenprofil in der Flugdetailansicht (nur bei IGC-Flügen) — zeigt zusätzlich zur Karte den Flugverlauf höhenfarbig über der Strecke, plus braunes Bodenprofil aus echten Höhendaten (Open-Meteo, weltweit). Achsen: m.ü.M. (Höhe) und km (Distanz)." },
   { v: "2.6.1", note: "Import: CSV-Datei- und Zellen-Einfügen-Import nutzen jetzt dieselbe Verarbeitungslogik statt zwei getrennter, leicht auseinandergedrifteter Implementierungen — dabei einen echten Bug gefunden und behoben (Strecken-Feld las in der CSV-Variante die falsche Spalte)." },
@@ -519,26 +520,12 @@ function HomeApp() {
       color: "#e8f4fd",
       fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
     }}>
-      {/* Title */}
-      <div style={{ padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 10px", textAlign: "center", flexShrink: 0, position: "relative" }}>
-        <button onClick={()=>setShowSettings(true)} title="Einstellungen"
-          style={{ position: "absolute", left: 20, bottom: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
-          ⚙️
-        </button>
-        <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff" }}>
-          mein<span style={{ color: "#f59e0b" }}>flug</span>buch
-        </div>
-        <span style={{ position: "absolute", right: 20, bottom: 8, fontSize: 10, color: "rgba(255,255,255,0.35)", fontWeight: 600 }}>
-          v{APP_VERSION}
-        </span>
-      </div>
-
       {showSettings && <SettingsOverlay onClose={()=>setShowSettings(false)} />}
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "0 20px", flexShrink: 0 }} />
-
-      {/* Editable photo / "cockpit window" — narrower aspect ratio so it takes less vertical space */}
-      <div style={{ padding: "12px 20px", flexShrink: 0 }}>
+      {/* Editable photo / "cockpit window" — title now overlaid directly on
+          it (rather than in its own section above) so the photo reads as
+          a hero banner with the app name on it, not two separate blocks. */}
+      <div style={{ padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 12px", flexShrink: 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
           onClick={() => fileRef.current && fileRef.current.click()}
@@ -553,7 +540,7 @@ function HomeApp() {
             border: "1px solid rgba(255,255,255,0.14)",
             cursor: "pointer",
             display: "flex",
-            alignItems: "flex-end",
+            flexDirection: "column",
             justifyContent: "space-between",
           }}
         >
@@ -567,6 +554,21 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
+          {/* Gradient scrim behind the title so it stays legible over any
+              photo, bright or dark, rather than relying on the photo
+              itself happening to be dark at the top. */}
+          <div style={{ position: "relative", padding: "10px 16px 20px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)" }}>
+            <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
+              style={{ position: "absolute", left: 16, top: 10, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
+              ⚙️
+            </button>
+            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textAlign: "center", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
+              mein<span style={{ color: "#f59e0b" }}>flug</span>buch
+            </div>
+            <span style={{ position: "absolute", right: 16, top: 10, fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+              v{APP_VERSION}
+            </span>
+          </div>
           <div style={{ position: "relative", padding: "8px 12px", fontSize: 11, color: "rgba(232,244,253,0.55)", display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ fontSize: 13 }}>📷</span>
             {photoUrl ? "Bild ändern" : "Bild hinzufügen"}
