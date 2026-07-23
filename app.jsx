@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "2.9";
+const APP_VERSION = "2.9.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "2.9.1", note: "Home: Einstellungen-Zahnrad + Versionsnummer jetzt unten rechts auf dem Foto, auf gleicher Höhe wie der Titel (statt oben). \"flug\" im Titel kräftigeres Orange (#ff9500)." },
   { v: "2.9", note: "Home: Titel \"meinflugbuch\" liegt jetzt direkt auf dem Foto (mit Verlaufs-Schatten für Lesbarkeit), statt in einer eigenen Box darüber." },
   { v: "2.8", note: "Home-Hintergrund auf dasselbe Dunkelblau wie Flugbuch (#040e20) umgestellt, statt dem bisherigen Grau-Blau." },
   { v: "2.7", note: "Neu: Höhenprofil in der Flugdetailansicht (nur bei IGC-Flügen) — zeigt zusätzlich zur Karte den Flugverlauf höhenfarbig über der Strecke, plus braunes Bodenprofil aus echten Höhendaten (Open-Meteo, weltweit). Achsen: m.ü.M. (Höhe) und km (Distanz)." },
@@ -556,18 +557,18 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
-          <div style={{ position: "relative", padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 8px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
-              v{APP_VERSION}
-            </span>
-            <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
-              ⚙️
-            </button>
-          </div>
-          <div style={{ position: "relative", padding: "16px 20px 18px" }}>
+          <div style={{ position: "relative", padding: "16px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
             <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
               mein<span style={{ color: "#f59e0b" }}>flug</span>buch
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: "#ffffff", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)" }}>
+                v{APP_VERSION}
+              </span>
+              <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
+                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}>
+                ⚙️
+              </button>
             </div>
           </div>
         </div>
