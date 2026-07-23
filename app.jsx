@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "2.7";
+const APP_VERSION = "2.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "2.8", note: "Home-Hintergrund auf dasselbe Dunkelblau wie Flugbuch (#040e20) umgestellt, statt dem bisherigen Grau-Blau." },
   { v: "2.7", note: "Neu: Höhenprofil in der Flugdetailansicht (nur bei IGC-Flügen) — zeigt zusätzlich zur Karte den Flugverlauf höhenfarbig über der Strecke, plus braunes Bodenprofil aus echten Höhendaten (Open-Meteo, weltweit). Achsen: m.ü.M. (Höhe) und km (Distanz)." },
   { v: "2.6.1", note: "Import: CSV-Datei- und Zellen-Einfügen-Import nutzen jetzt dieselbe Verarbeitungslogik statt zwei getrennter, leicht auseinandergedrifteter Implementierungen — dabei einen echten Bug gefunden und behoben (Strecken-Feld las in der CSV-Variante die falsche Spalte)." },
   { v: "2.6", note: "IGC-Kennzeichnung in der Detailansicht auf Höhe der Bewertungssterne verschoben (über der Notiz). Suche: alle Felder haben jetzt Operatoren (>, <, >=, <=, ≠, zwischen) — inkl. Start-/Landekoordinaten, Datum (chronologisch statt alphabetisch), Zeit und Text-Felder (alphabetisch)." },
@@ -514,7 +515,7 @@ function HomeApp() {
       overflow: "hidden",
       display: "flex",
       flexDirection: "column",
-      background: "#5c6470",
+      background: "#040e20",
       color: "#e8f4fd",
       fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
     }}>
