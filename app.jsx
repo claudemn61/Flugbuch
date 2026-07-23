@@ -522,22 +522,27 @@ function HomeApp() {
     }}>
       {showSettings && <SettingsOverlay onClose={()=>setShowSettings(false)} />}
 
-      {/* Editable photo / "cockpit window" — title now overlaid directly on
-          it (rather than in its own section above) so the photo reads as
-          a hero banner with the app name on it, not two separate blocks. */}
-      <div style={{ padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 12px", flexShrink: 0 }}>
+      {/* Full-bleed photo: extends to the screen's top/left/right edges
+          (no padding, no border, no rounding on those sides) so it reads as
+          a true hero image rather than a card floating in the layout —
+          only the bottom edge is rounded/bordered, where it meets the rest
+          of the page. Title sits bottom-left over it. Still tappable
+          anywhere on the image to change the photo — just without the
+          former small "Bild ändern" caption spelling that out. */}
+      <div style={{ flexShrink: 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
           onClick={() => fileRef.current && fileRef.current.click()}
           style={{
             position: "relative",
-            borderRadius: 18,
+            borderBottomLeftRadius: 22,
+            borderBottomRightRadius: 22,
             overflow: "hidden",
             aspectRatio: isWide ? "21/6" : "21/9",
             background: photoUrl
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
-            border: "1px solid rgba(255,255,255,0.14)",
+            borderBottom: "1px solid rgba(255,255,255,0.14)",
             cursor: "pointer",
             display: "flex",
             flexDirection: "column",
@@ -554,24 +559,19 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
-          {/* Gradient scrim behind the title so it stays legible over any
-              photo, bright or dark, rather than relying on the photo
-              itself happening to be dark at the top. */}
-          <div style={{ position: "relative", padding: "10px 16px 20px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)" }}>
+          <div style={{ position: "relative", padding: "calc(10px + env(safe-area-inset-top, 0px)) 20px 8px", background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
             <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-              style={{ position: "absolute", left: 16, top: 10, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
+              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, cursor: "pointer" }}>
               ⚙️
             </button>
-            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textAlign: "center", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
+          </div>
+          <div style={{ position: "relative", padding: "16px 20px 18px" }}>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
               mein<span style={{ color: "#f59e0b" }}>flug</span>buch
             </div>
-            <span style={{ position: "absolute", right: 16, top: 10, fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
               v{APP_VERSION}
             </span>
-          </div>
-          <div style={{ position: "relative", padding: "8px 12px", fontSize: 11, color: "rgba(232,244,253,0.55)", display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ fontSize: 13 }}>📷</span>
-            {photoUrl ? "Bild ändern" : "Bild hinzufügen"}
           </div>
         </div>
       </div>
