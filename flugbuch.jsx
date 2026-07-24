@@ -901,43 +901,56 @@ function FlightProfile({ flight }) {
 
   useEffect(() => { setViewStart(0); setViewScale(1); }, [flight?.id]);
 
+  // Refs mirror the latest viewScale/viewStart so the gesture handlers
+  // always read the current value even mid-gesture (e.g. lifting one
+  // finger during a pinch, switching straight into pan) — reading from a
+  // closure captured only when the effect last ran could occasionally be
+  // one render behind, which was part of why the gesture felt unstable.
+  const viewScaleRef = useRef(viewScale);
+  const viewStartRef = useRef(viewStart);
+  useEffect(() => { viewScaleRef.current = viewScale; }, [viewScale]);
+  useEffect(() => { viewStartRef.current = viewStart; }, [viewStart]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dist = (a,b) => Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
 
     const onTouchStart = (e) => {
+      // Always claim touches starting on this chart — otherwise the page's
+      // own swipe-between-flights handler can start tracking the same
+      // gesture in parallel and win out partway through.
+      e.preventDefault();
       if (e.touches.length === 2) {
         gestureRef.current = {
           mode: "pinch",
           startDist: dist(e.touches[0], e.touches[1]),
-          startScale: viewScale,
-          startView: viewStart,
+          startScale: viewScaleRef.current,
+          startView: viewStartRef.current,
         };
-        e.preventDefault();
       } else if (e.touches.length === 1) {
         gestureRef.current = {
           mode: "pan",
           startX: e.touches[0].clientX,
-          startView: viewStart,
+          startView: viewStartRef.current,
         };
       }
     };
     const onTouchMove = (e) => {
       const g = gestureRef.current;
       if (!g) return;
+      e.preventDefault();
       if (g.mode === "pinch" && e.touches.length === 2) {
-        e.preventDefault();
         const newDist = dist(e.touches[0], e.touches[1]);
         const factor = newDist / (g.startDist || 1);
         const newScale = Math.min(20, Math.max(1, g.startScale * factor));
         setViewScale(newScale);
         const maxStart = Math.max(0, 1 - 1/newScale);
         setViewStart(s => Math.min(maxStart, Math.max(0, s)));
-      } else if (g.mode === "pan" && e.touches.length === 1 && viewScale > 1) {
+      } else if (g.mode === "pan" && e.touches.length === 1 && viewScaleRef.current > 1) {
         const dx = e.touches[0].clientX - g.startX;
-        const fracDelta = -dx / canvas.clientWidth / viewScale;
-        const maxStart = Math.max(0, 1 - 1/viewScale);
+        const fracDelta = -dx / canvas.clientWidth / viewScaleRef.current;
+        const maxStart = Math.max(0, 1 - 1/viewScaleRef.current);
         setViewStart(Math.min(maxStart, Math.max(0, g.startView + fracDelta)));
       }
     };
@@ -1038,13 +1051,27 @@ function FlightProfile({ flight }) {
     }
 
     if (groundProfile && groundProfile.length) {
+      // Only the points inside (plus one just outside on each side, so the
+      // fill/line doesn't visibly stop short at the window edge) the
+      // current zoom window — including every sample across the whole
+      // flight here, even ones far outside what's visible, was mapping
+      // those to wildly off-canvas x-coordinates and back, which is what
+      // produced the zigzag distortion when zoomed in.
+      const visibleGround = [];
+      for (let i=0;i<groundProfile.length;i++) {
+        const g = groundProfile[i];
+        const inRange = g.distKm >= visStart && g.distKm <= visEnd;
+        const prevOut = i>0 && groundProfile[i-1].distKm < visStart;
+        const nextOut = i<groundProfile.length-1 && groundProfile[i+1].distKm > visEnd;
+        if (inRange || (prevOut && g.distKm < visStart) || (nextOut && g.distKm > visEnd)) visibleGround.push(g);
+      }
       ctx.beginPath(); ctx.moveTo(xPos(visStart), padT+plotH);
-      groundProfile.forEach(g => { if (g.elev!=null) ctx.lineTo(xPos(g.distKm), yPos(g.elev)); });
+      visibleGround.forEach(g => { if (g.elev!=null) ctx.lineTo(xPos(g.distKm), yPos(g.elev)); });
       ctx.lineTo(xPos(visEnd), padT+plotH); ctx.closePath();
       ctx.fillStyle = "rgba(120,72,32,0.55)"; ctx.fill();
       ctx.strokeStyle = "rgba(150,95,45,0.9)"; ctx.lineWidth = 1.5*dpr;
       ctx.beginPath();
-      groundProfile.forEach((g,i) => { if (g.elev!=null) { const px=xPos(g.distKm), py=yPos(g.elev); i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); } });
+      visibleGround.forEach((g,i) => { if (g.elev!=null) { const px=xPos(g.distKm), py=yPos(g.elev); i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); } });
       ctx.stroke();
     }
 

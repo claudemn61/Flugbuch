@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.0";
+const APP_VERSION = "3.0.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.0.1", note: "Höhenprofil-Zoom: Bodenprofil zeigte beim Zoomen ein Zickzack-Muster (alle Bodenpunkte der ganzen Strecke wurden mitgezeichnet statt nur die sichtbaren) — jetzt korrekt gefiltert. Zoom-/Wisch-Geste zuverlässiger, blockiert das Wischen zwischen Flügen jetzt konsequent während der Geste." },
   { v: "3.0", note: "Neu: Weltkarte (🗺️-Button ersetzt den bisherigen Saison-Button im Flugbuch) — zeigt Start-/Landeplätze aller Flüge (grün/rot), oder nur der in der Listen-Auswahl markierten. Umschalter Start-/Landeplätze, Suche nach Platzname. Saison-Übersicht ist dafür 1:1 in die Statistik-Seite umgezogen (neuer 5. Badge)." },
   { v: "2.9.1", note: "Home: Einstellungen-Zahnrad + Versionsnummer jetzt unten rechts auf dem Foto, auf gleicher Höhe wie der Titel (statt oben). \"flug\" im Titel kräftigeres Orange (#ff9500)." },
   { v: "2.9", note: "Home: Titel \"meinflugbuch\" liegt jetzt direkt auf dem Foto (mit Verlaufs-Schatten für Lesbarkeit), statt in einer eigenen Box darüber." },
