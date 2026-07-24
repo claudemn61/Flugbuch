@@ -867,6 +867,15 @@ function FlightProfile({ flight }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
+  // Horizontal pinch-zoom/pan state: viewStart (0-1, fraction of totalDist
+  // where the visible window begins) and viewScale (1 = whole flight
+  // visible, higher = zoomed in). The Y-axis is recomputed from only the
+  // points actually inside the visible window each time these change, so
+  // zooming into a segment re-scales the altitude legend to that segment's
+  // own min/max rather than the whole flight's.
+  const [viewStart, setViewStart] = useState(0);
+  const [viewScale, setViewScale] = useState(1);
+  const gestureRef = useRef(null); // holds in-progress touch gesture state
   const track = flight?.track || [];
 
   const rawDistances = useMemo(() => {
@@ -889,6 +898,61 @@ function FlightProfile({ flight }) {
   const scale = (manualDist > 0 && rawTotalDist > 0) ? manualDist/rawTotalDist : 1;
   const distances = useMemo(() => rawDistances.map(d => d*scale), [rawDistances, scale]);
   const totalDist = distances[distances.length-1] || 0;
+
+  useEffect(() => { setViewStart(0); setViewScale(1); }, [flight?.id]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dist = (a,b) => Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        gestureRef.current = {
+          mode: "pinch",
+          startDist: dist(e.touches[0], e.touches[1]),
+          startScale: viewScale,
+          startView: viewStart,
+        };
+        e.preventDefault();
+      } else if (e.touches.length === 1) {
+        gestureRef.current = {
+          mode: "pan",
+          startX: e.touches[0].clientX,
+          startView: viewStart,
+        };
+      }
+    };
+    const onTouchMove = (e) => {
+      const g = gestureRef.current;
+      if (!g) return;
+      if (g.mode === "pinch" && e.touches.length === 2) {
+        e.preventDefault();
+        const newDist = dist(e.touches[0], e.touches[1]);
+        const factor = newDist / (g.startDist || 1);
+        const newScale = Math.min(20, Math.max(1, g.startScale * factor));
+        setViewScale(newScale);
+        const maxStart = Math.max(0, 1 - 1/newScale);
+        setViewStart(s => Math.min(maxStart, Math.max(0, s)));
+      } else if (g.mode === "pan" && e.touches.length === 1 && viewScale > 1) {
+        const dx = e.touches[0].clientX - g.startX;
+        const fracDelta = -dx / canvas.clientWidth / viewScale;
+        const maxStart = Math.max(0, 1 - 1/viewScale);
+        setViewStart(Math.min(maxStart, Math.max(0, g.startView + fracDelta)));
+      }
+    };
+    const onTouchEnd = () => { gestureRef.current = null; };
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd);
+    return () => {
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [viewScale, viewStart]);
+
 
   useEffect(() => {
     setGroundProfile(null);
@@ -940,15 +1004,24 @@ function FlightProfile({ flight }) {
     const padL = 42*dpr, padR = 8*dpr, padT = 10*dpr, padB = 20*dpr;
     const plotW = Math.max(1, W-padL-padR), plotH = Math.max(1, H-padT-padB);
 
-    const alts = track.map(p=>p.gpsAlt);
-    let minA = Math.min(...alts), maxA = Math.max(...alts);
+    const visStart = viewStart * totalDist;
+    const visEnd = Math.min(totalDist, visStart + totalDist/viewScale);
+
+    // Altitude range comes only from the points actually inside the visible
+    // window — zooming into a segment re-scales the legend to that
+    // segment's own min/max instead of staying pinned to the whole flight.
+    const visibleAlts = [];
+    for (let i=0;i<track.length;i++) if (distances[i]>=visStart && distances[i]<=visEnd) visibleAlts.push(track[i].gpsAlt);
+    if (!visibleAlts.length) visibleAlts.push(track[0].gpsAlt, track[track.length-1].gpsAlt);
+    let minA = Math.min(...visibleAlts), maxA = Math.max(...visibleAlts);
     if (groundProfile) {
-      const gv = groundProfile.map(g=>g.elev).filter(v=>v!=null);
+      const gv = groundProfile.filter(g=>g.distKm>=visStart && g.distKm<=visEnd).map(g=>g.elev).filter(v=>v!=null);
       if (gv.length) minA = Math.min(minA, ...gv);
     }
     maxA = Math.max(maxA, minA+1);
     const altRange = maxA-minA || 1;
-    const xPos = d => padL + (totalDist ? d/totalDist : 0)*plotW;
+    const span = (visEnd-visStart) || 1;
+    const xPos = d => padL + ((d-visStart)/span)*plotW;
     const yPos = alt => padT + plotH - ((alt-minA)/altRange)*plotH;
 
     ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1*dpr;
@@ -958,13 +1031,16 @@ function FlightProfile({ flight }) {
     ctx.textAlign = "right";
     ctx.fillText(Math.round(maxA)+"m", padL-4*dpr, padT+9*dpr);
     ctx.fillText(Math.round(minA)+"m", padL-4*dpr, padT+plotH);
-    ctx.textAlign = "left"; ctx.fillText("0 km", padL, padT+plotH+15*dpr);
-    ctx.textAlign = "right"; ctx.fillText(totalDist.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
+    ctx.textAlign = "left"; ctx.fillText(visStart.toFixed(1)+" km", padL, padT+plotH+15*dpr);
+    ctx.textAlign = "right"; ctx.fillText(visEnd.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
+    if (viewScale > 1.02) {
+      ctx.textAlign = "center"; ctx.fillText(`${viewScale.toFixed(1)}×`, padL+plotW/2, padT+9*dpr);
+    }
 
     if (groundProfile && groundProfile.length) {
-      ctx.beginPath(); ctx.moveTo(xPos(0), padT+plotH);
+      ctx.beginPath(); ctx.moveTo(xPos(visStart), padT+plotH);
       groundProfile.forEach(g => { if (g.elev!=null) ctx.lineTo(xPos(g.distKm), yPos(g.elev)); });
-      ctx.lineTo(xPos(totalDist), padT+plotH); ctx.closePath();
+      ctx.lineTo(xPos(visEnd), padT+plotH); ctx.closePath();
       ctx.fillStyle = "rgba(120,72,32,0.55)"; ctx.fill();
       ctx.strokeStyle = "rgba(150,95,45,0.9)"; ctx.lineWidth = 1.5*dpr;
       ctx.beginPath();
@@ -973,6 +1049,8 @@ function FlightProfile({ flight }) {
     }
 
     for (let i=1;i<track.length;i++) {
+      if (distances[i] < visStart && distances[i-1] < visStart) continue;
+      if (distances[i-1] > visEnd && distances[i] > visEnd) continue;
       const t = (track[i].gpsAlt-minA)/altRange;
       ctx.strokeStyle = `hsl(${t*240},100%,50%)`; ctx.lineWidth = 2.5*dpr;
       ctx.beginPath();
@@ -980,18 +1058,26 @@ function FlightProfile({ flight }) {
       ctx.lineTo(xPos(distances[i]), yPos(track[i].gpsAlt));
       ctx.stroke();
     }
-  }, [track, distances, totalDist, groundProfile]);
+  }, [track, distances, totalDist, groundProfile, viewStart, viewScale]);
 
   if (!track.length) return null;
 
   return (
     <div style={{marginBottom:14}}>
-      <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Höhenprofil</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Höhenprofil</div>
+        {viewScale > 1.02 && (
+          <button onClick={()=>{setViewStart(0);setViewScale(1);}}
+            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"3px 9px",color:"rgba(232,244,253,0.7)",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+            ↺ Zoom zurücksetzen
+          </button>
+        )}
+      </div>
       <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
-        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block"}} />
+        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:"none"}} />
       </div>
       {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Flugtrace wird trotzdem angezeigt.</div>}
-      {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert.</div>}
+      {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert. Mit zwei Fingern horizontal zoombar.</div>}
     </div>
   );
 }
