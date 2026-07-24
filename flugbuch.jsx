@@ -869,11 +869,13 @@ function FlightProfile({ flight }) {
   const [groundError, setGroundError] = useState(false);
   // Stepped zoom (1-8) replaces the earlier pinch-gesture zoom, which kept
   // conflicting with the page's own swipe-between-flights gesture no matter
-  // how it was tuned. The view is centred on the flight's midpoint — there's
-  // no separate pan control, just how far in the fixed centre-window zooms.
+  // how it was tuned. panPos (0-1) is a separate slider for where the
+  // zoomed window sits along the flight — 0.5 (default) centres it, 0 pins
+  // it to the start, 1 to the end.
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [panPos, setPanPos] = useState(0.5);
   const viewScale = zoomLevel;
-  const viewStart = Math.max(0, (1 - 1/viewScale) / 2);
+  const viewStart = Math.max(0, Math.min(1 - 1/viewScale, panPos * (1 - 1/viewScale)));
   const track = flight?.track || [];
 
   const rawDistances = useMemo(() => {
@@ -897,7 +899,7 @@ function FlightProfile({ flight }) {
   const distances = useMemo(() => rawDistances.map(d => d*scale), [rawDistances, scale]);
   const totalDist = distances[distances.length-1] || 0;
 
-  useEffect(() => { setZoomLevel(1); }, [flight?.id]);
+  useEffect(() => { setZoomLevel(1); setPanPos(0.5); }, [flight?.id]);
 
 
   useEffect(() => {
@@ -1047,6 +1049,14 @@ function FlightProfile({ flight }) {
           )}
         </div>
       </div>
+      {zoomLevel > 1 && (
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",flexShrink:0}}>Verschieben</span>
+          <input type="range" min="0" max="1" step="0.01" value={panPos}
+            onChange={e=>setPanPos(+e.target.value)}
+            style={{flex:1,accentColor:"#7dd3fc"}} />
+        </div>
+      )}
       <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
         <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block"}} />
       </div>
