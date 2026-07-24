@@ -269,10 +269,10 @@ function StatistikApp() {
   };
 
   const TABLES = [
-    { id: "schirm", icon: "🪂", label: "Schirm", rows: schirmRows, color: "#e0304a" },
-    { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#e0304a" },
-    { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#e0304a" },
-    { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#e0304a" },
+    { id: "schirm", icon: "🪂", label: "Schirm", rows: schirmRows, color: "#3b82f6" },
+    { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#4ade80" },
+    { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa" },
+    { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#f5a623" },
     { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a" },
   ];
   return (
@@ -288,12 +288,22 @@ function StatistikApp() {
         </span>
       </div>
 
-      {/* 4 badges, 2x2 grid on narrow screens */}
-      <div style={{padding:"14px 16px 0",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      {/* 5 badges as full-width horizontal bars, stacked — each with its own
+          colour accent (left edge + tint), matching how Home's 4 tiles are
+          each colour-coded rather than a uniform 2x2 grid of same-coloured
+          boxes. */}
+      <div style={{padding:"14px 16px 0",display:"flex",flexDirection:"column",gap:10}}>
         {TABLES.map(t => (
           <button key={t.id} onClick={()=>setOpenTable(openTable===t.id?null:t.id)}
-            style={{background:openTable===t.id?"rgba(224,48,74,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${openTable===t.id?"rgba(224,48,74,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 8px",color:openTable===t.id?"#f87171":"rgba(232,244,253,0.8)",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-            {t.icon} {t.label} {openTable===t.id?"▾":"▸"}
+            style={{width:"100%",boxSizing:"border-box",display:"flex",alignItems:"center",gap:10,
+              background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
+              border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
+              borderLeft:`4px solid ${t.color}`,
+              borderRadius:12,padding:"14px 16px",
+              color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+            <span style={{fontSize:19}}>{t.icon}</span>
+            <span style={{flex:1}}>{t.label}</span>
+            <span style={{opacity:0.6,fontSize:13}}>{openTable===t.id?"▾":"▸"}</span>
           </button>
         ))}
       </div>

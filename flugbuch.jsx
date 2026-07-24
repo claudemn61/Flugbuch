@@ -276,20 +276,26 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   const points = useMemo(() => {
     const q = search.trim().toLowerCase();
     const seen = new Map();
+    const flightMatches = f => {
+      if (!q) return true;
+      const cf = f.customFields || {};
+      const hay = [
+        f.name, f.site, f.glider, f.pilot, f.date, f.year, f.comment, f.notes,
+        cf.landung, cf.passagier, cf.reise, cf.hGew, cf.hDiff, cf.maxSteigen, cf.maxSinken, cf.kmh,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    };
     for (const f of relevantFlights) {
+      if (!flightMatches(f)) continue;
       if (showSP && f.startPt && f.startPt.lat != null) {
         const name = f.site || "";
-        if (!q || name.toLowerCase().includes(q)) {
-          const key = `SP:${f.startPt.lat.toFixed(3)},${f.startPt.lon.toFixed(3)}`;
-          if (!seen.has(key)) seen.set(key, { lat: f.startPt.lat, lon: f.startPt.lon, type: "SP", name });
-        }
+        const key = `SP:${f.startPt.lat.toFixed(3)},${f.startPt.lon.toFixed(3)}`;
+        if (!seen.has(key)) seen.set(key, { lat: f.startPt.lat, lon: f.startPt.lon, type: "SP", name });
       }
       if (showLP && f.endPt && f.endPt.lat != null) {
         const name = f.customFields?.landung || "";
-        if (!q || name.toLowerCase().includes(q)) {
-          const key = `LP:${f.endPt.lat.toFixed(3)},${f.endPt.lon.toFixed(3)}`;
-          if (!seen.has(key)) seen.set(key, { lat: f.endPt.lat, lon: f.endPt.lon, type: "LP", name });
-        }
+        const key = `LP:${f.endPt.lat.toFixed(3)},${f.endPt.lon.toFixed(3)}`;
+        if (!seen.has(key)) seen.set(key, { lat: f.endPt.lat, lon: f.endPt.lon, type: "LP", name });
       }
     }
     return [...seen.values()];
@@ -390,7 +396,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         </button>
       </div>
       <div style={{padding:"0 16px 12px"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nach Platzname suchen…"
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen (alle Felder)…"
           style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 12px",color:"#e8f4fd",fontSize:14}} />
       </div>
 
