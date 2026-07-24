@@ -116,7 +116,7 @@ function SeasonSection({ flights }) {
     yrBtn:(a)=>({background:a?"rgba(224,48,74,0.3)":"rgba(255,255,255,0.05)",border:a?"1px solid rgba(224,48,74,0.5)":"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"6px 14px",color:a?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer",fontWeight:a?600:400}),
     grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
     box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
-    bigNum:{fontSize:26,fontWeight:800,color:"#f87171",letterSpacing:-1},
+    bigNum:{fontSize:26,fontWeight:800,color:"#e8f4fd",letterSpacing:-1},
     lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
     prBox:{background:"rgba(224,48,74,0.08)",border:"1px solid rgba(224,48,74,0.2)",borderRadius:12,padding:"14px 16px",marginBottom:10},
     prTitle:{fontSize:11,fontWeight:600,color:"#f87171",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
@@ -129,7 +129,7 @@ function SeasonSection({ flights }) {
   if (!flights.length) return null;
 
   return (
-    <div style={{margin:"12px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px"}}>
+    <div style={{margin:"12px 16px 0",display:"flex",flexDirection:"column",gap:8}}>
       <div style={S.yearRow}>
         {years.slice(0,4).map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
         {years.length>4 && (
