@@ -256,6 +256,159 @@ function loadTileImage(url) {
   return promise;
 }
 
+// ── WorldMapView ───────────────────────────────────────────────────────────
+// Shows Startplatz/Landeplatz markers across all (or just the currently
+// multi-selected) flights on a real map. Reuses the same tile-fetching/
+// projection machinery as FlightMap (lonLatToTile, pickZoomForBounds,
+// runWithConcurrencyLimit, loadTileImage — all defined further below, hence
+// this component's own draw effect calling them directly).
+function WorldMapView({ flights, selectedIds, onBack }) {
+  const canvasRef = useRef(null);
+  const [showSP, setShowSP] = useState(true);
+  const [showLP, setShowLP] = useState(true);
+  const [search, setSearch] = useState("");
+  const [missingTileCount, setMissingTileCount] = useState(0);
+
+  const relevantFlights = (selectedIds && selectedIds.size > 0)
+    ? flights.filter(f => selectedIds.has(f.id))
+    : flights;
+
+  const points = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const seen = new Map();
+    for (const f of relevantFlights) {
+      if (showSP && f.startPt && f.startPt.lat != null) {
+        const name = f.site || "";
+        if (!q || name.toLowerCase().includes(q)) {
+          const key = `SP:${f.startPt.lat.toFixed(3)},${f.startPt.lon.toFixed(3)}`;
+          if (!seen.has(key)) seen.set(key, { lat: f.startPt.lat, lon: f.startPt.lon, type: "SP", name });
+        }
+      }
+      if (showLP && f.endPt && f.endPt.lat != null) {
+        const name = f.customFields?.landung || "";
+        if (!q || name.toLowerCase().includes(q)) {
+          const key = `LP:${f.endPt.lat.toFixed(3)},${f.endPt.lon.toFixed(3)}`;
+          if (!seen.has(key)) seen.set(key, { lat: f.endPt.lat, lon: f.endPt.lon, type: "LP", name });
+        }
+      }
+    }
+    return [...seen.values()];
+  }, [relevantFlights, showSP, showLP, search]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !points.length) return;
+    let cancelled = false;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    (async () => {
+      const lats = points.map(p=>p.lat), lons = points.map(p=>p.lon);
+      const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+      const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+      // Same zoom-picking idea as pickZoomForBounds, but allowed to go much
+      // further out (down to z=1) since markers can legitimately span
+      // continents, unlike a single flight's track.
+      let zoom = 12;
+      for (let z = 12; z >= 1; z--) {
+        const p1 = lonLatToTile(minLon, maxLat, z);
+        const p2 = lonLatToTile(maxLon, minLat, z);
+        if (Math.abs(p2.x-p1.x)*256 <= W*2 && Math.abs(p2.y-p1.y)*256 <= H*2) { zoom = z; break; }
+        zoom = z;
+      }
+      const pad = 0.5; // extra tiles of margin around the bounding box
+      const tl = lonLatToTile(minLon, maxLat, zoom);
+      const br = lonLatToTile(maxLon, minLat, zoom);
+      const xMin = Math.floor(tl.x-pad), xMax = Math.floor(br.x+pad);
+      const yMin = Math.floor(tl.y-pad), yMax = Math.floor(br.y+pad);
+      const n = Math.pow(2, zoom);
+
+      const tileTasks = [];
+      for (let xi = xMin; xi <= xMax; xi++) {
+        for (let yi = yMin; yi <= yMax; yi++) {
+          const xw = ((xi % n) + n) % n;
+          const url = `https://tile.opentopomap.org/${zoom}/${xw}/${yi}.png`;
+          tileTasks.push(() => loadTileImage(url).then(img => ({ xi, yi, img })));
+        }
+      }
+      const tiles = await runWithConcurrencyLimit(tileTasks, 6);
+      if (cancelled) return;
+
+      const cx0 = xMin, cy0 = yMin;
+      const scale = W / ((xMax-xMin+1));
+      ctx.fillStyle = "#040e20";
+      ctx.fillRect(0,0,W,H);
+      for (const {xi,yi,img} of tiles) {
+        if (!img) continue;
+        ctx.drawImage(img, (xi-cx0)*scale, (yi-cy0)*scale, scale, scale);
+      }
+      setMissingTileCount(tiles.filter(t=>!t.img).length);
+
+      const xPos = lon => { const t = lonLatToTile(lon, 0, zoom); return (t.x-cx0)*scale; };
+      const yPos = lat => { const t = lonLatToTile(0, lat, zoom); return (t.y-cy0)*scale; };
+
+      for (const p of points) {
+        const px = xPos(p.lon), py = yPos(p.lat);
+        ctx.beginPath();
+        ctx.arc(px, py, 6*dpr, 0, Math.PI*2);
+        ctx.fillStyle = p.type === "SP" ? "#4ade80" : "#f87171";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.5*dpr;
+        ctx.stroke();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [points]);
+
+  return (
+    <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(20px + env(safe-area-inset-top, 0px)) 16px 14px",borderBottom:"1px solid rgba(100,180,255,0.1)",marginBottom:12}}>
+        <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
+          style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+          🏠
+        </button>
+        <button onClick={onBack} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer",padding:0}}>‹</button>
+        <div>
+          <div style={{fontSize:11,fontWeight:600,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Weltkarte</div>
+          <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:1}}>
+            {selectedIds && selectedIds.size>0 ? `${selectedIds.size} ausgewählte Flüge` : `Alle ${flights.length} Flüge`} · {points.length} Orte
+          </div>
+        </div>
+      </div>
+
+      <div style={{padding:"0 16px 10px",display:"flex",gap:8,alignItems:"center"}}>
+        <button onClick={()=>setShowSP(s=>!s)}
+          style={{background:showSP?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showSP?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showSP?"#4ade80":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          🛫 Startplätze
+        </button>
+        <button onClick={()=>setShowLP(s=>!s)}
+          style={{background:showLP?"rgba(248,113,113,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showLP?"rgba(248,113,113,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showLP?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          🛬 Landeplätze
+        </button>
+      </div>
+      <div style={{padding:"0 16px 12px"}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nach Platzname suchen…"
+          style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 12px",color:"#e8f4fd",fontSize:14}} />
+      </div>
+
+      {points.length === 0 ? (
+        <div style={{padding:"0 16px",color:"rgba(232,244,253,0.35)",fontSize:14}}>Keine Orte gefunden.</div>
+      ) : (
+        <div style={{margin:"0 16px",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
+          <canvas ref={canvasRef} style={{width:"100%",height:"60vh",display:"block"}} />
+        </div>
+      )}
+      {missingTileCount > 0 && (
+        <div style={{padding:"8px 16px 0",fontSize:11,color:"rgba(232,244,253,0.35)"}}>{missingTileCount} Kachel(n) konnten nicht geladen werden.</div>
+      )}
+    </div>
+  );
+}
+
+
 function FlightMap({ flight }) {
   const canvasRef = useRef(null);
   const fullCanvasRef = useRef(null);
@@ -926,142 +1079,6 @@ function FieldEditor({ customFieldDefs, onSave, onClose }) {
 }
 
 // ── Season Dashboard ────────────────────────────────────────────────────────
-function SeasonDash({ flights, onBack, pdfData }) {
-  const years = [...new Set(flights.map(f=>f.year).filter(Boolean))].sort().reverse();
-  const [yr, setYr] = useState(years[0]||"");
-  const [showMoreYears, setShowMoreYears] = useState(false);
-  const yf = flights.filter(f=>f.year===yr);
-  // Parse durationStr to seconds if durationSec missing
-  const parseDurStr = s => {
-    if (!s) return 0;
-    // HH:MM:SS
-    const dm = s.match(/(\d+):(\d{2}):(\d{2})/);
-    if (dm) return +dm[1]*3600 + +dm[2]*60 + +dm[3];
-    // HH:MM
-    const dm2 = s.match(/(\d+):(\d{2})/);
-    if (dm2) return +dm2[1]*60 + +dm2[2];
-    // "0h 53m" or "3h 44m"
-    const dm3 = s.match(/(\d+)h\s*(\d+)m/);
-    if (dm3) return +dm3[1]*3600 + +dm3[2]*60;
-    // "53m"
-    const dm4 = s.match(/(\d+)m/);
-    if (dm4) return +dm4[1]*60;
-    return 0;
-  };
-  const parseDur = f => {
-    if (f.durationSec > 0) return f.durationSec;
-    if (f.durationStr) return parseDurStr(f.durationStr);
-    // Optional fallback if a pdfData prop is ever passed in (currently unused)
-    const p = pdfData && pdfData[(f.name||"").match(/\d+/)?.[0]];
-    if (p?.dur) return parseDurStr(p.dur);
-    return 0;
-  };
-  const getDist = f => {
-    if (f.totalDist > 0) return f.totalDist;
-    const p = pdfData && pdfData[(f.name||"").match(/\d+/)?.[0]];
-    return parseFloat(f.customFields?.distKm || p?.dk || 0) || 0;
-  };
-  const getAlt = f => {
-    if (f.maxAlt > 0) return f.maxAlt;
-    const p = pdfData && pdfData[(f.name||"").match(/\d+/)?.[0]];
-    return +(f.customFields?.hMax || p?.hm || 0);
-  };
-  const totalSec = yf.reduce((s,f)=>s+parseDur(f),0);
-  const totalDist = yf.reduce((s,f)=>s+getDist(f),0);
-  const getDur = f => parseDur(f);
-  const prDur  = yf.length ? Math.max(...yf.map(getDur))  : 0;
-  const prDist = yf.length ? Math.max(...yf.map(getDist)) : 0;
-  const prAlt  = yf.length ? Math.max(...yf.map(getAlt))  : 0;
-  const prFlightDur  = yf.find(f=>getDur(f)===prDur);
-  const prFlightDist = yf.find(f=>getDist(f)===prDist);
-  const prFlightAlt  = yf.find(f=>getAlt(f)===prAlt);
-  const fmtDur = s => `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,"0")}m`;
-
-  const S = {
-    wrap:{padding:"0 16px 24px",background:"#040e20",minHeight:"100vh",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"},
-    yearRow:{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"},
-    yrBtn:(a)=>({background:a?"rgba(14,165,233,0.3)":"rgba(255,255,255,0.05)",border:a?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"6px 14px",color:a?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer",fontWeight:a?600:400}),
-    grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
-    box:{background:"rgba(255,255,255,0.05)",borderRadius:14,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
-    bigNum:{fontSize:26,fontWeight:800,color:"#7dd3fc",letterSpacing:-1},
-    lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
-    prBox:{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:14,padding:"14px 16px",marginBottom:10},
-    prTitle:{fontSize:11,fontWeight:600,color:"#f59e0b",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
-    prRow:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(245,158,11,0.08)"},
-    prLbl:{fontSize:13,color:"rgba(232,244,253,0.5)"},
-    prVal:{fontSize:13,fontWeight:600,color:"#fcd34d"},
-    prSub:{fontSize:11,color:"rgba(232,244,253,0.3)"},
-  };
-
-  if (!flights.length) return null;
-
-  return (
-    <div style={S.wrap}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(20px + env(safe-area-inset-top, 0px)) 0 14px",borderBottom:"1px solid rgba(100,180,255,0.1)",marginBottom:16}}>
-        <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
-          style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
-          🏠
-        </button>
-        <button onClick={onBack} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer",padding:0}}>‹</button>
-        <div>
-          <div style={{fontSize:11,fontWeight:600,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Saison-Übersicht</div>
-          <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:1}}>{flights.length} Flüge total</div>
-        </div>
-      </div>
-      <div style={S.yearRow}>
-        {years.slice(0,4).map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
-        {years.length>4 && (
-          <button onClick={()=>setShowMoreYears(true)}
-            style={S.yrBtn(years.slice(4).includes(yr))}>
-            {years.slice(4).includes(yr) ? yr : "Mehr ▾"}
-          </button>
-        )}
-      </div>
-      {showMoreYears && (
-        <div onClick={()=>setShowMoreYears(false)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:14,maxHeight:"60vh",overflowY:"auto",width:"100%",maxWidth:280,boxShadow:"0 8px 30px rgba(0,0,0,0.5)"}}>
-            <div style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.5)",marginBottom:8,padding:"0 4px"}}>Jahr wählen</div>
-            {years.slice(4).map(y=>(
-              <div key={y} onClick={()=>{setYr(y);setShowMoreYears(false);}}
-                style={{padding:"10px 12px",borderRadius:10,fontSize:15,cursor:"pointer",color:y===yr?"#7dd3fc":"#e8f4fd",background:y===yr?"rgba(14,165,233,0.15)":"transparent",marginBottom:2}}>
-                {y}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {yf.length===0 ? (
-        <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge in {yr}</div>
-      ) : (<>
-        <div style={S.grid}>
-          <div style={S.box}><div style={S.bigNum}>{yf.length}</div><div style={S.lbl}>Flüge</div></div>
-          <div style={S.box}><div style={S.bigNum}>{fmtDur(totalSec)}</div><div style={S.lbl}>Total Flugzeit</div></div>
-          <div style={S.box}><div style={S.bigNum}>{totalDist.toFixed(0)} km</div><div style={S.lbl}>Total Distanz</div></div>
-          <div style={S.box}><div style={S.bigNum}>{yf.length>0?(totalDist/yf.length).toFixed(1):0} km</div><div style={S.lbl}>Ø / Flug</div></div>
-        </div>
-        <div style={S.prBox}>
-          <div style={S.prTitle}>🏆 Persönliche Rekorde {yr}</div>
-          {[
-            ["Längster Flug",   prFlightDur?.name,  prDur  ? fmtDur(prDur)       : "—"],
-            ["Weitester Flug",  prFlightDist?.name, prDist ? prDist+" km"         : "—"],
-            ["Höchster Flug",   prFlightAlt?.name,  prAlt  ? prAlt+" m ü.M."      : "—"],
-          ].map(([label,name,val])=>(
-            <div key={label} style={S.prRow}>
-              <div>
-                <div style={S.prLbl}>{label}</div>
-                {name&&<div style={S.prSub}>Flug {name}</div>}
-              </div>
-              <span style={S.prVal}>{val}</span>
-            </div>
-          ))}
-        </div>
-      </>)}
-    </div>
-  );
-}
-
 // ── Main App ───────────────────────────────────────────────────────────────
 function lv03ToWgs84(e, n) {
   const y = (e - 600000) / 1000000, x = (n - 200000) / 1000000;
@@ -3311,7 +3328,7 @@ function FlugbuchApp() {
   const reiseLabels = useMemo(() => computeReiseLabels(flights, reisenNames), [flights, reisenNames]);
   const enrichedSelected = selected ? (flightsWithRanks.find(f=>f.id===selected.id) || selected) : null;
 
-  if (view==="season") return <SeasonDash flights={flights} onBack={()=>setView("list")} />;
+  if (view==="worldmap") return <WorldMapView flights={flights} selectedIds={selectedIds} onBack={()=>setView("list")} />;
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (view==="detail" && selected && isWide) {
@@ -3415,7 +3432,7 @@ function FlugbuchApp() {
         </div>
       </div>
 
-      {/* Row 2: Import / Backup / Auswahl / Saison / Richtung / Jahr — 6 quadratische Icon-Buttons */}
+      {/* Row 2: Import / Backup / Auswahl / Weltkarte / Richtung / Jahr — 6 quadratische Icon-Buttons */}
       <div style={{padding:"10px 16px 0",display:"flex",gap:8}}>
         <button onClick={()=>{ setShowImportMenu(m=>!m); setShowBackupMenu(false); }} title="Import"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showImportMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
@@ -3429,9 +3446,9 @@ function FlugbuchApp() {
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${selectMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:23,cursor:"pointer"}}>
           {selectMode?"✕":"☑"}
         </button>
-        <button onClick={()=>setView("season")} title="Saison"
+        <button onClick={()=>setView("worldmap")} title="Weltkarte"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
-          📊
+          🗺️
         </button>
         <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")} title={sortDir==="asc"?"Aufsteigend":"Absteigend"}
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>

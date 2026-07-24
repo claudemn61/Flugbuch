@@ -76,6 +76,114 @@ function sortRows(rows, field, dir) {
   return sorted;
 }
 
+// Ported from flugbuch.jsx's SeasonDash — same content (year selector, stats
+// grid, personal records), but without its own page header/back-button
+// since this now lives as a section inside Statistik's own page instead of
+// being a separate full-screen view.
+function SeasonSection({ flights }) {
+  const years = [...new Set(flights.map(f=>f.year).filter(Boolean))].sort().reverse();
+  const [yr, setYr] = useState(years[0]||"");
+  const [showMoreYears, setShowMoreYears] = useState(false);
+  const yf = flights.filter(f=>f.year===yr);
+  const parseDurStr = s => {
+    if (!s) return 0;
+    const dm = s.match(/(\d+):(\d{2}):(\d{2})/);
+    if (dm) return +dm[1]*3600 + +dm[2]*60 + +dm[3];
+    const dm2 = s.match(/(\d+):(\d{2})/);
+    if (dm2) return +dm2[1]*60 + +dm2[2];
+    const dm3 = s.match(/(\d+)h\s*(\d+)m/);
+    if (dm3) return +dm3[1]*3600 + +dm3[2]*60;
+    const dm4 = s.match(/(\d+)m/);
+    if (dm4) return +dm4[1]*60;
+    return 0;
+  };
+  const parseDur = f => f.durationSec > 0 ? f.durationSec : (f.durationStr ? parseDurStr(f.durationStr) : 0);
+  const getDist = f => f.totalDist > 0 ? f.totalDist : (parseFloat(f.customFields?.distKm || 0) || 0);
+  const getAlt = f => f.maxAlt > 0 ? f.maxAlt : (+(f.customFields?.hMax || 0));
+  const totalSec = yf.reduce((s,f)=>s+parseDur(f),0);
+  const totalDist = yf.reduce((s,f)=>s+getDist(f),0);
+  const getDur = f => parseDur(f);
+  const prDur  = yf.length ? Math.max(...yf.map(getDur))  : 0;
+  const prDist = yf.length ? Math.max(...yf.map(getDist)) : 0;
+  const prAlt  = yf.length ? Math.max(...yf.map(getAlt))  : 0;
+  const prFlightDur  = yf.find(f=>getDur(f)===prDur);
+  const prFlightDist = yf.find(f=>getDist(f)===prDist);
+  const prFlightAlt  = yf.find(f=>getAlt(f)===prAlt);
+  const fmtDur = s => `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,"0")}m`;
+
+  const S = {
+    yearRow:{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"},
+    yrBtn:(a)=>({background:a?"rgba(224,48,74,0.3)":"rgba(255,255,255,0.05)",border:a?"1px solid rgba(224,48,74,0.5)":"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"6px 14px",color:a?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer",fontWeight:a?600:400}),
+    grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
+    box:{background:"rgba(255,255,255,0.05)",borderRadius:14,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
+    bigNum:{fontSize:26,fontWeight:800,color:"#f87171",letterSpacing:-1},
+    lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
+    prBox:{background:"rgba(224,48,74,0.08)",border:"1px solid rgba(224,48,74,0.2)",borderRadius:14,padding:"14px 16px",marginBottom:10},
+    prTitle:{fontSize:11,fontWeight:600,color:"#f87171",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
+    prRow:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(224,48,74,0.08)"},
+    prLbl:{fontSize:13,color:"rgba(232,244,253,0.5)"},
+    prVal:{fontSize:13,fontWeight:600,color:"#fcd34d"},
+    prSub:{fontSize:11,color:"rgba(232,244,253,0.3)"},
+  };
+
+  if (!flights.length) return null;
+
+  return (
+    <div style={{margin:"10px 16px 0",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14}}>
+      <div style={S.yearRow}>
+        {years.slice(0,4).map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
+        {years.length>4 && (
+          <button onClick={()=>setShowMoreYears(true)}
+            style={S.yrBtn(years.slice(4).includes(yr))}>
+            {years.slice(4).includes(yr) ? yr : "Mehr ▾"}
+          </button>
+        )}
+      </div>
+      {showMoreYears && (
+        <div onClick={()=>setShowMoreYears(false)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#2a0d16",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:14,maxHeight:"60vh",overflowY:"auto",width:"100%",maxWidth:280,boxShadow:"0 8px 30px rgba(0,0,0,0.5)"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.5)",marginBottom:8,padding:"0 4px"}}>Jahr wählen</div>
+            {years.slice(4).map(y=>(
+              <div key={y} onClick={()=>{setYr(y);setShowMoreYears(false);}}
+                style={{padding:"10px 12px",borderRadius:10,fontSize:15,cursor:"pointer",color:y===yr?"#f87171":"#e8f4fd",background:y===yr?"rgba(224,48,74,0.15)":"transparent",marginBottom:2}}>
+                {y}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {yf.length===0 ? (
+        <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge in {yr}</div>
+      ) : (<>
+        <div style={S.grid}>
+          <div style={S.box}><div style={S.bigNum}>{yf.length}</div><div style={S.lbl}>Flüge</div></div>
+          <div style={S.box}><div style={S.bigNum}>{fmtDur(totalSec)}</div><div style={S.lbl}>Total Flugzeit</div></div>
+          <div style={S.box}><div style={S.bigNum}>{totalDist.toFixed(0)} km</div><div style={S.lbl}>Total Distanz</div></div>
+          <div style={S.box}><div style={S.bigNum}>{yf.length>0?(totalDist/yf.length).toFixed(1):0} km</div><div style={S.lbl}>Ø / Flug</div></div>
+        </div>
+        <div style={S.prBox}>
+          <div style={S.prTitle}>🏆 Persönliche Rekorde {yr}</div>
+          {[
+            ["Längster Flug",   prFlightDur?.name,  prDur  ? fmtDur(prDur)       : "—"],
+            ["Weitester Flug",  prFlightDist?.name, prDist ? prDist+" km"         : "—"],
+            ["Höchster Flug",   prFlightAlt?.name,  prAlt  ? prAlt+" m ü.M."      : "—"],
+          ].map(([label,name,val])=>(
+            <div key={label} style={S.prRow}>
+              <div>
+                <div style={S.prLbl}>{label}</div>
+                {name&&<div style={S.prSub}>Flug {name}</div>}
+              </div>
+              <span style={S.prVal}>{val}</span>
+            </div>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 function StatistikApp() {
   const [flights, setFlights] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -165,8 +273,8 @@ function StatistikApp() {
     { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#e0304a" },
     { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#e0304a" },
     { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#e0304a" },
+    { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a" },
   ];
-
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -191,8 +299,10 @@ function StatistikApp() {
       </div>
 
       {TABLES.map(t => openTable===t.id && (
-        <StatTable key={t.id} table={t} sortOptions={SORT_OPTIONS[t.id]}
-          initialDetailName={openTable===t.id ? restoreDetailName : null} />
+        t.id === "saison"
+          ? <SeasonSection key={t.id} flights={flights} />
+          : <StatTable key={t.id} table={t} sortOptions={SORT_OPTIONS[t.id]}
+              initialDetailName={openTable===t.id ? restoreDetailName : null} />
       ))}
     </div>
   );
