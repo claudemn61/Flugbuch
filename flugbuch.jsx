@@ -1,6 +1,14 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // ── IGC Parser ─────────────────────────────────────────────────────────────
+// Set by FlightProfile while its zoom level is above 1×, checked by the
+// swipe-between-flights handler further down so a horizontal drag inside a
+// zoomed profile chart can never also trigger navigating to the next/
+// previous flight. A plain module-level flag rather than React state/
+// context since this is a short-lived interaction lock between two
+// components that don't otherwise need to know about each other.
+let profileZoomActive = false;
+
 function parseIGC(text) {
   const lines = text.split("\n");
   const track = [];
@@ -874,6 +882,7 @@ function FlightProfile({ flight }) {
   // it to the start, 1 to the end.
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panPos, setPanPos] = useState(0.5);
+  const [zoomPickerOpen, setZoomPickerOpen] = useState(false);
   const viewScale = zoomLevel;
   const viewStart = Math.max(0, Math.min(1 - 1/viewScale, panPos * (1 - 1/viewScale)));
   const track = flight?.track || [];
@@ -900,6 +909,10 @@ function FlightProfile({ flight }) {
   const totalDist = distances[distances.length-1] || 0;
 
   useEffect(() => { setZoomLevel(1); setPanPos(0.5); }, [flight?.id]);
+  useEffect(() => {
+    profileZoomActive = zoomLevel > 1;
+    return () => { profileZoomActive = false; };
+  }, [zoomLevel]);
 
 
   useEffect(() => {
@@ -1035,12 +1048,25 @@ function FlightProfile({ flight }) {
     <div style={{marginBottom:14}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8}}>
         <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",flexShrink:0}}>Höhenprofil</div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,justifyContent:"flex-end"}}>
-          <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",flexShrink:0}}>Zoom</span>
-          <input type="range" min="1" max="8" step="1" value={zoomLevel}
-            onChange={e=>setZoomLevel(+e.target.value)}
-            style={{width:70,accentColor:"#7dd3fc"}} />
-          <span style={{fontSize:10,color:"rgba(232,244,253,0.6)",fontWeight:700,width:16,flexShrink:0}}>{zoomLevel}×</span>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,justifyContent:"flex-end",position:"relative"}}>
+          <button onClick={()=>setZoomPickerOpen(o=>!o)}
+            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"4px 10px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+            🔍 Zoom {zoomLevel}× ▾
+          </button>
+          {zoomPickerOpen && (
+            <div onClick={()=>setZoomPickerOpen(false)}
+              style={{position:"fixed",inset:0,zIndex:250}}>
+              <div onClick={e=>e.stopPropagation()}
+                style={{position:"absolute",top:0,right:16,marginTop:4,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70}}>
+                {[1,2,3,4,5,6,7,8].map(z=>(
+                  <button key={z} onClick={()=>{setZoomLevel(z);setZoomPickerOpen(false);}}
+                    style={{background:z===zoomLevel?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:z===zoomLevel?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:z===zoomLevel?700:400,cursor:"pointer",textAlign:"left"}}>
+                    {z}×
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {zoomLevel > 1 && (
             <button onClick={()=>setZoomLevel(1)}
               style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"3px 9px",color:"rgba(232,244,253,0.7)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0}}>
@@ -2440,11 +2466,12 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
       setInlinePassagier(next.customFields?.passagier || "");
     };
     const onTouchStart = (e) => {
+      if (profileZoomActive) { touchStart.current = null; return; }
       const t = e.touches[0];
       touchStart.current = { x: t.clientX, y: t.clientY };
     };
     const onTouchEnd = (e) => {
-      if (!touchStart.current) return;
+      if (!touchStart.current || profileZoomActive) return;
       const t = e.changedTouches[0];
       const dx = t.clientX - touchStart.current.x;
       const dy = t.clientY - touchStart.current.y;
