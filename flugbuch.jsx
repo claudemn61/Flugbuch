@@ -867,15 +867,13 @@ function FlightProfile({ flight }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
-  // Horizontal pinch-zoom/pan state: viewStart (0-1, fraction of totalDist
-  // where the visible window begins) and viewScale (1 = whole flight
-  // visible, higher = zoomed in). The Y-axis is recomputed from only the
-  // points actually inside the visible window each time these change, so
-  // zooming into a segment re-scales the altitude legend to that segment's
-  // own min/max rather than the whole flight's.
-  const [viewStart, setViewStart] = useState(0);
-  const [viewScale, setViewScale] = useState(1);
-  const gestureRef = useRef(null); // holds in-progress touch gesture state
+  // Stepped zoom (1-8) replaces the earlier pinch-gesture zoom, which kept
+  // conflicting with the page's own swipe-between-flights gesture no matter
+  // how it was tuned. The view is centred on the flight's midpoint — there's
+  // no separate pan control, just how far in the fixed centre-window zooms.
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const viewScale = zoomLevel;
+  const viewStart = Math.max(0, (1 - 1/viewScale) / 2);
   const track = flight?.track || [];
 
   const rawDistances = useMemo(() => {
@@ -899,72 +897,7 @@ function FlightProfile({ flight }) {
   const distances = useMemo(() => rawDistances.map(d => d*scale), [rawDistances, scale]);
   const totalDist = distances[distances.length-1] || 0;
 
-  useEffect(() => { setViewStart(0); setViewScale(1); }, [flight?.id]);
-
-  // Refs mirror the latest viewScale/viewStart so the gesture handlers
-  // always read the current value even mid-gesture (e.g. lifting one
-  // finger during a pinch, switching straight into pan) — reading from a
-  // closure captured only when the effect last ran could occasionally be
-  // one render behind, which was part of why the gesture felt unstable.
-  const viewScaleRef = useRef(viewScale);
-  const viewStartRef = useRef(viewStart);
-  useEffect(() => { viewScaleRef.current = viewScale; }, [viewScale]);
-  useEffect(() => { viewStartRef.current = viewStart; }, [viewStart]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dist = (a,b) => Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-
-    const onTouchStart = (e) => {
-      // Always claim touches starting on this chart — otherwise the page's
-      // own swipe-between-flights handler can start tracking the same
-      // gesture in parallel and win out partway through.
-      e.preventDefault();
-      if (e.touches.length === 2) {
-        gestureRef.current = {
-          mode: "pinch",
-          startDist: dist(e.touches[0], e.touches[1]),
-          startScale: viewScaleRef.current,
-          startView: viewStartRef.current,
-        };
-      } else if (e.touches.length === 1) {
-        gestureRef.current = {
-          mode: "pan",
-          startX: e.touches[0].clientX,
-          startView: viewStartRef.current,
-        };
-      }
-    };
-    const onTouchMove = (e) => {
-      const g = gestureRef.current;
-      if (!g) return;
-      e.preventDefault();
-      if (g.mode === "pinch" && e.touches.length === 2) {
-        const newDist = dist(e.touches[0], e.touches[1]);
-        const factor = newDist / (g.startDist || 1);
-        const newScale = Math.min(20, Math.max(1, g.startScale * factor));
-        setViewScale(newScale);
-        const maxStart = Math.max(0, 1 - 1/newScale);
-        setViewStart(s => Math.min(maxStart, Math.max(0, s)));
-      } else if (g.mode === "pan" && e.touches.length === 1 && viewScaleRef.current > 1) {
-        const dx = e.touches[0].clientX - g.startX;
-        const fracDelta = -dx / canvas.clientWidth / viewScaleRef.current;
-        const maxStart = Math.max(0, 1 - 1/viewScaleRef.current);
-        setViewStart(Math.min(maxStart, Math.max(0, g.startView + fracDelta)));
-      }
-    };
-    const onTouchEnd = () => { gestureRef.current = null; };
-
-    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
-    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
-    canvas.addEventListener("touchend", onTouchEnd);
-    return () => {
-      canvas.removeEventListener("touchstart", onTouchStart);
-      canvas.removeEventListener("touchmove", onTouchMove);
-      canvas.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [viewScale, viewStart]);
+  useEffect(() => { setZoomLevel(1); }, [flight?.id]);
 
 
   useEffect(() => {
@@ -1065,13 +998,20 @@ function FlightProfile({ flight }) {
         const nextOut = i<groundProfile.length-1 && groundProfile[i+1].distKm > visEnd;
         if (inRange || (prevOut && g.distKm < visStart) || (nextOut && g.distKm > visEnd)) visibleGround.push(g);
       }
-      ctx.beginPath(); ctx.moveTo(xPos(visStart), padT+plotH);
+      const firstElev = visibleGround.find(g=>g.elev!=null)?.elev;
+      const lastElev = [...visibleGround].reverse().find(g=>g.elev!=null)?.elev;
+      ctx.beginPath();
+      ctx.moveTo(xPos(visStart), firstElev!=null ? yPos(firstElev) : padT+plotH);
       visibleGround.forEach(g => { if (g.elev!=null) ctx.lineTo(xPos(g.distKm), yPos(g.elev)); });
-      ctx.lineTo(xPos(visEnd), padT+plotH); ctx.closePath();
+      if (lastElev!=null) ctx.lineTo(xPos(visEnd), yPos(lastElev));
+      ctx.lineTo(xPos(visEnd), padT+plotH);
+      ctx.lineTo(xPos(visStart), padT+plotH);
+      ctx.closePath();
       ctx.fillStyle = "rgba(120,72,32,0.55)"; ctx.fill();
       ctx.strokeStyle = "rgba(150,95,45,0.9)"; ctx.lineWidth = 1.5*dpr;
       ctx.beginPath();
-      visibleGround.forEach((g,i) => { if (g.elev!=null) { const px=xPos(g.distKm), py=yPos(g.elev); i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); } });
+      let started = false;
+      visibleGround.forEach((g) => { if (g.elev!=null) { const px=xPos(g.distKm), py=yPos(g.elev); if(!started){ctx.moveTo(px,py);started=true;} else ctx.lineTo(px,py); } });
       ctx.stroke();
     }
 
@@ -1091,20 +1031,27 @@ function FlightProfile({ flight }) {
 
   return (
     <div style={{marginBottom:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Höhenprofil</div>
-        {viewScale > 1.02 && (
-          <button onClick={()=>{setViewStart(0);setViewScale(1);}}
-            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"3px 9px",color:"rgba(232,244,253,0.7)",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-            ↺ Zoom zurücksetzen
-          </button>
-        )}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",flexShrink:0}}>Höhenprofil</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,justifyContent:"flex-end"}}>
+          <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",flexShrink:0}}>Zoom</span>
+          <input type="range" min="1" max="8" step="1" value={zoomLevel}
+            onChange={e=>setZoomLevel(+e.target.value)}
+            style={{width:70,accentColor:"#7dd3fc"}} />
+          <span style={{fontSize:10,color:"rgba(232,244,253,0.6)",fontWeight:700,width:16,flexShrink:0}}>{zoomLevel}×</span>
+          {zoomLevel > 1 && (
+            <button onClick={()=>setZoomLevel(1)}
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"3px 9px",color:"rgba(232,244,253,0.7)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+              ↺ Zoom zurücksetzen
+            </button>
+          )}
+        </div>
       </div>
       <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
-        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:"none"}} />
+        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block"}} />
       </div>
       {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Flugtrace wird trotzdem angezeigt.</div>}
-      {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert. Mit zwei Fingern horizontal zoombar.</div>}
+      {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert.</div>}
     </div>
   );
 }
