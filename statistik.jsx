@@ -269,11 +269,11 @@ function StatistikApp() {
   };
 
   const TABLES = [
-    { id: "schirm", icon: "🪂", label: "Schirm", rows: schirmRows, color: "#3b82f6" },
-    { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#4ade80" },
-    { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa" },
-    { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#f5a623" },
-    { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a" },
+    { id: "schirm", icon: "🪂", label: "Schirm", rows: schirmRows, color: "#3b82f6", glow: "rgba(59,130,246,0.5)" },
+    { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#4ade80", glow: "rgba(74,222,128,0.5)" },
+    { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#f5a623", glow: "rgba(245,166,35,0.5)" },
+    { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa", glow: "rgba(167,139,250,0.5)" },
+    { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a", glow: "rgba(224,48,74,0.5)" },
   ];
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
@@ -289,21 +289,25 @@ function StatistikApp() {
       </div>
 
       {/* 5 badges as full-width horizontal bars, stacked — each with its own
-          colour accent (left edge + tint), matching how Home's 4 tiles are
-          each colour-coded rather than a uniform 2x2 grid of same-coloured
-          boxes. */}
+          colour accent rail plus a radial-gradient glow blob behind the
+          icon, exactly matching Home's tile design (rail + icon glow)
+          rather than a uniform 2x2 grid of same-coloured boxes. */}
       <div style={{padding:"14px 16px 0",display:"flex",flexDirection:"column",gap:10}}>
         {TABLES.map(t => (
           <button key={t.id} onClick={()=>setOpenTable(openTable===t.id?null:t.id)}
-            style={{width:"100%",boxSizing:"border-box",display:"flex",alignItems:"center",gap:10,
+            style={{width:"100%",boxSizing:"border-box",display:"flex",alignItems:"stretch",padding:0,overflow:"hidden",
               background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
               border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
-              borderLeft:`4px solid ${t.color}`,
-              borderRadius:12,padding:"14px 16px",
-              color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
-            <span style={{fontSize:19}}>{t.icon}</span>
-            <span style={{flex:1}}>{t.label}</span>
-            <span style={{opacity:0.6,fontSize:13}}>{openTable===t.id?"▾":"▸"}</span>
+              borderRadius:12,color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+            {/* Accent rail */}
+            <div style={{width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
+            {/* Icon block with glow blob */}
+            <div style={{width:56,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+              background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
+              {t.icon}
+            </div>
+            <span style={{flex:1,display:"flex",alignItems:"center",padding:"14px 8px"}}>{t.label}</span>
+            <span style={{opacity:0.6,fontSize:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>
           </button>
         ))}
       </div>
