@@ -291,7 +291,13 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         f.name, f.site, f.glider, f.pilot, f.date, f.year, f.comment, f.notes,
         cf.landung, cf.passagier, cf.reise, cf.hGew, cf.hDiff, cf.maxSteigen, cf.maxSinken, cf.kmh,
       ].filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(q);
+      // "oder" splits into alternatives (any one matching is enough); within
+      // each alternative, space-separated words are implicitly AND'd (all
+      // must appear somewhere in the flight's combined fields) — e.g.
+      // "2026 Brasilien oder Wallis" means (2026 AND Brasilien) OR Wallis.
+      const orGroups = q.split(/\s+oder\s+/i).map(g => g.trim()).filter(Boolean);
+      if (!orGroups.length) return true;
+      return orGroups.some(group => group.split(/\s+/).filter(Boolean).every(term => hay.includes(term)));
     };
     for (const f of relevantFlights) {
       if (!flightMatches(f)) continue;
@@ -404,7 +410,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         </button>
       </div>
       <div style={{padding:"0 16px 12px"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen (alle Felder)…"
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen, z.B. „2026 Brasilien oder Wallis“…"
           style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 12px",color:"#e8f4fd",fontSize:14}} />
       </div>
 
