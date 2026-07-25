@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.0.5";
+const APP_VERSION = "3.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.1", note: "Höhenprofil-Zoom: Karte zoomt jetzt synchron mit auf denselben Streckenabschnitt, statt nur einen Punkt zu markieren. Referenzpunkt kräftiges Rot mit weissem Rand. Im Profil selbst zeigt eine dünne gestrichelte Linie die Mitte des Ausschnitts (entspricht dem Kartenpunkt)." },
   { v: "3.0.5", note: "Karte zeigt jetzt einen gelben Referenzpunkt, wenn das Höhenprofil gezoomt ist — folgt dynamisch der Mitte des sichtbaren Ausschnitts, sowohl in der kleinen Vorschau als auch im Vollbild." },
   { v: "3.0.4", note: "Höhenprofil: Verschieben-Regler entfernt — bei aktivem Zoom (>1×) wird stattdessen direkt im Profil per Wischen verschoben, Wischen zwischen Flügen bleibt währenddessen weiterhin komplett blockiert." },
   { v: "3.0.3", note: "Höhenprofil: Wischen zwischen Flügen ist jetzt komplett blockiert, solange das Profil gezoomt ist (>1×) — verhindert Konflikte beim Verschieben im Profil. Zoom-Regler durch einen Button mit Listenauswahl (1-8×) ersetzt." },

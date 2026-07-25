@@ -423,7 +423,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightDistKm }) {
+function FlightMap({ flight, highlightRange }) {
   const canvasRef = useRef(null);
   const fullCanvasRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -454,7 +454,16 @@ function FlightMap({ flight, highlightDistKm }) {
       return () => { cancelled = true; };
     }
 
-    const pts = track.length ? track : [sP,eP].filter(Boolean);
+    let pts = track.length ? track : [sP,eP].filter(Boolean);
+    if (highlightRange && track.length > 1) {
+      let acc = 0;
+      const segment = [track[0]];
+      for (let i=1;i<track.length;i++) {
+        acc += haversineDistKm(track[i-1], track[i]) || 0;
+        if (acc >= highlightRange.start - 0.05 && acc <= highlightRange.end + 0.05) segment.push(track[i]);
+      }
+      if (segment.length > 1) pts = segment;
+    }
     // A single noisy/erroneous GPS fix in the IGC file (common near the edges
     // of a recording) can sit far outside the real flight area and blow up
     // the whole bounding box, forcing a huge zoomed-out area full of empty/
@@ -508,23 +517,26 @@ function FlightMap({ flight, highlightDistKm }) {
         }
         drawM(tx(track[0].lon),ty(track[0].lat),"#22c55e","S");
         drawM(tx(track[track.length-1].lon),ty(track[track.length-1].lat),"#ef4444","L");
-        if (highlightDistKm != null && track.length > 1) {
-          // Find the track point nearest highlightDistKm along the flown
-          // path (cumulative haversine distance) — same basis FlightProfile
-          // itself uses before any manual-Distanz rescale, since that
-          // rescale is purely a display thing for the profile's own axis.
+        if (highlightRange != null && track.length > 1) {
+          // Find the track point nearest the excerpt's centre along the
+          // flown path (cumulative haversine distance) — same basis
+          // FlightProfile itself uses before any manual-Distanz rescale,
+          // since that rescale is purely a display thing for the profile's
+          // own axis.
           let acc = 0, bestIdx = 0, bestDiff = Infinity;
           for (let i=0;i<track.length;i++) {
             if (i>0) acc += haversineDistKm(track[i-1], track[i]) || 0;
-            const diff = Math.abs(acc - highlightDistKm);
+            const diff = Math.abs(acc - highlightRange.center);
             if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
           }
           const hp = track[bestIdx];
           const hx = tx(hp.lon), hy = ty(hp.lat);
-          ctx.beginPath(); ctx.arc(hx,hy,9,0,2*Math.PI);
-          ctx.strokeStyle="#fde047"; ctx.lineWidth=2.5; ctx.stroke();
-          ctx.beginPath(); ctx.arc(hx,hy,3.5,0,2*Math.PI);
-          ctx.fillStyle="#fde047"; ctx.fill();
+          ctx.beginPath(); ctx.arc(hx,hy,11,0,2*Math.PI);
+          ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.stroke();
+          ctx.beginPath(); ctx.arc(hx,hy,11,0,2*Math.PI);
+          ctx.strokeStyle="#dc2626"; ctx.lineWidth=4; ctx.stroke();
+          ctx.beginPath(); ctx.arc(hx,hy,4,0,2*Math.PI);
+          ctx.fillStyle="#dc2626"; ctx.fill();
         }
       } else {
         if(sP) drawM(tx(sP.lon),ty(sP.lat),"#22c55e","S");
@@ -659,7 +671,7 @@ function FlightMap({ flight, highlightDistKm }) {
       if (raf2) cancelAnimationFrame(raf2);
       if (cleanup) cleanup();
     };
-  }, [flight, highlightDistKm]);
+  }, [flight, highlightRange]);
 
   // Pinch-to-zoom / pan state for the fullscreen map. Implemented as a CSS
   // transform on the canvas element itself (scale + translate) rather than
@@ -749,7 +761,7 @@ function FlightMap({ flight, highlightDistKm }) {
       if (raf2) cancelAnimationFrame(raf2);
       if (cleanup) cleanup();
     };
-  }, [isFullscreen, flight, tileRetryTick, highlightDistKm]);
+  }, [isFullscreen, flight, tileRetryTick, highlightRange]);
 
   const hasMap = (flight?.track?.length) || (flight?.startPt && flight?.endPt);
 
@@ -932,18 +944,19 @@ function FlightProfile({ flight, onPositionChange }) {
     return () => { profileZoomActive = false; };
   }, [zoomLevel]);
 
-  // Tells the map above where (in the flight's own, unscaled distance
-  // units — the manual-Distanz proportional rescale only affects the axis
-  // display here, not the underlying track) the centre of the current
-  // zoomed excerpt sits, so it can drop a marker there. Only while
-  // actually zoomed in; at 1× there's no "excerpt" to point at.
+  // Tells the map above what part of the flight (in the flight's own,
+  // unscaled distance units — the manual-Distanz proportional rescale only
+  // affects the axis display here, not the underlying track) the current
+  // zoomed excerpt covers, so it can zoom to match and drop a marker at its
+  // centre. Only while actually zoomed in; at 1× there's no excerpt to
+  // match, so the map goes back to showing the whole flight.
   useEffect(() => {
     if (!onPositionChange) return;
     if (zoomLevel <= 1 || !totalDist) { onPositionChange(null); return; }
     const visStart = viewStart * totalDist;
     const visEnd = Math.min(totalDist, visStart + totalDist/viewScale);
-    const centerScaled = (visStart + visEnd) / 2;
-    onPositionChange(scale > 0 ? centerScaled / scale : centerScaled);
+    const toRaw = d => scale > 0 ? d / scale : d;
+    onPositionChange({ start: toRaw(visStart), end: toRaw(visEnd), center: toRaw((visStart+visEnd)/2) });
   }, [zoomLevel, viewStart, viewScale, totalDist, scale]);
 
   // Swipe-to-pan directly on the chart, active only while zoomed (>1×) —
@@ -1069,6 +1082,14 @@ function FlightProfile({ flight, onPositionChange }) {
     ctx.textAlign = "right"; ctx.fillText(visEnd.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
     if (viewScale > 1.02) {
       ctx.textAlign = "center"; ctx.fillText(`${viewScale.toFixed(1)}×`, padL+plotW/2, padT+9*dpr);
+      ctx.save();
+      ctx.setLineDash([4*dpr, 4*dpr]);
+      ctx.strokeStyle = "rgba(220,38,38,0.7)"; ctx.lineWidth = 1*dpr;
+      ctx.beginPath();
+      ctx.moveTo(padL+plotW/2, padT);
+      ctx.lineTo(padL+plotW/2, padT+plotH);
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (groundProfile && groundProfile.length) {
@@ -2601,7 +2622,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
       setSelected(upd);
     };
     const [notesEditing, setNotesEditing] = useState(false);
-    const [profileCenterDist, setProfileCenterDist] = useState(null);
+    const [profileRange, setProfileRange] = useState(null);
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
     useEffect(() => {
@@ -2757,8 +2778,8 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightDistKm={profileCenterDist} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileCenterDist} />
+          <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
