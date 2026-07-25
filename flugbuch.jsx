@@ -490,29 +490,30 @@ function FlightMap({ flight, highlightRange }) {
     const minLon=Math.min(...lons)-lonPad, maxLon=Math.max(...lons)+lonPad;
 
     const drawTrackAndMarkers = (tx, ty) => {
-      if (track.length) {
-        const alts=track.map(p=>p.gpsAlt), minA=Math.min(...alts), rng=Math.max(...alts)-minA||1;
-        for(let i=1;i<track.length;i++){
+      const traceTrack = (highlightRange && pts !== track && pts.length > 1) ? pts : track;
+      if (traceTrack.length) {
+        const alts=traceTrack.map(p=>p.gpsAlt), minA=Math.min(...alts), rng=Math.max(...alts)-minA||1;
+        for(let i=1;i<traceTrack.length;i++){
           // Fullscreen view: solid red, noticeably thicker, for maximum
           // legibility while zoomed/panned. Small preview: keep the
           // existing altitude-color-coded line as before.
           if (isFullscreenCanvas) {
-            const t=(track[i].gpsAlt-minA)/rng;
+            const t=(traceTrack[i].gpsAlt-minA)/rng;
             ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=9.5;
-            ctx.beginPath(); ctx.moveTo(tx(track[i-1].lon),ty(track[i-1].lat)); ctx.lineTo(tx(track[i].lon),ty(track[i].lat)); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
             ctx.strokeStyle=`hsl(${t*240},100%,50%)`;
             ctx.lineWidth=5.5; ctx.beginPath();
-            ctx.moveTo(tx(track[i-1].lon),ty(track[i-1].lat));
-            ctx.lineTo(tx(track[i].lon),ty(track[i].lat));
+            ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
+            ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
             ctx.stroke();
           } else {
-            const t=(track[i].gpsAlt-minA)/rng;
+            const t=(traceTrack[i].gpsAlt-minA)/rng;
             ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=5;
-            ctx.beginPath(); ctx.moveTo(tx(track[i-1].lon),ty(track[i-1].lat)); ctx.lineTo(tx(track[i].lon),ty(track[i].lat)); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
             ctx.strokeStyle=`hsl(${t*240},100%,50%)`;
             ctx.lineWidth=2.75; ctx.beginPath();
-            ctx.moveTo(tx(track[i-1].lon),ty(track[i-1].lat));
-            ctx.lineTo(tx(track[i].lon),ty(track[i].lat));
+            ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
+            ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
             ctx.stroke();
           }
         }
