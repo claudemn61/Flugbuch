@@ -457,7 +457,8 @@ function FlightMap({ flight, highlightRange }) {
     let pts = track.length ? track : [sP,eP].filter(Boolean);
     if (highlightRange && track.length > 1) {
       let acc = 0;
-      const segment = [track[0]];
+      const segment = [];
+      if (acc >= highlightRange.start - 0.05 && acc <= highlightRange.end + 0.05) segment.push(track[0]);
       for (let i=1;i<track.length;i++) {
         acc += haversineDistKm(track[i-1], track[i]) || 0;
         if (acc >= highlightRange.start - 0.05 && acc <= highlightRange.end + 0.05) segment.push(track[i]);
