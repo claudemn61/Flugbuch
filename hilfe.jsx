@@ -110,8 +110,37 @@ const SECTIONS = [
   },
 ];
 
+// Condensed quick-reference content — same information as the PDF short
+// version used to contain, now rendered in-app instead so Settings' short
+// manual doesn't need its own file in the repo either.
+function KurzContent() {
+  return (
+    <div className="hilfe-body">
+      <h3>Flugbuch</h3>
+      <ul>
+        <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
+        <li>📥 Import (IGC/CSV/Copy-Paste) · 💾 Backup · ☑ Auswahl · 🗺️ Weltkarte · ↕ Richtung · Jahr</li>
+        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch — Distanz bleibt manuell (XContest-Wert)</li>
+        <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
+        <li>Höhenprofil: 🔍-Button für Zoom 1-8×, bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit</li>
+      </ul>
+      <h3>Statistik</h3>
+      <p>5 Badges: Schirm · Startplätze · Landeplätze · Passagiere · Saison (Jahresübersicht + Rekorde)</p>
+      <h3>Reisen</h3>
+      <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
+      <h3>Wartung</h3>
+      <p>Ausrüstung, Packen-Intervall, nächstes fälliges Packdatum wird automatisch angezeigt</p>
+      <h3>Weltkarte-Suche</h3>
+      <p>Mehrere Wörter = automatisch UND. Das Wort "oder" trennt Alternativen: <code>2026 Brasilien oder Wallis</code></p>
+      <h3>Offline</h3>
+      <p>App-Start braucht immer Internet. Bereits offene App: gespeicherte Flüge funktionieren offline, Karten/Höhenprofil-Bodendaten/Zeitzonen brauchen weiterhin Verbindung.</p>
+    </div>
+  );
+}
+
 function HilfeApp() {
   const [openId, setOpenId] = useState(null);
+  const [mode, setMode] = useState(() => new URLSearchParams(location.search).get("kurz") ? "kurz" : "lang");
 
   const goBack = () => {
     if (document.referrer && document.referrer.includes(location.host)) {
@@ -147,28 +176,44 @@ function HilfeApp() {
         </span>
       </div>
 
-      {/* Table of contents */}
-      <div style={{padding:"16px 16px 4px"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Inhalt</div>
-        <div style={{display:"flex",flexDirection:"column",gap:2}}>
-          {SECTIONS.map(s => (
-            <a key={s.id} href={"#"+s.id}
-              style={{color:"#e8f4fd",fontSize:14,textDecoration:"none",padding:"6px 2px"}}>
-              {s.title}
-            </a>
-          ))}
-        </div>
+      {/* Ausführlich / Kurz toggle */}
+      <div style={{display:"flex",gap:8,padding:"14px 16px 0"}}>
+        <button onClick={()=>setMode("lang")}
+          style={{flex:1,background:mode==="lang"?"rgba(224,48,74,0.2)":"rgba(255,255,255,0.05)",border:`1px solid ${mode==="lang"?"rgba(224,48,74,0.5)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"9px",color:mode==="lang"?"#f87171":"rgba(232,244,253,0.6)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          Ausführlich
+        </button>
+        <button onClick={()=>setMode("kurz")}
+          style={{flex:1,background:mode==="kurz"?"rgba(224,48,74,0.2)":"rgba(255,255,255,0.05)",border:`1px solid ${mode==="kurz"?"rgba(224,48,74,0.5)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"9px",color:mode==="kurz"?"#f87171":"rgba(232,244,253,0.6)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          Kurzfassung
+        </button>
       </div>
 
-      {/* Sections */}
-      <div style={{padding:"8px 16px 0"}}>
-        {SECTIONS.map(s => (
-          <div key={s.id} id={s.id} style={{marginTop:22,paddingTop:6}}>
-            <div style={{fontSize:17,fontWeight:800,color:"#e0304a",marginBottom:8}}>{s.title}</div>
-            <div className="hilfe-body">{s.body()}</div>
+      {mode === "kurz" ? (
+        <div style={{padding:"16px 16px 0"}}><KurzContent /></div>
+      ) : (<>
+        {/* Table of contents */}
+        <div style={{padding:"16px 16px 4px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Inhalt</div>
+          <div style={{display:"flex",flexDirection:"column",gap:2}}>
+            {SECTIONS.map(s => (
+              <a key={s.id} href={"#"+s.id}
+                style={{color:"#e8f4fd",fontSize:14,textDecoration:"none",padding:"6px 2px"}}>
+                {s.title}
+              </a>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+
+        {/* Sections */}
+        <div style={{padding:"8px 16px 0"}}>
+          {SECTIONS.map(s => (
+            <div key={s.id} id={s.id} style={{marginTop:22,paddingTop:6}}>
+              <div style={{fontSize:17,fontWeight:800,color:"#e0304a",marginBottom:8}}>{s.title}</div>
+              <div className="hilfe-body">{s.body()}</div>
+            </div>
+          ))}
+        </div>
+      </>)}
 
       <div style={{textAlign:"center",padding:"24px 16px 8px",fontSize:10,color:"rgba(232,244,253,0.25)"}}>
         meinflugbuch — Hilfe

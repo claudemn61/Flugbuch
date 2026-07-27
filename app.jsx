@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.2.3";
+const APP_VERSION = "3.2.4";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.2.4", note: "Kurzfassung der Anleitung ist jetzt ein Umschalter innerhalb von hilfe.html statt eines separaten PDFs — keine zusätzliche Datei im Repo mehr nötig. Einstellungen → Kurzfassung öffnet direkt diese Ansicht." },
   { v: "3.2.3", note: "Home: Titel jetzt editierbar (antippen öffnet Editor) — beliebige Textteile mit je eigener Farbe, Schriftart (6 Stile) und Schriftgrösse, analog Tauchbuch. Zurücksetzen stellt \"meinflugbuch\" in Standard-Optik wieder her." },
   { v: "3.2.2", note: "Home: Kacheln 20% höher (Foto passt sich automatisch an). Hilfe-Badge auf Flugbuch/Statistik/Reisen/Wartung jetzt inline auf gleicher Zeile wie der Titel statt überlappend darüber schwebend; \"+ Flug\" dafür etwas schmaler." },
   { v: "3.2.1", note: "Ausführliche Anleitung ist jetzt eine eigene In-App-Seite (hilfe.html), analog Tauchbuch — mit Inhaltsverzeichnis und Sprungmarken, kein PDF-Download mehr nötig. Alle ❓-Buttons (Flugbuch/Statistik/Reisen/Wartung/Einstellungen) verlinken jetzt dorthin. Kurzfassung bleibt als PDF." },
@@ -455,9 +456,9 @@ function SettingsOverlay({ onClose }) {
                 style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
                 📖 Ausführliche Gebrauchsanleitung
               </button>
-              <button onClick={()=>window.open("anleitung-kurz.pdf","_blank")}
+              <button onClick={()=>window.location.href="hilfe.html?kurz=1"}
                 style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
-                📄 Kurzfassung (PDF)
+                📄 Kurzfassung
               </button>
             </div>
           )}
