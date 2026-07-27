@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.2.2";
+const APP_VERSION = "3.2.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.2.3", note: "Home: Titel jetzt editierbar (antippen öffnet Editor) — beliebige Textteile mit je eigener Farbe, Schriftart (6 Stile) und Schriftgrösse, analog Tauchbuch. Zurücksetzen stellt \"meinflugbuch\" in Standard-Optik wieder her." },
   { v: "3.2.2", note: "Home: Kacheln 20% höher (Foto passt sich automatisch an). Hilfe-Badge auf Flugbuch/Statistik/Reisen/Wartung jetzt inline auf gleicher Zeile wie der Titel statt überlappend darüber schwebend; \"+ Flug\" dafür etwas schmaler." },
   { v: "3.2.1", note: "Ausführliche Anleitung ist jetzt eine eigene In-App-Seite (hilfe.html), analog Tauchbuch — mit Inhaltsverzeichnis und Sprungmarken, kein PDF-Download mehr nötig. Alle ❓-Buttons (Flugbuch/Statistik/Reisen/Wartung/Einstellungen) verlinken jetzt dorthin. Kurzfassung bleibt als PDF." },
   { v: "3.2", note: "Home: Foto füllt jetzt den restlichen Platz (wie Tauchbuch), Kacheln haben feste Höhe. Neu: ❓ Hilfe-Sektion in Einstellungen mit beiden PDF-Anleitungen (ausführlich + Kurzfassung). Roter \"?\"-Hilfe-Badge oben rechts auf Flugbuch/Statistik/Reisen/Wartung, öffnet direkt die ausführliche Anleitung." },
@@ -285,6 +286,114 @@ const VERSION_LOG = [
   { v: "0.2", note: "Neue Statistik-Seite: Schirm, Passagiere, Land-/Startplätze, live aus Flugdaten." },
   { v: "0.1", note: "Erste Versionsnummer eingeführt, Startpunkt der Versionshistorie." },
 ];
+
+// ── Editable title (ported from Tauchbuch's home.jsx) ──────────────────────
+// Each text segment gets its own colour; font family/size apply to the
+// whole title. Segments/font are stored together so a full custom title
+// (text, colours, font, size) round-trips through Reset cleanly.
+const DEFAULT_TITLE_CFG = {
+  segments: [
+    { text: "mein", color: "#ffffff" },
+    { text: "flug", color: "#f59e0b" },
+    { text: "buch", color: "#ffffff" },
+  ],
+  fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
+  fontSize: 26,
+};
+const TITLE_FONTS = [
+  { label: "Standard", value: "-apple-system,BlinkMacSystemFont,sans-serif" },
+  { label: "Serifenschrift", value: "Georgia, 'Times New Roman', serif" },
+  { label: "Rund (Verdana)", value: "Verdana, Geneva, sans-serif" },
+  { label: "Schreibmaschine", value: "'Courier New', monospace" },
+  { label: "Handschrift", value: "'Comic Sans MS', 'Comic Sans', cursive" },
+  { label: "Elegant", value: "Didot, Georgia, serif" },
+];
+const TITLE_SWATCHES = ["#ffffff", "#f59e0b", "#38bdf8", "#4ade80", "#f87171", "#a78bfa"];
+let segIdCounter = 0;
+const newSegId = () => `seg${Date.now()}_${segIdCounter++}`;
+
+function TitleEditor({ current, onSave, onReset, onClose }) {
+  const [segments, setSegments] = useState(
+    current.segments.map(s => ({ ...s, _id: newSegId() }))
+  );
+  const [fontFamily, setFontFamily] = useState(current.fontFamily);
+  const [fontSize, setFontSize] = useState(current.fontSize);
+
+  const updateSeg = (id, patch) => setSegments(segs => segs.map(s => s._id===id ? {...s, ...patch} : s));
+  const addSeg = () => setSegments(segs => [...segs, { _id: newSegId(), text: "neu", color: "#ffffff" }]);
+  const removeSeg = (id) => setSegments(segs => segs.length>1 ? segs.filter(s=>s._id!==id) : segs);
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 20px",maxWidth:380,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>Titel bearbeiten</div>
+
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:6}}>Textteile (je mit eigener Farbe)</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {segments.map(seg => (
+              <div key={seg._id} style={{display:"flex",alignItems:"center",gap:8}}>
+                <input value={seg.text} onChange={e=>updateSeg(seg._id,{text:e.target.value})}
+                  style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(56,189,248,0.4)",borderRadius:8,padding:"6px 9px",color:"#e8f4fd",fontSize:13}} />
+                <input type="color" value={seg.color} onChange={e=>updateSeg(seg._id,{color:e.target.value})}
+                  style={{width:28,height:26,border:"none",background:"none",cursor:"pointer",padding:0,flexShrink:0}} />
+                <button onClick={()=>removeSeg(seg._id)} disabled={segments.length<=1}
+                  style={{background:"none",border:"none",color:segments.length<=1?"rgba(232,244,253,0.15)":"#f87171",fontSize:15,cursor:segments.length<=1?"default":"pointer",flexShrink:0,padding:"2px 4px"}}>✕</button>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+            {segments.map(seg => (
+              <div key={seg._id} style={{display:"flex",gap:4}}>
+                {TITLE_SWATCHES.map(c => (
+                  <div key={c} onClick={()=>updateSeg(seg._id,{color:c})}
+                    title={`"${seg.text}" einfärben`}
+                    style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:seg.color===c?"2px solid #7dd3fc":"1px solid rgba(255,255,255,0.25)"}} />
+                ))}
+              </div>
+            ))}
+          </div>
+          <button onClick={addSeg}
+            style={{marginTop:8,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 10px",color:"rgba(232,244,253,0.7)",fontSize:12,cursor:"pointer"}}>
+            + Textteil
+          </button>
+        </div>
+
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:4}}>Schriftart (für den ganzen Titel)</div>
+          <select value={fontFamily} onChange={e=>setFontFamily(e.target.value)}
+            style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 10px",color:"#e8f4fd",fontSize:14}}>
+            {TITLE_FONTS.map(f => <option key={f.value} value={f.value} style={{background:"#0a1628"}}>{f.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:4}}>Schriftgrösse: {fontSize}px</div>
+          <input type="range" min="16" max="40" value={fontSize} onChange={e=>setFontSize(+e.target.value)}
+            style={{width:"100%"}} />
+        </div>
+
+        <div style={{textAlign:"center",marginBottom:16,padding:"14px 0",background:"rgba(255,255,255,0.03)",borderRadius:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+          <span style={{fontFamily,fontSize,fontWeight:900,letterSpacing:-0.5}}>
+            {segments.map(seg => <span key={seg._id} style={{color:seg.color}}>{seg.text}</span>)}
+          </span>
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onReset}
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
+            Zurücksetzen
+          </button>
+          <button onClick={()=>onSave({ segments: segments.map(({_id,...s})=>s), fontFamily, fontSize })}
+            style={{flex:1,background:"linear-gradient(135deg,#0ea5e9,#0284c7)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SettingsOverlay({ onClose }) {
 
@@ -420,6 +529,28 @@ function HomeApp() {
   const [serviceUrgency, setServiceUrgency] = useState({ packen: null, check: null });
   const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null });
   const [showSettings, setShowSettings] = useState(false);
+  const [titleCfg, setTitleCfg] = useState(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("flugbuch:titleConfig");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.segments) setTitleCfg(parsed);
+      }
+    } catch {}
+  }, []);
+  const saveTitleCfg = (cfg) => {
+    setTitleCfg(cfg);
+    setEditingTitle(false);
+    try { localStorage.setItem("flugbuch:titleConfig", JSON.stringify(cfg)); } catch (e) { console.error("Titel-Speicherfehler:", e); }
+  };
+  const resetTitleCfg = () => {
+    setTitleCfg(null);
+    setEditingTitle(false);
+    try { localStorage.removeItem("flugbuch:titleConfig"); } catch {}
+  };
 
   useEffect(() => {
     readServiceUrgency().then(setServiceUrgency);
@@ -554,6 +685,14 @@ function HomeApp() {
       fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
     }}>
       {showSettings && <SettingsOverlay onClose={()=>setShowSettings(false)} />}
+      {editingTitle && (
+        <TitleEditor
+          current={titleCfg || DEFAULT_TITLE_CFG}
+          onSave={saveTitleCfg}
+          onReset={resetTitleCfg}
+          onClose={()=>setEditingTitle(false)}
+        />
+      )}
 
       {/* Full-bleed photo: extends to the screen's top/left/right edges
           (no padding, no border, no rounding on those sides) so it reads as
@@ -592,8 +731,9 @@ function HomeApp() {
                 style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0 }}>
                 ⚙️
               </button>
-              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1 }}>
-                mein<span style={{ color: "#f59e0b" }}>flug</span>buch
+              <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
+                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer" }}>
+                {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
               </div>
               <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0 }}>
                 v{APP_VERSION}
