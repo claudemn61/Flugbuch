@@ -124,6 +124,10 @@ function ReisenApp() {
   return (
     <div style={{minHeight:"100vh",background:"#241805",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",position:"sticky",top:0,zIndex:10,backdropFilter:"blur(10px)"}}>
+        <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
+          style={{position:"absolute",top:"calc(8px + env(safe-area-inset-top, 0px))",right:10,zIndex:11,width:24,height:24,borderRadius:"50%",background:"#ef4444",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.4)"}}>
+          ?
+        </button>
         <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
           🏠

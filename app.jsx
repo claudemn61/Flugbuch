@@ -191,12 +191,14 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.1.1";
+const APP_VERSION = "3.2.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.2.1", note: "Ausführliche Anleitung ist jetzt eine eigene In-App-Seite (hilfe.html), analog Tauchbuch — mit Inhaltsverzeichnis und Sprungmarken, kein PDF-Download mehr nötig. Alle ❓-Buttons (Flugbuch/Statistik/Reisen/Wartung/Einstellungen) verlinken jetzt dorthin. Kurzfassung bleibt als PDF." },
+  { v: "3.2", note: "Home: Foto füllt jetzt den restlichen Platz (wie Tauchbuch), Kacheln haben feste Höhe. Neu: ❓ Hilfe-Sektion in Einstellungen mit beiden PDF-Anleitungen (ausführlich + Kurzfassung). Roter \"?\"-Hilfe-Badge oben rechts auf Flugbuch/Statistik/Reisen/Wartung, öffnet direkt die ausführliche Anleitung." },
   { v: "3.1.1", note: "Weltkarte-Suche: logische Verknüpfung — mehrere Wörter mit Leerzeichen sind automatisch UND-verknüpft, \"oder\" trennt Alternativen (z.B. \"2026 Brasilien oder Wallis\")." },
   { v: "3.1", note: "Höhenprofil-Zoom: Karte zoomt jetzt synchron mit auf denselben Streckenabschnitt, statt nur einen Punkt zu markieren. Referenzpunkt kräftiges Rot mit weissem Rand. Im Profil selbst zeigt eine dünne gestrichelte Linie die Mitte des Ausschnitts (entspricht dem Kartenpunkt)." },
   { v: "3.0.5", note: "Karte zeigt jetzt einen gelben Referenzpunkt, wenn das Höhenprofil gezoomt ist — folgt dynamisch der Mitte des sichtbaren Ausschnitts, sowohl in der kleinen Vorschau als auch im Vollbild." },
@@ -328,6 +330,27 @@ function SettingsOverlay({ onClose }) {
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <span style={{fontSize:17,fontWeight:800,color:"#fff"}}>⚙️ Einstellungen</span>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:20,width:30,height:30,color:"#fff",fontSize:16,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {/* Hilfe: links to both manual PDFs */}
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden",marginBottom:10}}>
+          <div onClick={()=>setOpenFolder(openFolder==="hilfe"?null:"hilfe")}
+            style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+            <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>❓ Hilfe</span>
+            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>{openFolder==="hilfe"?"▾":"▸"}</span>
+          </div>
+          {openFolder==="hilfe" && (
+            <div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:8}}>
+              <button onClick={()=>window.location.href="hilfe.html"}
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
+                📖 Ausführliche Gebrauchsanleitung
+              </button>
+              <button onClick={()=>window.open("anleitung-kurz.pdf","_blank")}
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
+                📄 Kurzfassung (PDF)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Log Files folder */}
@@ -538,14 +561,14 @@ function HomeApp() {
           of the page. Title sits bottom-left over it. Still tappable
           anywhere on the image to change the photo — just without the
           former small "Bild ändern" caption spelling that out. */}
-      <div style={{ flexShrink: 0 }}>
+      <div style={{ flex: "1 1 auto", minHeight: 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
           onClick={() => fileRef.current && fileRef.current.click()}
           style={{
             position: "relative",
             overflow: "hidden",
-            aspectRatio: isWide ? "14/9" : "28/27",
+            height: "100%",
             background: photoUrl
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
@@ -585,7 +608,7 @@ function HomeApp() {
       <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "0 20px", flexShrink: 0 }} />
 
       {/* Tiles — fill remaining space, each tile sized proportionally */}
-      <div style={{ padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: 1, minHeight: 0 }}>
+      <div style={{ padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: "0 0 auto" }}>
         {TILES.map((t) => (
           <div
             key={t.id}
@@ -596,8 +619,8 @@ function HomeApp() {
               position: "relative",
               display: "flex",
               alignItems: "stretch",
-              flex: 1,
-              minHeight: 0,
+              flex: "0 0 auto",
+              height: "calc((100vw - 40px) * 0.24)",
               borderRadius: 14,
               background: "rgba(255,255,255,0.035)",
               border: `1px solid ${t.ready ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)"}`,
