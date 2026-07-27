@@ -545,7 +545,7 @@ function HomeApp() {
           style={{
             position: "relative",
             overflow: "hidden",
-            aspectRatio: isWide ? "21/6" : "21/9",
+            aspectRatio: isWide ? "14/9" : "28/27",
             background: photoUrl
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
@@ -562,18 +562,21 @@ function HomeApp() {
               <path d="M40,135 L90,112 L120,122 L200,90" stroke="#e8f4fd" strokeWidth="1" fill="none" opacity="0.15" />
             </svg>
           )}
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)" }}>
-              mein<span style={{ color: "#f59e0b" }}>flug</span>buch
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <span style={{ fontSize: 11, color: "#ffffff", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)" }}>
-                v{APP_VERSION}
-              </span>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 10px", background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }}>
+                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0 }}>
                 ⚙️
               </button>
+              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1 }}>
+                mein<span style={{ color: "#f59e0b" }}>flug</span>buch
+              </div>
+              <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0 }}>
+                v{APP_VERSION}
+              </div>
+            </div>
+            <div style={{ textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.6)", textShadow: "0 1px 4px rgba(0,0,0,0.85)", marginTop: 3 }}>
+              © Claude Mair-Noack
             </div>
           </div>
         </div>
