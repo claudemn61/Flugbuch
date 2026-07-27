@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.2.1";
+const APP_VERSION = "3.2.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "3.2.2", note: "Home: Kacheln 20% höher (Foto passt sich automatisch an). Hilfe-Badge auf Flugbuch/Statistik/Reisen/Wartung jetzt inline auf gleicher Zeile wie der Titel statt überlappend darüber schwebend; \"+ Flug\" dafür etwas schmaler." },
   { v: "3.2.1", note: "Ausführliche Anleitung ist jetzt eine eigene In-App-Seite (hilfe.html), analog Tauchbuch — mit Inhaltsverzeichnis und Sprungmarken, kein PDF-Download mehr nötig. Alle ❓-Buttons (Flugbuch/Statistik/Reisen/Wartung/Einstellungen) verlinken jetzt dorthin. Kurzfassung bleibt als PDF." },
   { v: "3.2", note: "Home: Foto füllt jetzt den restlichen Platz (wie Tauchbuch), Kacheln haben feste Höhe. Neu: ❓ Hilfe-Sektion in Einstellungen mit beiden PDF-Anleitungen (ausführlich + Kurzfassung). Roter \"?\"-Hilfe-Badge oben rechts auf Flugbuch/Statistik/Reisen/Wartung, öffnet direkt die ausführliche Anleitung." },
   { v: "3.1.1", note: "Weltkarte-Suche: logische Verknüpfung — mehrere Wörter mit Leerzeichen sind automatisch UND-verknüpft, \"oder\" trennt Alternativen (z.B. \"2026 Brasilien oder Wallis\")." },
@@ -620,7 +621,7 @@ function HomeApp() {
               display: "flex",
               alignItems: "stretch",
               flex: "0 0 auto",
-              height: "calc((100vw - 40px) * 0.24)",
+              height: "calc((100vw - 40px) * 0.288)",
               borderRadius: 14,
               background: "rgba(255,255,255,0.035)",
               border: `1px solid ${t.ready ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)"}`,

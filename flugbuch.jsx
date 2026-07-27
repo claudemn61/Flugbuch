@@ -3618,10 +3618,6 @@ function FlugbuchApp() {
 
       {/* Header */}
       <div style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
-      <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
-        style={{position:"absolute",top:"calc(8px + env(safe-area-inset-top, 0px))",right:10,zIndex:11,width:24,height:24,borderRadius:"50%",background:"#ef4444",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.4)"}}>
-        ?
-      </button>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
         <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
@@ -3630,8 +3626,12 @@ function FlugbuchApp() {
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center",marginLeft:-8}}>
           ✈️ Flugbuch
         </span>
-        <div style={{display:"flex",gap:8,flexShrink:0}}>
-          <button onClick={addNewFlight} style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Flug</button>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+          <button onClick={addNewFlight} style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Flug</button>
+          <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
+            style={{width:24,height:24,borderRadius:"50%",background:"#ef4444",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.4)",flexShrink:0}}>
+            ?
+          </button>
         </div>
       </div>
 
