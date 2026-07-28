@@ -831,7 +831,7 @@ function FlightMap({ flight, highlightRange }) {
   return (
     <>
       <div style={{position:"relative"}} onClick={()=>{ if (hasMap) setIsFullscreen(true); }}>
-        <canvas ref={canvasRef} style={{width:"100%",height:140,background:"#040e20",borderRadius:10,display:"block",cursor:hasMap?"pointer":"default"}} />
+        <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"3/2",background:"#040e20",borderRadius:10,display:"block",cursor:hasMap?"pointer":"default"}} />
         {hasMap && (
           <div style={{position:"absolute",bottom:2,right:6,fontSize:8,color:"rgba(255,255,255,0.4)",textShadow:"0 1px 2px rgba(0,0,0,0.8)"}}>
             © OpenTopoMap (CC-BY-SA)
