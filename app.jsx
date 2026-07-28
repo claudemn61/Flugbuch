@@ -191,12 +191,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "3.2.5";
+const APP_VERSION = "4.0";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.0", note: "Neu: Offline-Fähigkeit über Service Worker (network-first mit Cache-Fallback, wie meintauchbuch) — ab dem zweiten erfolgreichen Online-Start funktioniert die App auch ohne Internetverbindung. Nach einem Redeploy wird stets sofort die neueste Version geladen, keine veraltete gecachte Version mehr sichtbar." },
   { v: "3.2.5", note: "Wartung: Schirm/Reserve jetzt echter Umschalter (immer genau eine Sektion offen, statt beide schliessbar). Check-Daten werden auf ein einheitliches Format (TT.MM.JJJJ) normalisiert, auch bereits vorhandene mit uneinheitlichem Format. Statistik: Saison-Auswahl hat jetzt eine \"Alle\"-Option ganz links, danach aktuelles Jahr, -1, -2, -3, ältere unter \"Mehr\"." },
   { v: "3.2.4", note: "Kurzfassung der Anleitung ist jetzt ein Umschalter innerhalb von hilfe.html statt eines separaten PDFs — keine zusätzliche Datei im Repo mehr nötig. Einstellungen → Kurzfassung öffnet direkt diese Ansicht." },
   { v: "3.2.3", note: "Home: Titel jetzt editierbar (antippen öffnet Editor) — beliebige Textteile mit je eigener Farbe, Schriftart (6 Stile) und Schriftgrösse, analog Tauchbuch. Zurücksetzen stellt \"meinflugbuch\" in Standard-Optik wieder her." },

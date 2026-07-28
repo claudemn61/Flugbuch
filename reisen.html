@@ -241,5 +241,15 @@
   });
 </script>
 
+<script>
+  window.addEventListener("load", function() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function(e) {
+        console.error("Service-Worker-Registrierung fehlgeschlagen:", e);
+      });
+    }
+  });
+</script>
+
 </body>
 </html>

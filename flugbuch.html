@@ -246,5 +246,17 @@
   });
 </script>
 
+
+<script>
+  // Service Worker: ermöglicht Offline-Nutzung ab dem zweiten Online-Start.
+  // Siehe sw.js für die Cache-Strategie (network-first, cache-fallback).
+  window.addEventListener("load", function() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function(e) {
+        console.error("Service-Worker-Registrierung fehlgeschlagen:", e);
+      });
+    }
+  });
+</script>
 </body>
 </html>
