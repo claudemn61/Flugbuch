@@ -16,11 +16,13 @@ const SECTIONS = [
         <tr><td>🧭</td><td><b>Reisen</b></td><td>Flüge zu Reisen zusammengefasst, mit Kennzahlen je Reise</td></tr>
         <tr><td>🛠️</td><td><b>Wartung</b></td><td>Ausrüstungsverwaltung inkl. Packen-Intervall und fälligem Packdatum</td></tr>
       </tbody></table>
-      <h3>1.2 Offline-Nutzung — wichtige Einschränkung</h3>
-      <p>Die App benötigt <b>beim Starten/Neuladen immer eine Internetverbindung</b>, da die Programmlogik jedes Mal frisch geladen wird. Ist die App bereits offen, funktionieren bereits gespeicherte Flüge (ansehen/bearbeiten) auch ohne Verbindung. Folgendes braucht in jedem Fall eine Verbindung, auch bei bereits offener App:</p>
+      <h3>1.2 Offline-Nutzung</h3>
+      <p>Die App merkt sich beim ersten erfolgreichen Online-Aufruf automatisch ihre eigenen Dateien (Service Worker). Ab dem <b>zweiten</b> Online-Start funktioniert sie danach auch komplett ohne Internetverbindung, inkl. Öffnen der App über das Home-Bildschirm-Icon. Fehlt die Verbindung, erscheint unten ein gelbes Banner "Offline — zuletzt gespeicherter Stand" — die Nutzung ist davon nicht eingeschränkt.</p>
+      <p>Nach jedem App-Update wird beim nächsten Online-Aufruf automatisch die neueste Version geladen (kein veralteter Stand sichtbar).</p>
+      <p>Folgendes funktioniert offline nur eingeschränkt bzw. gar nicht, da es auf externe Dienste angewiesen ist, die nicht vorab gespeichert werden:</p>
       <ul>
-        <li>Kartenkacheln (Flug-Track-Karte, Weltkarte)</li>
-        <li>Höhenprofil-Bodendaten</li>
+        <li>Neue Kartenkacheln, die noch nie zuvor geladen wurden (bereits angesehene Ausschnitte bleiben gespeichert)</li>
+        <li>Höhenprofil-Bodendaten für neue Flüge</li>
         <li>Zeitzonen-Bestimmung beim IGC-Import</li>
         <li>GPS Visualizer und andere externe Links</li>
       </ul>
@@ -133,7 +135,7 @@ function KurzContent() {
       <h3>Weltkarte-Suche</h3>
       <p>Mehrere Wörter = automatisch UND. Das Wort "oder" trennt Alternativen: <code>2026 Brasilien oder Wallis</code></p>
       <h3>Offline</h3>
-      <p>App-Start braucht immer Internet. Bereits offene App: gespeicherte Flüge funktionieren offline, Karten/Höhenprofil-Bodendaten/Zeitzonen brauchen weiterhin Verbindung.</p>
+      <p>Ab dem zweiten Online-Start funktioniert die App komplett offline (Service Worker). Gelbes Banner zeigt an, wenn offline. Nur neue Kartenkacheln/Höhenprofil-Bodendaten/Zeitzonen-Bestimmung brauchen weiterhin Verbindung.</p>
     </div>
   );
 }
