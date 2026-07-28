@@ -752,7 +752,7 @@ function HomeApp() {
               display: "flex",
               alignItems: "stretch",
               flex: "0 0 auto",
-              height: "calc((100vw - 40px) * 0.288)",
+              height: "calc((100vw - 40px) * 0.3168)",
               borderRadius: 14,
               background: "rgba(255,255,255,0.035)",
               border: `1px solid ${t.ready ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)"}`,
