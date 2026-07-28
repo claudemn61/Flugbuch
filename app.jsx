@@ -444,25 +444,14 @@ function SettingsOverlay({ onClose }) {
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:20,width:30,height:30,color:"#fff",fontSize:16,cursor:"pointer"}}>✕</button>
         </div>
 
-        {/* Hilfe: links to both manual PDFs */}
+        {/* Hilfe: direct link to the in-app help page */}
         <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden",marginBottom:10}}>
-          <div onClick={()=>setOpenFolder(openFolder==="hilfe"?null:"hilfe")}
-            style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+          <div
+            style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}
+            onClick={()=>window.location.href="hilfe.html"}>
             <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>❓ Hilfe</span>
-            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>{openFolder==="hilfe"?"▾":"▸"}</span>
+            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>›</span>
           </div>
-          {openFolder==="hilfe" && (
-            <div style={{padding:"0 14px 14px",display:"flex",flexDirection:"column",gap:8}}>
-              <button onClick={()=>window.location.href="hilfe.html"}
-                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
-                📖 Ausführliche Gebrauchsanleitung
-              </button>
-              <button onClick={()=>window.location.href="hilfe.html?kurz=1"}
-                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
-                📄 Kurzfassung
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Log Files folder */}
