@@ -3629,7 +3629,7 @@ function FlugbuchApp() {
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={addNewFlight} style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Flug</button>
           <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
-            style={{width:24,height:24,borderRadius:"50%",background:"#ef4444",border:"1px solid rgba(255,255,255,0.4)",color:"#fff",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:"0 2px 6px rgba(0,0,0,0.4)",flexShrink:0}}>
+            style={{width:24,height:24,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
             ?
           </button>
         </div>
