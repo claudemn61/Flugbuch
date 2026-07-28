@@ -492,8 +492,31 @@ function FlightMap({ flight, highlightRange }) {
     const lats=cleanPts.map(p=>p.lat), lons=cleanPts.map(p=>p.lon);
     const latPad = Math.max((Math.max(...lats)-Math.min(...lats))*0.15, 0.003);
     const lonPad = Math.max((Math.max(...lons)-Math.min(...lons))*0.15, 0.003);
-    const minLat=Math.min(...lats)-latPad, maxLat=Math.max(...lats)+latPad;
-    const minLon=Math.min(...lons)-lonPad, maxLon=Math.max(...lons)+lonPad;
+    let minLat=Math.min(...lats)-latPad, maxLat=Math.max(...lats)+latPad;
+    let minLon=Math.min(...lons)-lonPad, maxLon=Math.max(...lons)+lonPad;
+    // Expand whichever dimension is "too narrow" so the fetched geographic
+    // box's own aspect ratio already matches the canvas — avoids the old
+    // contain-fit letterboxing, since there's now nothing to letterbox.
+    // Longitude degrees need a cos(latitude) correction to compare fairly
+    // against latitude degrees (a degree of longitude covers less real
+    // distance the further from the equator you are).
+    {
+      const destAspect = W / H;
+      const centerLatRad = (minLat+maxLat)/2 * Math.PI/180;
+      const lonSpanPhysical = (maxLon-minLon) * Math.cos(centerLatRad);
+      const latSpan = maxLat-minLat;
+      const currentAspect = lonSpanPhysical / (latSpan||0.0001);
+      if (currentAspect > destAspect) {
+        const neededLatSpan = lonSpanPhysical / destAspect;
+        const extra = (neededLatSpan - latSpan) / 2;
+        minLat -= extra; maxLat += extra;
+      } else {
+        const neededLonSpanPhysical = latSpan * destAspect;
+        const neededLonSpan = neededLonSpanPhysical / Math.cos(centerLatRad);
+        const extra = (neededLonSpan - (maxLon-minLon)) / 2;
+        minLon -= extra; maxLon += extra;
+      }
+    }
 
     const drawTrackAndMarkers = (tx, ty) => {
       const traceTrack = (highlightRange && pts !== track && pts.length > 1) ? pts : track;
