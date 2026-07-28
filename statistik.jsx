@@ -82,9 +82,15 @@ function sortRows(rows, field, dir) {
 // being a separate full-screen view.
 function SeasonSection({ flights }) {
   const years = [...new Set(flights.map(f=>f.year).filter(Boolean))].sort().reverse();
+  const currentYear = new Date().getFullYear();
+  // Fixed order: current year, then the 3 before it, regardless of whether
+  // each actually has flights (selecting an empty one just shows the
+  // existing "Keine Flüge in {yr}" state) — anything older goes under Mehr.
+  const explicitYears = [currentYear, currentYear-1, currentYear-2].map(String);
+  const olderYears = years.filter(y => !explicitYears.includes(y));
   const [yr, setYr] = useState(years[0]||"");
   const [showMoreYears, setShowMoreYears] = useState(false);
-  const yf = flights.filter(f=>f.year===yr);
+  const yf = yr==="alle" ? flights : flights.filter(f=>f.year===yr);
   const parseDurStr = s => {
     if (!s) return 0;
     const dm = s.match(/(\d+):(\d{2}):(\d{2})/);
@@ -131,11 +137,12 @@ function SeasonSection({ flights }) {
   return (
     <div style={{margin:"12px 16px 0",display:"flex",flexDirection:"column",gap:8}}>
       <div style={S.yearRow}>
-        {years.slice(0,4).map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
-        {years.length>4 && (
+        <button style={S.yrBtn(yr==="alle")} onClick={()=>setYr("alle")}>Alle</button>
+        {explicitYears.map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
+        {olderYears.length>0 && (
           <button onClick={()=>setShowMoreYears(true)}
-            style={S.yrBtn(years.slice(4).includes(yr))}>
-            {years.slice(4).includes(yr) ? yr : "Mehr ▾"}
+            style={S.yrBtn(olderYears.includes(yr))}>
+            {olderYears.includes(yr) ? yr : "Mehr ▾"}
           </button>
         )}
       </div>
@@ -145,7 +152,7 @@ function SeasonSection({ flights }) {
           <div onClick={e=>e.stopPropagation()}
             style={{background:"#2a0d16",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:14,maxHeight:"60vh",overflowY:"auto",width:"100%",maxWidth:280,boxShadow:"0 8px 30px rgba(0,0,0,0.5)"}}>
             <div style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.5)",marginBottom:8,padding:"0 4px"}}>Jahr wählen</div>
-            {years.slice(4).map(y=>(
+            {olderYears.map(y=>(
               <div key={y} onClick={()=>{setYr(y);setShowMoreYears(false);}}
                 style={{padding:"10px 12px",borderRadius:10,fontSize:15,cursor:"pointer",color:"#e8f4fd",background:y===yr?"rgba(224,48,74,0.15)":"transparent",marginBottom:2}}>
                 {y}
@@ -155,7 +162,7 @@ function SeasonSection({ flights }) {
         </div>
       )}
       {yf.length===0 ? (
-        <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge in {yr}</div>
+        <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge {yr==="alle"?"vorhanden":`in ${yr}`}</div>
       ) : (<>
         <div style={S.grid}>
           <div style={S.box}><div style={S.bigNum}>{yf.length}</div><div style={S.lbl}>Flüge</div></div>
@@ -164,7 +171,7 @@ function SeasonSection({ flights }) {
           <div style={S.box}><div style={S.bigNum}>{yf.length>0?(totalDist/yf.length).toFixed(1):0} km</div><div style={S.lbl}>Ø / Flug</div></div>
         </div>
         <div style={S.prBox}>
-          <div style={S.prTitle}>🏆 Persönliche Rekorde {yr}</div>
+          <div style={S.prTitle}>🏆 Persönliche Rekorde {yr==="alle"?"(alle Jahre)":yr}</div>
           {[
             ["Längster Flug",   prFlightDur?.name,  prDur  ? fmtDur(prDur)       : "—"],
             ["Weitester Flug",  prFlightDist?.name, prDist ? prDist+" km"         : "—"],

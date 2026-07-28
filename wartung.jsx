@@ -66,6 +66,17 @@ function fmtDate(d) {
   return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
 }
 
+// Free-text check dates had drifted into several different formats over
+// time (DD.MM.YY, DD.MM.YYYY, and German long-form "D. MMM YYYY" like
+// "4. Nov. 2025") since the field was always a plain text input with no
+// enforced format. Reuses the existing parseDateStr/fmtDate pair (already
+// used for due-date calculations) rather than a second parser, so both
+// stay consistent with each other by construction.
+function normalizeCheckDate(str) {
+  const d = parseDateStr(str);
+  return d ? fmtDate(d) : str; // unrecognised — left as-is rather than guessing
+}
+
 function daysUntil(d) {
   if (!d) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -82,8 +93,7 @@ function emptySchirmSlot() {
 }
 
 function WartungApp() {
-  const [showReserve, setShowReserve] = useState(false);
-  const [showSchirm, setShowSchirm] = useState(false);
+  const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" — always exactly one, never both/neither
   const [activeReserveSlot, setActiveReserveSlot] = useState(RESERVE_SLOTS[0].id);
   const [activeSchirmSlot, setActiveSchirmSlot] = useState(SCHIRM_SLOT_IDS[0]);
   const [reserves, setReserves] = useState(() => {
@@ -210,18 +220,18 @@ function WartungApp() {
 
       {/* Top badges: Reserve / Schirm */}
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
-        <button onClick={()=>{setShowReserve(s=>!s); setShowSchirm(false);}}
-          style={{flex:1,background:showReserve?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showReserve?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:showReserve?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          🪂 Reserve {showReserve?"▾":"▸"}
+        <button onClick={()=>setActiveTab("reserve")}
+          style={{flex:1,background:activeTab==="reserve"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="reserve"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="reserve"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          🪂 Reserve
         </button>
-        <button onClick={()=>{setShowSchirm(s=>!s); setShowReserve(false);}}
-          style={{flex:1,background:showSchirm?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showSchirm?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:showSchirm?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          ⛰️ Schirm {showSchirm?"▾":"▸"}
+        <button onClick={()=>setActiveTab("schirm")}
+          style={{flex:1,background:activeTab==="schirm"?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="schirm"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="schirm"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          ⛰️ Schirm
         </button>
       </div>
 
       {/* Schirm section: 4 tab positions, each with an editable category dropdown */}
-      {showSchirm && (
+      {activeTab==="schirm" && (
         <div style={{padding:"12px 16px 0"}}>
           {/* Tabs: each shows its assigned category name (or "–") */}
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
@@ -321,7 +331,8 @@ function WartungApp() {
                     <input value={c.note} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {note:e.target.value})}
                       placeholder="Text (z.B. Leinencheck)"
                       style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <input value={c.date} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:e.target.value})}
+                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:e.target.value})}
+                      onBlur={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:normalizeCheckDate(e.target.value)})}
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteSchirmCheck(activeSchirmSlot, idx)}
@@ -337,7 +348,7 @@ function WartungApp() {
       )}
 
       {/* Reserve section: category selector (Auswahl) + fields for the active one */}
-      {showReserve && (
+      {activeTab==="reserve" && (
         <div style={{padding:"12px 16px 0"}}>
           {/* Auswahl: tab-style selector between the 3 categories */}
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
@@ -425,7 +436,8 @@ function WartungApp() {
                     <input value={c.note} onChange={e=>updateCheck(activeReserveSlot, idx, {note:e.target.value})}
                       placeholder="Text (z.B. Leinencheck)"
                       style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <input value={c.date} onChange={e=>updateCheck(activeReserveSlot, idx, {date:e.target.value})}
+                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(activeReserveSlot, idx, {date:e.target.value})}
+                      onBlur={e=>updateCheck(activeReserveSlot, idx, {date:normalizeCheckDate(e.target.value)})}
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteCheck(activeReserveSlot, idx)}
