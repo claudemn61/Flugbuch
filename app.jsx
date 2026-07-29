@@ -449,7 +449,7 @@ function SettingsOverlay({ onClose }) {
             fontSize:13, color:"#fff", marginBottom:14,
             WebkitUserSelect:"text", userSelect:"text", WebkitTouchCallout:"default",
           }}>
-          {typeof window!=="undefined" ? window.location.origin + "/" : ""}
+          {typeof window!=="undefined" ? window.location.href.substring(0, window.location.href.lastIndexOf("/")+1) : ""}
         </div>
 
         {/* Hilfe: direct link to the in-app help page */}
