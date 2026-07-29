@@ -13,11 +13,9 @@ const RESERVE_SLOTS = [
   { id: "biplace",  label: "Biplace" },
 ];
 
-// Schirm has 4 tab positions, but each tab's category name is user-editable
-// via a dropdown (unlike Reserve's fixed labels) — someone might own e.g.
-// Solo + Bergschirm + Biplace + Biplace light, or any other combination of
-// up to 4 of the 5 possible types. "–" means the slot isn't assigned yet.
-const SCHIRM_CATEGORY_OPTIONS = ["–", "Solo", "Solo light", "Bergschirm", "Biplace", "Biplace light"];
+// Schirm has 4 tab positions and Reserve has 3 — each tab's title is now
+// directly editable text (tap the tab, type a new name), not driven by a
+// separate category dropdown.
 const SCHIRM_SLOT_IDS = ["schirm_1", "schirm_2", "schirm_3", "schirm_4"];
 
 function todayStr() {
@@ -84,13 +82,12 @@ function daysUntil(d) {
   return Math.round((target - now) / 86400000);
 }
 
-const RESERVE_CATEGORY_OPTIONS = ["–", "Solo integriert", "Solo extern", "Biplace"];
 function emptyReserve() {
-  return { category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
+  return { title: "", category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
 
 function emptySchirmSlot() {
-  return { category: "–", name: "", serialNr: "", zulassung: "", purchaseDate: "", checks: [], intervalMonths: 12 };
+  return { title: "", category: "–", name: "", serialNr: "", zulassung: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
 
 function WartungApp() {
@@ -238,33 +235,25 @@ function WartungApp() {
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
             {SCHIRM_SLOT_IDS.map(slotId => {
               const slot = schirme[slotId] || emptySchirmSlot();
+              const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
               return (
-                <button key={slotId} onClick={()=>setActiveSchirmSlot(slotId)}
+                <input key={slotId} value={displayTitle}
+                  onFocus={()=>setActiveSchirmSlot(slotId)}
+                  onChange={e=>updateSchirmSlot(slotId,{title:e.target.value})}
+                  placeholder={`Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
                   style={{
-                    flex:1,padding:"9px 4px",borderRadius:9,border:"none",cursor:"pointer",
-                    fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                    flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",cursor:"text",
+                    fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
                     background: activeSchirmSlot===slotId ? "rgba(56,189,248,0.22)" : "transparent",
                     color: activeSchirmSlot===slotId ? "#7dd3fc" : "rgba(232,244,253,0.5)",
-                  }}>
-                  {slot.category === "–" ? "" : slot.category}
-                </button>
+                    outline:"none",
+                  }} />
               );
             })}
           </div>
 
           {/* Fields for the currently selected tab */}
           <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-            {/* Category dropdown */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kategorie</div>
-              <select value={schirmData.category} onChange={e=>updateSchirmSlot(activeSchirmSlot,{category:e.target.value})}
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}}>
-                {SCHIRM_CATEGORY_OPTIONS.map(opt => (
-                  <option key={opt} value={opt} style={{background:"#0d1b2a",color:"#e8f4fd"}}>{opt}</option>
-                ))}
-              </select>
-            </div>
-
             {/* Name */}
             <div>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
@@ -353,32 +342,26 @@ function WartungApp() {
         <div style={{padding:"12px 16px 0"}}>
           {/* Auswahl: tab-style selector between the 3 categories */}
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
-            {RESERVE_SLOTS.map(slot => (
-              <button key={slot.id} onClick={()=>setActiveReserveSlot(slot.id)}
-                style={{
-                  flex:1,padding:"9px 6px",borderRadius:9,border:"none",cursor:"pointer",
-                  fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",
-                  background: activeReserveSlot===slot.id ? "rgba(34,197,94,0.22)" : "transparent",
-                  color: activeReserveSlot===slot.id ? "#4ade80" : "rgba(232,244,253,0.5)",
-                }}>
-                {slot.label}
-              </button>
-            ))}
+            {RESERVE_SLOTS.map(slot => {
+              const slotData = reserves[slot.id] || emptyReserve();
+              const displayTitle = slotData.title || (slotData.category && slotData.category!=="–" ? slotData.category : slot.label);
+              return (
+                <input key={slot.id} value={displayTitle}
+                  onFocus={()=>setActiveReserveSlot(slot.id)}
+                  onChange={e=>updateSlot(slot.id,{title:e.target.value})}
+                  style={{
+                    flex:1,minWidth:0,padding:"9px 6px",borderRadius:9,border:"none",cursor:"text",
+                    fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+                    background: activeReserveSlot===slot.id ? "rgba(34,197,94,0.22)" : "transparent",
+                    color: activeReserveSlot===slot.id ? "#4ade80" : "rgba(232,244,253,0.5)",
+                    outline:"none",
+                  }} />
+              );
+            })}
           </div>
 
-          {/* Fields for the currently selected category */}
+          {/* Fields for the currently selected slot */}
           <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-            {/* Category dropdown */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kategorie</div>
-              <select value={data.category||"–"} onChange={e=>updateSlot(activeReserveSlot,{category:e.target.value})}
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}}>
-                {RESERVE_CATEGORY_OPTIONS.map(opt => (
-                  <option key={opt} value={opt} style={{background:"#0d1b2a",color:"#e8f4fd"}}>{opt}</option>
-                ))}
-              </select>
-            </div>
-
             {/* Name */}
             <div>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
