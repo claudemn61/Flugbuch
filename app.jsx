@@ -200,12 +200,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1";
+const APP_VERSION = "4.1.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.1", note: "Home/Wartung-Kachel vereinfacht: zeigt nur noch überfällige Positionen (Format \"Reserve Solo extern T.M.JJ\"), sonst \"Alles aktuell\"." },
   { v: "4.1", note: "Wartung: neues Kapitel 🎒 Gurtzeug (5 Positionen, orange), identisch zu Schirm aufgebaut. Titel bei Schirm/Gurtzeug direkt editierbar (nochmal auf den bereits aktiven Titel tippen). Hilfe (ausführlich + Kurzfassung) entsprechend aktualisiert." },
   { v: "4.0.2", note: "Wartung/Reserve: neues Kategorie-Feld vor dem Namen, editierbar, analog zu Schirm." },
   { v: "4.0.1", note: "Höhenprofil: Bodenprofil (Fläche und Linie) konnte bei Zoom über den linken/rechten Achsen-Rand hinausragen, während die Flugspur korrekt am Rand endete — jetzt symmetrisch auf den sichtbaren Bereich begrenzt." },
@@ -525,14 +526,9 @@ function fmtDateCompact(date) {
   return `${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(-2)}`;
 }
 
-function formatServiceStat(entry, fallbackLabel) {
-  if (!entry) return { line1: fallbackLabel, line2: null };
-  const overdue = entry.days < 0;
-  const soonDue = entry.days >= 0 && entry.days <= 30;
-  const line1 = `Check: ${entry.name} ${fmtDateCompact(entry.nextDue)}`;
-  if (overdue) return { line1, line2: null, color: "#f87171" };
-  if (soonDue) return { line1, line2: null, color: "#fcd34d" };
-  return { line1, line2: null };
+function formatServiceStat(entry, categoryLabel) {
+  if (!entry || entry.days >= 0) return null; // only overdue items are shown at all
+  return { line1: `${categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: "#f87171" };
 }
 
 function HomeApp() {
@@ -670,11 +666,14 @@ function HomeApp() {
       icon: "🛠️",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",
-      stats: [
-        formatServiceStat(serviceUrgency.reserve, "Reserve"),
-        formatServiceStat(serviceUrgency.schirm, "Schirm"),
-        formatServiceStat(serviceUrgency.gurtzeug, "Gurtzeug"),
-      ],
+      stats: (() => {
+        const overdueStats = [
+          formatServiceStat(serviceUrgency.reserve, "Reserve"),
+          formatServiceStat(serviceUrgency.schirm, "Schirm"),
+          formatServiceStat(serviceUrgency.gurtzeug, "Gurtzeug"),
+        ].filter(Boolean);
+        return overdueStats.length ? overdueStats : [{ label: "Alles aktuell" }];
+      })(),
       href: "wartung.html",
       ready: true,
     },
