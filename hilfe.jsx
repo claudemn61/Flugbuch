@@ -104,7 +104,10 @@ const SECTIONS = [
   },
   {
     id: "wartung", title: "6. Wartung",
-    body: () => (<p>Verwaltet Ausrüstung: Name, Serien-Nummer, Kaufdatum, Packen-Intervall (Monate) und eine Liste vergangener Packvorgänge mit Datum und Notiz. Das nächste fällige Packdatum wird automatisch angezeigt.</p>),
+    body: () => (<>
+      <p>Verwaltet Ausrüstung in drei Kapiteln: 🪂 Reserve (3 Positionen), ⛰️ Schirm (4 Positionen), 🎒 Gurtzeug (5 Positionen). Für jede Position: Name, Serien-Nummer, Zulassung (bei Schirm/Gurtzeug), Kaufdatum, Check-Intervall (Monate) und eine Liste vergangener Checks mit Datum und Notiz. Das nächste fällige Check-Datum wird automatisch angezeigt (grün/gelb/rot je nach Dringlichkeit).</p>
+      <p>Die Titel der einzelnen Positionen (z.B. "Solo integriert", eigener Schirm-Name) sind direkt editierbar: auf einen bereits ausgewählten (hervorgehobenen) Titel nochmals tippen öffnet ein Eingabefeld zum Umbenennen.</p>
+    </>),
   },
   {
     id: "backup", title: "7. Datensicherung",
@@ -131,7 +134,7 @@ function KurzContent() {
       <h3>Reisen</h3>
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
       <h3>Wartung</h3>
-      <p>Ausrüstung, Packen-Intervall, nächstes fälliges Packdatum wird automatisch angezeigt</p>
+      <p>3 Kapitel: Reserve (3) · Schirm (4) · Gurtzeug (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt</p>
       <h3>Weltkarte-Suche</h3>
       <p>Mehrere Wörter = automatisch UND. Das Wort "oder" trennt Alternativen: <code>2026 Brasilien oder Wallis</code></p>
       <h3>Offline</h3>

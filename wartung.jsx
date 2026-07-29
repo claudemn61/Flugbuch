@@ -17,6 +17,7 @@ const RESERVE_SLOTS = [
 // directly editable text (tap the tab, type a new name), not driven by a
 // separate category dropdown.
 const SCHIRM_SLOT_IDS = ["schirm_1", "schirm_2", "schirm_3", "schirm_4"];
+const GURTZEUG_SLOT_IDS = ["gurtzeug_1", "gurtzeug_2", "gurtzeug_3", "gurtzeug_4", "gurtzeug_5"];
 
 function todayStr() {
   const d = new Date();
@@ -96,6 +97,8 @@ function WartungApp() {
   const [editingReserveTab, setEditingReserveTab] = useState(null); // slot.id currently being renamed, or null
   const [activeSchirmSlot, setActiveSchirmSlot] = useState(SCHIRM_SLOT_IDS[0]);
   const [editingSchirmTab, setEditingSchirmTab] = useState(null); // slotId currently being renamed, or null
+  const [activeGurtzeugSlot, setActiveGurtzeugSlot] = useState(GURTZEUG_SLOT_IDS[0]);
+  const [editingGurtzeugTab, setEditingGurtzeugTab] = useState(null);
   const [reserves, setReserves] = useState(() => {
     const obj = {};
     RESERVE_SLOTS.forEach(s => obj[s.id] = emptyReserve());
@@ -104,6 +107,11 @@ function WartungApp() {
   const [schirme, setSchirme] = useState(() => {
     const obj = {};
     SCHIRM_SLOT_IDS.forEach(id => obj[id] = emptySchirmSlot());
+    return obj;
+  });
+  const [gurtzeuge, setGurtzeuge] = useState(() => {
+    const obj = {};
+    GURTZEUG_SLOT_IDS.forEach(id => obj[id] = emptySchirmSlot());
     return obj;
   });
   const [loaded, setLoaded] = useState(false);
@@ -119,6 +127,10 @@ function WartungApp() {
         const r2 = await window.storage.get("service:schirme");
         if (r2) setSchirme(prev => ({ ...prev, ...JSON.parse(r2.value) }));
       } catch (e) { console.error("Load error (schirme):", e); }
+      try {
+        const r3 = await window.storage.get("service:gurtzeuge");
+        if (r3) setGurtzeuge(prev => ({ ...prev, ...JSON.parse(r3.value) }));
+      } catch (e) { console.error("Load error (gurtzeuge):", e); }
       setLoaded(true);
     })();
   }, []);
@@ -131,6 +143,11 @@ function WartungApp() {
   const saveSchirme = useCallback(async (next) => {
     setSchirme(next);
     try { await window.storage.set("service:schirme", JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
+  }, []);
+
+  const saveGurtzeuge = useCallback(async (next) => {
+    setGurtzeuge(next);
+    try { await window.storage.set("service:gurtzeuge", JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
   }, []);
 
   const updateSlot = (slotId, patch) => {
@@ -183,6 +200,31 @@ function WartungApp() {
     updateSchirmSlot(slotId, { checks });
   };
 
+  const updateGurtzeugSlot = (slotId, patch) => {
+    const next = { ...gurtzeuge, [slotId]: { ...gurtzeuge[slotId], ...patch } };
+    saveGurtzeuge(next);
+  };
+
+  const addGurtzeugCheck = (slotId, dateStr) => {
+    const slot = gurtzeuge[slotId];
+    const checks = [...(slot.checks||[]), { date: dateStr, note: "" }]
+      .sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
+    updateGurtzeugSlot(slotId, { checks });
+  };
+
+  const updateGurtzeugCheck = (slotId, idx, patch, resort) => {
+    const slot = gurtzeuge[slotId];
+    let checks = slot.checks.map((c,i) => i===idx ? {...c, ...patch} : c);
+    if (resort) checks = checks.sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
+    updateGurtzeugSlot(slotId, { checks });
+  };
+
+  const deleteGurtzeugCheck = (slotId, idx) => {
+    const slot = gurtzeuge[slotId];
+    const checks = slot.checks.filter((_,i) => i!==idx);
+    updateGurtzeugSlot(slotId, { checks });
+  };
+
   if (!loaded) return null;
 
   const data = reserves[activeReserveSlot] || emptyReserve();
@@ -200,6 +242,13 @@ function WartungApp() {
   const schirmDueDays = daysUntil(schirmNextDue);
   const schirmOverdue = schirmDueDays !== null && schirmDueDays < 0;
   const schirmSoonDue = schirmDueDays !== null && schirmDueDays >= 0 && schirmDueDays <= 30;
+
+  const gurtzeugData = gurtzeuge[activeGurtzeugSlot] || emptySchirmSlot();
+  const gurtzeugLastCheck = (gurtzeugData.checks && gurtzeugData.checks.length ? parseDateStr(gurtzeugData.checks[0].date) : null) || parseDateStr(gurtzeugData.purchaseDate);
+  const gurtzeugNextDue = gurtzeugLastCheck ? addMonths(gurtzeugLastCheck, gurtzeugData.intervalMonths||12) : null;
+  const gurtzeugDueDays = daysUntil(gurtzeugNextDue);
+  const gurtzeugOverdue = gurtzeugDueDays !== null && gurtzeugDueDays < 0;
+  const gurtzeugSoonDue = gurtzeugDueDays !== null && gurtzeugDueDays >= 0 && gurtzeugDueDays <= 30;
 
   return (
     <div style={{minHeight:"100vh",background:"#051d0e",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
@@ -227,6 +276,10 @@ function WartungApp() {
         <button onClick={()=>setActiveTab("schirm")}
           style={{flex:1,background:activeTab==="schirm"?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="schirm"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="schirm"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           ⛰️ Schirm
+        </button>
+        <button onClick={()=>setActiveTab("gurtzeug")}
+          style={{flex:1,background:activeTab==="gurtzeug"?"rgba(245,158,11,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="gurtzeug"?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="gurtzeug"?"#f59e0b":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          🎒 Gurtzeug
         </button>
       </div>
 
@@ -342,6 +395,128 @@ function WartungApp() {
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteSchirmCheck(activeSchirmSlot, idx)}
+                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gurtzeug section: 5 tab positions, identical structure to Schirm */}
+      {activeTab==="gurtzeug" && (
+        <div style={{padding:"12px 16px 0"}}>
+          {/* Tabs: tap an inactive tab to switch to it; tap the already-
+              active tab again to rename it. */}
+          <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
+            {GURTZEUG_SLOT_IDS.map(slotId => {
+              const slot = gurtzeuge[slotId] || emptySchirmSlot();
+              const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
+              const isActive = activeGurtzeugSlot===slotId;
+              const isEditing = editingGurtzeugTab===slotId;
+              const tabStyle = {
+                flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",
+                fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+                background: isActive ? "rgba(245,158,11,0.22)" : "transparent",
+                color: isActive ? "#f59e0b" : "rgba(232,244,253,0.5)",
+              };
+              if (isEditing) {
+                return (
+                  <input key={slotId} autoFocus value={displayTitle}
+                    onChange={e=>updateGurtzeugSlot(slotId,{title:e.target.value})}
+                    onBlur={()=>setEditingGurtzeugTab(null)}
+                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                    placeholder={`Gurtzeug ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
+                    style={{...tabStyle, cursor:"text", outline:"none"}} />
+                );
+              }
+              return (
+                <button key={slotId}
+                  onClick={()=> isActive ? setEditingGurtzeugTab(slotId) : setActiveGurtzeugSlot(slotId)}
+                  style={{...tabStyle, cursor:"pointer"}}>
+                  {displayTitle || `Gurtzeug ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Fields for the currently selected tab */}
+          <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
+            {/* Name */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
+              <input value={gurtzeugData.name} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{name:e.target.value})}
+                placeholder="z.B. Woody Valley Wani Light"
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+            </div>
+
+            {/* Serien-Nr. */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
+              <input value={gurtzeugData.serialNr} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{serialNr:e.target.value})}
+                placeholder="z.B. SN-123456"
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+            </div>
+
+            {/* Zulassung */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
+              <input value={gurtzeugData.zulassung||""} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{zulassung:e.target.value})}
+                placeholder="z.B. EN B"
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+            </div>
+
+            {/* Kauf */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
+              <input value={gurtzeugData.purchaseDate} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{purchaseDate:e.target.value})}
+                placeholder="TT.MM.JJJJ"
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+            </div>
+
+            {/* Check-Intervall */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="number" min="1" value={gurtzeugData.intervalMonths}
+                  onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{intervalMonths: e.target.value})}
+                  onBlur={e=>updateGurtzeugSlot(activeGurtzeugSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
+                  style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+                <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
+              </div>
+            </div>
+
+            {/* Checks list */}
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
+                <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
+                  background: gurtzeugOverdue ? "rgba(239,68,68,0.18)" : gurtzeugSoonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
+                  color: gurtzeugOverdue ? "#f87171" : gurtzeugSoonDue ? "#fcd34d" : "#4ade80"}}>
+                  {gurtzeugOverdue ? "Überfällig" : `Nächster Check ${fmtDate(gurtzeugNextDue)}`}
+                </span>
+                <button onClick={()=>addGurtzeugCheck(activeGurtzeugSlot, todayStr())}
+                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  + Check
+                </button>
+              </div>
+              {(!gurtzeugData.checks || gurtzeugData.checks.length===0) && (
+                <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"8px 0"}}>Noch keine Checks erfasst.</div>
+              )}
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {(gurtzeugData.checks||[]).map((c, idx) => (
+                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <input value={c.note} onChange={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {note:e.target.value})}
+                      placeholder="Text (z.B. Leinencheck)"
+                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:e.target.value})}
+                      onBlur={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:normalizeCheckDate(e.target.value)})}
+                      placeholder="TT.MM.JJJJ"
+                      style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+                    <button onClick={()=>deleteGurtzeugCheck(activeGurtzeugSlot, idx)}
                       style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
                       ✕
                     </button>
