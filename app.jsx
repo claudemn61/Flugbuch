@@ -151,6 +151,7 @@ async function readServiceUrgency() {
 
   reserves = await readKV("service:reserves");
   schirme = await readKV("service:schirme");
+  const gurtzeuge = await readKV("service:gurtzeuge");
 
   const candidates = [];
   if (reserves) {
@@ -158,7 +159,7 @@ async function readServiceUrgency() {
       const slot = reserves[id];
       const lastCheck = (slot.checks && slot.checks.length ? parseDateStr(slot.checks[0].date) : null) || parseDateStr(slot.purchaseDate);
       const nextDue = lastCheck ? addMonthsToDate(lastCheck, slot.intervalMonths||12) : null;
-      if (nextDue) candidates.push({ name: RESERVE_LABELS[id] || slot.name || id, nextDue, days: daysUntilDate(nextDue), kind: "packen" });
+      if (nextDue) candidates.push({ name: slot.title || RESERVE_LABELS[id] || slot.name || id, nextDue, days: daysUntilDate(nextDue), kind: "reserve" });
     });
   }
   if (schirme) {
@@ -167,11 +168,19 @@ async function readServiceUrgency() {
       if (!slot.category || slot.category === "–") return;
       const lastCheck = (slot.checks && slot.checks.length ? parseDateStr(slot.checks[0].date) : null) || parseDateStr(slot.purchaseDate);
       const nextDue = lastCheck ? addMonthsToDate(lastCheck, slot.intervalMonths||12) : null;
-      if (nextDue) candidates.push({ name: slot.name || slot.category, nextDue, days: daysUntilDate(nextDue), kind: "check" });
+      if (nextDue) candidates.push({ name: slot.title || slot.name || slot.category, nextDue, days: daysUntilDate(nextDue), kind: "schirm" });
+    });
+  }
+  if (gurtzeuge) {
+    Object.keys(gurtzeuge).forEach(id => {
+      const slot = gurtzeuge[id];
+      const lastCheck = (slot.checks && slot.checks.length ? parseDateStr(slot.checks[0].date) : null) || parseDateStr(slot.purchaseDate);
+      const nextDue = lastCheck ? addMonthsToDate(lastCheck, slot.intervalMonths||12) : null;
+      if (nextDue) candidates.push({ name: slot.title || slot.name || id, nextDue, days: daysUntilDate(nextDue), kind: "gurtzeug" });
     });
   }
 
-  if (!candidates.length) return { packen: null, check: null };
+  if (!candidates.length) return { reserve: null, schirm: null, gurtzeug: null };
 
   // Most urgent (soonest / most overdue) per kind
   const mostUrgent = (kind) => {
@@ -180,7 +189,7 @@ async function readServiceUrgency() {
     return list.sort((a,b) => a.days - b.days)[0];
   };
 
-  return { packen: mostUrgent("packen"), check: mostUrgent("check") };
+  return { reserve: mostUrgent("reserve"), schirm: mostUrgent("schirm"), gurtzeug: mostUrgent("gurtzeug") };
 }
 
 const GERMAN_MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -510,15 +519,20 @@ function SettingsOverlay({ onClose }) {
   );
 }
 
+function fmtDateCompact(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  return `${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(-2)}`;
+}
+
 function formatServiceStat(entry, fallbackLabel) {
   if (!entry) return { line1: fallbackLabel, line2: null };
   const overdue = entry.days < 0;
   const soonDue = entry.days >= 0 && entry.days <= 30;
-  const line1 = `${fallbackLabel}: ${entry.name}`;
-  const line2 = fmtMonthYear(entry.nextDue);
-  if (overdue) return { line1, line2, color: "#f87171" };
-  if (soonDue) return { line1, line2, color: "#fcd34d" };
-  return { line1, line2 };
+  const line1 = `Check: ${entry.name} ${fmtDateCompact(entry.nextDue)}`;
+  if (overdue) return { line1, line2: null, color: "#f87171" };
+  if (soonDue) return { line1, line2: null, color: "#fcd34d" };
+  return { line1, line2: null };
 }
 
 function HomeApp() {
@@ -527,7 +541,7 @@ function HomeApp() {
   const fileRef = React.useRef(null);
   const [flightCount, setFlightCount] = useState(null);
   const [biplaceCount, setBiplaceCount] = useState(null);
-  const [serviceUrgency, setServiceUrgency] = useState({ packen: null, check: null });
+  const [serviceUrgency, setServiceUrgency] = useState({ reserve: null, schirm: null, gurtzeug: null });
   const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null });
   const [showSettings, setShowSettings] = useState(false);
   const [titleCfg, setTitleCfg] = useState(null);
@@ -657,8 +671,9 @@ function HomeApp() {
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",
       stats: [
-        formatServiceStat(serviceUrgency.check, "Nächster Check"),
-        formatServiceStat(serviceUrgency.packen, "Nächstes Packen"),
+        formatServiceStat(serviceUrgency.reserve, "Reserve"),
+        formatServiceStat(serviceUrgency.schirm, "Schirm"),
+        formatServiceStat(serviceUrgency.gurtzeug, "Gurtzeug"),
       ],
       href: "wartung.html",
       ready: true,
