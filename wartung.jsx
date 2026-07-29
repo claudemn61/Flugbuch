@@ -93,7 +93,9 @@ function emptySchirmSlot() {
 function WartungApp() {
   const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" — always exactly one, never both/neither
   const [activeReserveSlot, setActiveReserveSlot] = useState(RESERVE_SLOTS[0].id);
+  const [editingReserveTab, setEditingReserveTab] = useState(null); // slot.id currently being renamed, or null
   const [activeSchirmSlot, setActiveSchirmSlot] = useState(SCHIRM_SLOT_IDS[0]);
+  const [editingSchirmTab, setEditingSchirmTab] = useState(null); // slotId currently being renamed, or null
   const [reserves, setReserves] = useState(() => {
     const obj = {};
     RESERVE_SLOTS.forEach(s => obj[s.id] = emptyReserve());
@@ -231,23 +233,37 @@ function WartungApp() {
       {/* Schirm section: 4 tab positions, each with an editable category dropdown */}
       {activeTab==="schirm" && (
         <div style={{padding:"12px 16px 0"}}>
-          {/* Tabs: each shows its assigned category name (or "–") */}
+          {/* Tabs: tap an inactive tab to switch to it; tap the already-
+              active tab again to rename it (the only tap that couldn't
+              mean "switch", since it's already selected). */}
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
             {SCHIRM_SLOT_IDS.map(slotId => {
               const slot = schirme[slotId] || emptySchirmSlot();
               const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
+              const isActive = activeSchirmSlot===slotId;
+              const isEditing = editingSchirmTab===slotId;
+              const tabStyle = {
+                flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",
+                fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+                background: isActive ? "rgba(56,189,248,0.22)" : "transparent",
+                color: isActive ? "#7dd3fc" : "rgba(232,244,253,0.5)",
+              };
+              if (isEditing) {
+                return (
+                  <input key={slotId} autoFocus value={displayTitle}
+                    onChange={e=>updateSchirmSlot(slotId,{title:e.target.value})}
+                    onBlur={()=>setEditingSchirmTab(null)}
+                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                    placeholder={`Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
+                    style={{...tabStyle, cursor:"text", outline:"none"}} />
+                );
+              }
               return (
-                <input key={slotId} value={displayTitle}
-                  onFocus={()=>setActiveSchirmSlot(slotId)}
-                  onChange={e=>updateSchirmSlot(slotId,{title:e.target.value})}
-                  placeholder={`Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
-                  style={{
-                    flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",cursor:"text",
-                    fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-                    background: activeSchirmSlot===slotId ? "rgba(56,189,248,0.22)" : "transparent",
-                    color: activeSchirmSlot===slotId ? "#7dd3fc" : "rgba(232,244,253,0.5)",
-                    outline:"none",
-                  }} />
+                <button key={slotId}
+                  onClick={()=> isActive ? setEditingSchirmTab(slotId) : setActiveSchirmSlot(slotId)}
+                  style={{...tabStyle, cursor:"pointer"}}>
+                  {displayTitle || `Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
+                </button>
               );
             })}
           </div>
@@ -340,22 +356,35 @@ function WartungApp() {
       {/* Reserve section: category selector (Auswahl) + fields for the active one */}
       {activeTab==="reserve" && (
         <div style={{padding:"12px 16px 0"}}>
-          {/* Auswahl: tab-style selector between the 3 categories */}
+          {/* Tabs: tap an inactive tab to switch to it; tap the already-
+              active tab again to rename it. */}
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
             {RESERVE_SLOTS.map(slot => {
               const slotData = reserves[slot.id] || emptyReserve();
               const displayTitle = slotData.title || (slotData.category && slotData.category!=="–" ? slotData.category : slot.label);
+              const isActive = activeReserveSlot===slot.id;
+              const isEditing = editingReserveTab===slot.id;
+              const tabStyle = {
+                flex:1,minWidth:0,padding:"9px 6px",borderRadius:9,border:"none",
+                fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+                background: isActive ? "rgba(34,197,94,0.22)" : "transparent",
+                color: isActive ? "#4ade80" : "rgba(232,244,253,0.5)",
+              };
+              if (isEditing) {
+                return (
+                  <input key={slot.id} autoFocus value={displayTitle}
+                    onChange={e=>updateSlot(slot.id,{title:e.target.value})}
+                    onBlur={()=>setEditingReserveTab(null)}
+                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                    style={{...tabStyle, cursor:"text", outline:"none"}} />
+                );
+              }
               return (
-                <input key={slot.id} value={displayTitle}
-                  onFocus={()=>setActiveReserveSlot(slot.id)}
-                  onChange={e=>updateSlot(slot.id,{title:e.target.value})}
-                  style={{
-                    flex:1,minWidth:0,padding:"9px 6px",borderRadius:9,border:"none",cursor:"text",
-                    fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-                    background: activeReserveSlot===slot.id ? "rgba(34,197,94,0.22)" : "transparent",
-                    color: activeReserveSlot===slot.id ? "#4ade80" : "rgba(232,244,253,0.5)",
-                    outline:"none",
-                  }} />
+                <button key={slot.id}
+                  onClick={()=> isActive ? setEditingReserveTab(slot.id) : setActiveReserveSlot(slot.id)}
+                  style={{...tabStyle, cursor:"pointer"}}>
+                  {displayTitle}
+                </button>
               );
             })}
           </div>
