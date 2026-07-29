@@ -165,7 +165,7 @@ async function readServiceUrgency() {
   if (schirme) {
     Object.keys(schirme).forEach(id => {
       const slot = schirme[id];
-      if (!slot.category || slot.category === "–") return;
+      if (!slot.title && (!slot.category || slot.category === "–")) return;
       const lastCheck = (slot.checks && slot.checks.length ? parseDateStr(slot.checks[0].date) : null) || parseDateStr(slot.purchaseDate);
       const nextDue = lastCheck ? addMonthsToDate(lastCheck, slot.intervalMonths||12) : null;
       if (nextDue) candidates.push({ name: slot.title || slot.name || slot.category, nextDue, days: daysUntilDate(nextDue), kind: "schirm" });
@@ -843,7 +843,7 @@ function HomeApp() {
                     {s.line2 ? (<>
                       <span>{s.line1}</span>
                       <span style={{ opacity: 0.7, fontSize: 9 }}>{s.line2}</span>
-                    </>) : s.label}
+                    </>) : (s.label || s.line1)}
                   </span>
                 ))}
               </div>
