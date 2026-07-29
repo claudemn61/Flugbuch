@@ -2760,7 +2760,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}
-              style={{background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:20,padding:"6px 12px",color:"#fcd34d",fontSize:13,cursor:"pointer"}}>⬇ IGC</button>
+              style={{background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:20,padding:"5px 10px",color:"#fcd34d",fontSize:12,cursor:"pointer"}}>⬇ IGC</button>
             )}
             {fl.track?.length>1 && (
               <button onClick={()=>{
@@ -2777,15 +2777,19 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }
                 }}
-                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"6px 12px",color:"#4ade80",fontSize:13,cursor:"pointer"}}>⬇ GPX</button>
+                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"5px 10px",color:"#4ade80",fontSize:12,cursor:"pointer"}}>⬇ GPX</button>
             )}
             {fl.track?.length>1 && (
               <button onClick={()=>setConfirmDeleteTrack(true)}
                 title="IGC-Track löschen (Start/Landung bleiben erhalten)"
-                style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:20,padding:"6px 12px",color:"rgba(248,113,113,0.85)",fontSize:13,cursor:"pointer"}}>🗑 IGC</button>
+                style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:20,padding:"5px 10px",color:"rgba(248,113,113,0.85)",fontSize:12,cursor:"pointer"}}>🗑 IGC</button>
             )}
             <button onClick={()=>setConfirmDelete(fl.id)}
-              style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,padding:"6px 12px",color:"#f87171",fontSize:13,cursor:"pointer"}}>🗑</button>
+              style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,padding:"5px 10px",color:"#f87171",fontSize:12,cursor:"pointer"}}>🗑</button>
+            <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
+              style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+              ?
+            </button>
           </div>
         </div>
 
@@ -3674,7 +3678,7 @@ function FlugbuchApp() {
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={addNewFlight} style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Flug</button>
           <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
-            style={{width:24,height:24,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+            style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
             ?
           </button>
         </div>
