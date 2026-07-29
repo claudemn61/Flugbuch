@@ -945,7 +945,16 @@ function FlightProfile({ flight, onPositionChange }) {
   const [panPos, setPanPos] = useState(0.5);
   const [zoomPickerOpen, setZoomPickerOpen] = useState(false);
   const viewScale = zoomLevel;
-  const viewStart = Math.max(0, Math.min(1 - 1/viewScale, panPos * (1 - 1/viewScale)));
+  // panPos (0-1) is the window's CENTRE position across the whole flight —
+  // 0 puts the centre exactly at the start, 1 exactly at landing. This is
+  // deliberately NOT clamped to keep the whole window inside [0,1]: doing
+  // that meant the centre (and the map's reference marker, which tracks
+  // this same point) could never get closer than half a window-width from
+  // either end. Left unclamped, the window can extend past the actual
+  // flown distance at one edge when centred near start/landing — nothing
+  // draws there since the track has no points beyond [0, totalDist]
+  // anyway, so it just reads as empty space rather than an error.
+  const viewStart = panPos - (1/viewScale)/2;
   const track = flight?.track || [];
 
   const rawDistances = useMemo(() => {
@@ -985,9 +994,9 @@ function FlightProfile({ flight, onPositionChange }) {
     if (!onPositionChange) return;
     if (zoomLevel <= 1 || !totalDist) { onPositionChange(null); return; }
     const visStart = viewStart * totalDist;
-    const visEnd = Math.min(totalDist, visStart + totalDist/viewScale);
+    const visEnd = visStart + totalDist/viewScale;
     const toRaw = d => scale > 0 ? d / scale : d;
-    onPositionChange({ start: toRaw(visStart), end: toRaw(visEnd), center: toRaw((visStart+visEnd)/2) });
+    onPositionChange({ start: toRaw(Math.max(0,visStart)), end: toRaw(Math.min(totalDist,visEnd)), center: toRaw((visStart+visEnd)/2) });
   }, [zoomLevel, viewStart, viewScale, totalDist, scale]);
 
   // Swipe-to-pan directly on the chart, active only while zoomed (>1×) —
@@ -1083,7 +1092,12 @@ function FlightProfile({ flight, onPositionChange }) {
     const plotW = Math.max(1, W-padL-padR), plotH = Math.max(1, H-padT-padB);
 
     const visStart = viewStart * totalDist;
-    const visEnd = Math.min(totalDist, visStart + totalDist/viewScale);
+    const visEnd = visStart + totalDist/viewScale;
+    // Clamped versions purely for the axis label text — the underlying
+    // visStart/visEnd stay unclamped so the window's centre (and scale)
+    // stay accurate even when it extends past the real start/landing.
+    const visStartLabel = Math.max(0, visStart);
+    const visEndLabel = Math.min(totalDist, visEnd);
 
     // Altitude range comes only from the points actually inside the visible
     // window — zooming into a segment re-scales the legend to that
@@ -1109,8 +1123,8 @@ function FlightProfile({ flight, onPositionChange }) {
     ctx.textAlign = "right";
     ctx.fillText(Math.round(maxA)+"m", padL-4*dpr, padT+9*dpr);
     ctx.fillText(Math.round(minA)+"m", padL-4*dpr, padT+plotH);
-    ctx.textAlign = "left"; ctx.fillText(visStart.toFixed(1)+" km", padL, padT+plotH+15*dpr);
-    ctx.textAlign = "right"; ctx.fillText(visEnd.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
+    ctx.textAlign = "left"; ctx.fillText(visStartLabel.toFixed(1)+" km", padL, padT+plotH+15*dpr);
+    ctx.textAlign = "right"; ctx.fillText(visEndLabel.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
     if (viewScale > 1.02) {
       ctx.textAlign = "center"; ctx.fillText(`${viewScale.toFixed(1)}×`, padL+plotW/2, padT+9*dpr);
       ctx.save();
