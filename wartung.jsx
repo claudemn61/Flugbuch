@@ -84,8 +84,9 @@ function daysUntil(d) {
   return Math.round((target - now) / 86400000);
 }
 
+const RESERVE_CATEGORY_OPTIONS = ["–", "Solo integriert", "Solo extern", "Biplace"];
 function emptyReserve() {
-  return { name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
+  return { category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
 
 function emptySchirmSlot() {
@@ -367,6 +368,17 @@ function WartungApp() {
 
           {/* Fields for the currently selected category */}
           <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
+            {/* Category dropdown */}
+            <div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kategorie</div>
+              <select value={data.category||"–"} onChange={e=>updateSlot(activeReserveSlot,{category:e.target.value})}
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}}>
+                {RESERVE_CATEGORY_OPTIONS.map(opt => (
+                  <option key={opt} value={opt} style={{background:"#0d1b2a",color:"#e8f4fd"}}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Name */}
             <div>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
