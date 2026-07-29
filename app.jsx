@@ -441,9 +441,15 @@ function SettingsOverlay({ onClose }) {
       onClick={onClose}>
       <div onClick={e=>e.stopPropagation()}
         style={{background:"#1a1f2b",borderTopLeftRadius:20,borderTopRightRadius:20,width:"100%",maxWidth:480,maxHeight:"80vh",overflowY:"auto",padding:"16px 16px calc(24px + env(safe-area-inset-bottom, 0px))"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
           <span style={{fontSize:17,fontWeight:800,color:"#fff"}}>⚙️ Einstellungen</span>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:20,width:30,height:30,color:"#fff",fontSize:16,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{
+            fontSize:13, color:"#fff", marginBottom:14,
+            WebkitUserSelect:"text", userSelect:"text", WebkitTouchCallout:"default",
+          }}>
+          {typeof window!=="undefined" ? window.location.origin + "/" : ""}
         </div>
 
         {/* Hilfe: direct link to the in-app help page */}
