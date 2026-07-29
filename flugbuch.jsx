@@ -1152,11 +1152,19 @@ function FlightProfile({ flight, onPositionChange }) {
         const nextOut = i<groundProfile.length-1 && groundProfile[i+1].distKm > visEnd;
         if (inRange || (prevOut && g.distKm < visStart) || (nextOut && g.distKm > visEnd)) visibleGround.push(g);
       }
+      // Margin points (the one just outside the window on each side) exist
+      // purely so the line's slope into the edge is right — their actual
+      // x position can fall outside the plot area, which used to let the
+      // ground line/fill visibly overshoot past the axis on that side
+      // (the track never had this problem since it has no such margin
+      // points). Clamping to the plot bounds here keeps the edge slope
+      // correct while never drawing past the axis.
+      const clampX = x => Math.max(padL, Math.min(padL+plotW, x));
       const firstElev = visibleGround.find(g=>g.elev!=null)?.elev;
       const lastElev = [...visibleGround].reverse().find(g=>g.elev!=null)?.elev;
       ctx.beginPath();
       ctx.moveTo(xPos(visStart), firstElev!=null ? yPos(firstElev) : padT+plotH);
-      visibleGround.forEach(g => { if (g.elev!=null) ctx.lineTo(xPos(g.distKm), yPos(g.elev)); });
+      visibleGround.forEach(g => { if (g.elev!=null) ctx.lineTo(clampX(xPos(g.distKm)), yPos(g.elev)); });
       if (lastElev!=null) ctx.lineTo(xPos(visEnd), yPos(lastElev));
       ctx.lineTo(xPos(visEnd), padT+plotH);
       ctx.lineTo(xPos(visStart), padT+plotH);
@@ -1165,7 +1173,7 @@ function FlightProfile({ flight, onPositionChange }) {
       ctx.strokeStyle = "rgba(150,95,45,0.9)"; ctx.lineWidth = 1.5*dpr;
       ctx.beginPath();
       let started = false;
-      visibleGround.forEach((g) => { if (g.elev!=null) { const px=xPos(g.distKm), py=yPos(g.elev); if(!started){ctx.moveTo(px,py);started=true;} else ctx.lineTo(px,py); } });
+      visibleGround.forEach((g) => { if (g.elev!=null) { const px=clampX(xPos(g.distKm)), py=yPos(g.elev); if(!started){ctx.moveTo(px,py);started=true;} else ctx.lineTo(px,py); } });
       ctx.stroke();
     }
 
