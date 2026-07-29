@@ -795,9 +795,9 @@ function HomeApp() {
             </div>
 
             {/* Label + stats */}
-            <div style={{ flex: 1, padding: "8px 14px 8px 4px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ flex: 1, padding: "8px 14px 8px 4px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", textAlign: "left" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: t.ready ? "#e8f4fd" : "rgba(232,244,253,0.6)" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: t.ready ? "#e8f4fd" : "rgba(232,244,253,0.6)", textAlign: "left" }}>
                   {t.label}
                 </div>
                 {!t.ready && (
@@ -811,7 +811,7 @@ function HomeApp() {
                   </span>
                 )}
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-start" }}>
                 {t.stats.map((s) => (
                   <span
                     key={s.label || s.line1}
