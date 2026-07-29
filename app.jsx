@@ -180,16 +180,12 @@ async function readServiceUrgency() {
     });
   }
 
-  if (!candidates.length) return { reserve: null, schirm: null, gurtzeug: null };
-
-  // Most urgent (soonest / most overdue) per kind
-  const mostUrgent = (kind) => {
-    const list = candidates.filter(c => c.kind === kind);
-    if (!list.length) return null;
-    return list.sort((a,b) => a.days - b.days)[0];
-  };
-
-  return { reserve: mostUrgent("reserve"), schirm: mostUrgent("schirm"), gurtzeug: mostUrgent("gurtzeug") };
+  const KIND_LABELS = { reserve: "Reserve", schirm: "Schirm", gurtzeug: "Gurtzeug" };
+  const overdue = candidates
+    .filter(c => c.days < 0)
+    .map(c => ({ ...c, categoryLabel: KIND_LABELS[c.kind] }))
+    .sort((a,b) => a.days - b.days); // most overdue first
+  return { overdue };
 }
 
 const GERMAN_MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -526,9 +522,8 @@ function fmtDateCompact(date) {
   return `${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(-2)}`;
 }
 
-function formatServiceStat(entry, categoryLabel) {
-  if (!entry || entry.days >= 0) return null; // only overdue items are shown at all
-  return { line1: `${categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: "#f87171" };
+function formatServiceStat(entry) {
+  return { line1: `${entry.categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: "#f87171" };
 }
 
 function HomeApp() {
@@ -537,7 +532,7 @@ function HomeApp() {
   const fileRef = React.useRef(null);
   const [flightCount, setFlightCount] = useState(null);
   const [biplaceCount, setBiplaceCount] = useState(null);
-  const [serviceUrgency, setServiceUrgency] = useState({ reserve: null, schirm: null, gurtzeug: null });
+  const [serviceUrgency, setServiceUrgency] = useState({ overdue: [] });
   const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null });
   const [showSettings, setShowSettings] = useState(false);
   const [titleCfg, setTitleCfg] = useState(null);
@@ -666,14 +661,9 @@ function HomeApp() {
       icon: "🛠️",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",
-      stats: (() => {
-        const overdueStats = [
-          formatServiceStat(serviceUrgency.reserve, "Reserve"),
-          formatServiceStat(serviceUrgency.schirm, "Schirm"),
-          formatServiceStat(serviceUrgency.gurtzeug, "Gurtzeug"),
-        ].filter(Boolean);
-        return overdueStats.length ? overdueStats : [{ label: "Alles aktuell" }];
-      })(),
+      stats: serviceUrgency.overdue && serviceUrgency.overdue.length
+        ? serviceUrgency.overdue.map(formatServiceStat)
+        : [{ label: "Alles aktuell" }],
       href: "wartung.html",
       ready: true,
     },
