@@ -1135,6 +1135,23 @@ function FlightProfile({ flight, onPositionChange }) {
       ctx.lineTo(padL+plotW/2, padT+plotH);
       ctx.stroke();
       ctx.restore();
+
+      // Altitude where the track crosses the dashed centre line — same
+      // point the map's red reference marker sits at — shown on the
+      // Y-axis alongside the min/max labels, positioned at its own height.
+      const centerDist = (visStart+visEnd)/2;
+      let closestIdx = 0, closestDiff = Infinity;
+      for (let i=0;i<distances.length;i++) {
+        const diff = Math.abs(distances[i]-centerDist);
+        if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+      }
+      const centerAlt = track[closestIdx]?.gpsAlt;
+      if (centerAlt != null) {
+        const cy = Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt)));
+        ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
+        ctx.textAlign = "right";
+        ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
+      }
     }
 
     if (groundProfile && groundProfile.length) {

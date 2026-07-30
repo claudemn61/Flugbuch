@@ -196,12 +196,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.1";
+const APP_VERSION = "4.1.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.2", note: "Höhenprofil-Zoom: zeigt jetzt zusätzlich die Höhe am Schnittpunkt der gestrichelten Mittellinie mit der Flugspur, neben Minimum/Maximum auf der Y-Achse." },
   { v: "4.1.1", note: "Home/Wartung-Kachel vereinfacht: zeigt nur noch überfällige Positionen (Format \"Reserve Solo extern T.M.JJ\"), sonst \"Alles aktuell\"." },
   { v: "4.1", note: "Wartung: neues Kapitel 🎒 Gurtzeug (5 Positionen, orange), identisch zu Schirm aufgebaut. Titel bei Schirm/Gurtzeug direkt editierbar (nochmal auf den bereits aktiven Titel tippen). Hilfe (ausführlich + Kurzfassung) entsprechend aktualisiert." },
   { v: "4.0.2", note: "Wartung/Reserve: neues Kategorie-Feld vor dem Namen, editierbar, analog zu Schirm." },
