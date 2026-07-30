@@ -35,6 +35,15 @@ function fmtHM(sec) {
 // Builds the aggregation for a "grouping" stat: groups flights by a key
 // function, computing count / total duration / max duration / total
 // distance / first+last flight date, sorted by flight count descending.
+function getFlightDist(f) {
+  if (f.totalDist > 0) return f.totalDist;
+  return parseFloat(f.customFields?.distKm || f.customFields?.dk || 0) || 0;
+}
+function getFlightAlt(f) {
+  if (f.maxAlt > 0) return f.maxAlt;
+  return +(f.customFields?.hMax || 0);
+}
+
 function aggregate(flights, keyFn) {
   const groups = new Map();
   flights.forEach(f => {
@@ -47,9 +56,9 @@ function aggregate(flights, keyFn) {
     const fl = g.flights;
     const totalSec = fl.reduce((s,f) => s + (f.durationSec||0), 0);
     const maxSec = fl.reduce((m,f) => Math.max(m, f.durationSec||0), 0);
-    const totalDist = fl.reduce((s,f) => s + (f.totalDist||0), 0);
-    const maxDist = fl.reduce((m,f) => Math.max(m, f.totalDist||0), 0);
-    const maxAlt = fl.reduce((m,f) => Math.max(m, f.maxAlt||0), 0);
+    const totalDist = fl.reduce((s,f) => s + getFlightDist(f), 0);
+    const maxDist = fl.reduce((m,f) => Math.max(m, getFlightDist(f)), 0);
+    const maxAlt = fl.reduce((m,f) => Math.max(m, getFlightAlt(f)), 0);
     const dates = fl.map(f => parseDateToTs(f.date)).filter(Boolean);
     const first = dates.length ? Math.min(...dates) : 0;
     const last = dates.length ? Math.max(...dates) : 0;
@@ -104,8 +113,8 @@ function SeasonSection({ flights }) {
     return 0;
   };
   const parseDur = f => f.durationSec > 0 ? f.durationSec : (f.durationStr ? parseDurStr(f.durationStr) : 0);
-  const getDist = f => f.totalDist > 0 ? f.totalDist : (parseFloat(f.customFields?.distKm || 0) || 0);
-  const getAlt = f => f.maxAlt > 0 ? f.maxAlt : (+(f.customFields?.hMax || 0));
+  const getDist = getFlightDist;
+  const getAlt = getFlightAlt;
   const totalSec = yf.reduce((s,f)=>s+parseDur(f),0);
   const totalDist = yf.reduce((s,f)=>s+getDist(f),0);
   const getDur = f => parseDur(f);
