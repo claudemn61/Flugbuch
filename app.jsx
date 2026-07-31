@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.4";
+const APP_VERSION = "4.1.5";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.5", note: "Höhenprofil: Bodenprofil-Raster verdichtet von 40 auf 80 Stützpunkte über die Flugstrecke." },
   { v: "4.1.4", note: "Home/Wartung-Kachel zeigt jetzt zusätzlich zu überfälligen Positionen (rot) auch das nächste anstehende Reserve-Packdatum an — grün, oder gelb falls es noch im laufenden Kalendermonat fällig ist." },
   { v: "4.1.3", note: "Höhenprofil-Zoom: zeigt jetzt zusätzlich Uhrzeit/Distanz (z.B. \"14:33/23.4km\") in Rot unter der X-Achse an der gestrichelten Mittellinie." },
   { v: "4.1.2", note: "Höhenprofil-Zoom: zeigt jetzt zusätzlich die Höhe am Schnittpunkt der gestrichelten Mittellinie mit der Flugspur, neben Minimum/Maximum auf der Y-Achse." },

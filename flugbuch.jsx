@@ -928,7 +928,7 @@ function FlightMap({ flight, highlightRange }) {
 // profile drawn underneath it, sourced from Open-Meteo's free Elevation API
 // (open-meteo.com/en/docs/elevation-api — no key needed, CORS-enabled,
 // worldwide 90m-resolution DEM, explicitly suited to exactly this: getting
-// height-above-ground for a track). Only ~40 evenly distance-spaced points
+// height-above-ground for a track). Only ~80 evenly distance-spaced points
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
@@ -1048,7 +1048,7 @@ function FlightProfile({ flight, onPositionChange }) {
     let cancelled = false;
     (async () => {
       try {
-        const N = 40;
+        const N = 80;
         const samplePts = [];
         let idx = 0;
         for (let i = 0; i <= N; i++) {
