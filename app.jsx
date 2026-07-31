@@ -185,7 +185,21 @@ async function readServiceUrgency() {
     .filter(c => c.days < 0)
     .map(c => ({ ...c, categoryLabel: KIND_LABELS[c.kind] }))
     .sort((a,b) => a.days - b.days); // most overdue first
-  return { overdue };
+
+  // Next upcoming (not yet overdue) Reserve packing date — separate from
+  // the overdue list, always shown so a Reserve check due soon doesn't
+  // stay invisible until the day it's already overdue.
+  const upcomingReserve = candidates
+    .filter(c => c.kind === "reserve" && c.days >= 0)
+    .sort((a,b) => a.days - b.days)[0] || null;
+  let nextReserve = null;
+  if (upcomingReserve) {
+    const now = new Date();
+    const dueInSameMonth = upcomingReserve.nextDue.getFullYear()===now.getFullYear() && upcomingReserve.nextDue.getMonth()===now.getMonth();
+    nextReserve = { ...upcomingReserve, categoryLabel: "Reserve", color: dueInSameMonth ? "#fcd34d" : "#4ade80" };
+  }
+
+  return { overdue, nextReserve };
 }
 
 const GERMAN_MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
@@ -196,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.3";
+const APP_VERSION = "4.1.4";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.4", note: "Home/Wartung-Kachel zeigt jetzt zusätzlich zu überfälligen Positionen (rot) auch das nächste anstehende Reserve-Packdatum an — grün, oder gelb falls es noch im laufenden Kalendermonat fällig ist." },
   { v: "4.1.3", note: "Höhenprofil-Zoom: zeigt jetzt zusätzlich Uhrzeit/Distanz (z.B. \"14:33/23.4km\") in Rot unter der X-Achse an der gestrichelten Mittellinie." },
   { v: "4.1.2", note: "Höhenprofil-Zoom: zeigt jetzt zusätzlich die Höhe am Schnittpunkt der gestrichelten Mittellinie mit der Flugspur, neben Minimum/Maximum auf der Y-Achse." },
   { v: "4.1.1", note: "Home/Wartung-Kachel vereinfacht: zeigt nur noch überfällige Positionen (Format \"Reserve Solo extern T.M.JJ\"), sonst \"Alles aktuell\"." },
@@ -525,7 +540,7 @@ function fmtDateCompact(date) {
 }
 
 function formatServiceStat(entry) {
-  return { line1: `${entry.categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: "#f87171" };
+  return { line1: `${entry.categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: entry.color || "#f87171" };
 }
 
 function HomeApp() {
@@ -534,7 +549,7 @@ function HomeApp() {
   const fileRef = React.useRef(null);
   const [flightCount, setFlightCount] = useState(null);
   const [biplaceCount, setBiplaceCount] = useState(null);
-  const [serviceUrgency, setServiceUrgency] = useState({ overdue: [] });
+  const [serviceUrgency, setServiceUrgency] = useState({ overdue: [], nextReserve: null });
   const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null });
   const [showSettings, setShowSettings] = useState(false);
   const [titleCfg, setTitleCfg] = useState(null);
@@ -663,9 +678,12 @@ function HomeApp() {
       icon: "🛠️",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",
-      stats: serviceUrgency.overdue && serviceUrgency.overdue.length
-        ? serviceUrgency.overdue.map(formatServiceStat)
-        : [{ label: "Alles aktuell" }],
+      stats: (() => {
+        const overdueStats = (serviceUrgency.overdue||[]).map(formatServiceStat);
+        const nextReserveStat = serviceUrgency.nextReserve ? [formatServiceStat(serviceUrgency.nextReserve)] : [];
+        const all = [...overdueStats, ...nextReserveStat];
+        return all.length ? all : [{ label: "Alles aktuell" }];
+      })(),
       href: "wartung.html",
       ready: true,
     },
