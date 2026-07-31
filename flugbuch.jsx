@@ -1088,7 +1088,7 @@ function FlightProfile({ flight, onPositionChange }) {
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0,0,W,H);
 
-    const padL = 42*dpr, padR = 8*dpr, padT = 10*dpr, padB = 20*dpr;
+    const padL = 42*dpr, padR = 8*dpr, padT = 10*dpr, padB = 34*dpr;
     const plotW = Math.max(1, W-padL-padR), plotH = Math.max(1, H-padT-padB);
 
     const visStart = viewStart * totalDist;
@@ -1151,6 +1151,28 @@ function FlightProfile({ flight, onPositionChange }) {
         ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
         ctx.textAlign = "right";
         ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
+      }
+
+      // Local clock time + distance at that same point, shown under the
+      // X-axis at the dashed line's horizontal position — the track only
+      // stores UTC seconds-of-day, so the local offset is derived once by
+      // comparing the flight's own (already-localised) Startzeit against
+      // the first track point's UTC time.
+      const parseTimeToSec = str => {
+        const m = String(str||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        return m ? (+m[1])*3600 + (+m[2])*60 + (+(m[3]||0)) : null;
+      };
+      const localStartSec = parseTimeToSec(flight?.startTime);
+      const utcStartSec = track[0]?.timeSec;
+      const tzOffsetSec = (localStartSec!=null && utcStartSec!=null) ? (localStartSec - utcStartSec) : 0;
+      const rawTime = track[closestIdx]?.timeSec;
+      if (rawTime != null) {
+        const localSec = ((rawTime + tzOffsetSec) % 86400 + 86400) % 86400;
+        const hh = String(Math.floor(localSec/3600)).padStart(2,"0");
+        const mm = String(Math.floor((localSec%3600)/60)).padStart(2,"0");
+        ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillText(`${hh}:${mm}/${centerDist.toFixed(1)}km`, padL+plotW/2, padT+plotH+29*dpr);
       }
     }
 
