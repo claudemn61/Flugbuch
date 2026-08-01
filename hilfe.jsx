@@ -14,7 +14,7 @@ const SECTIONS = [
         <tr><td>✈️</td><td><b>Flugbuch</b></td><td>Liste aller Flüge, Suche, IGC-/CSV-Import, Backup, Detailansicht mit Karte und Höhenprofil</td></tr>
         <tr><td>📊</td><td><b>Statistik</b></td><td>Automatische Auswertungen nach Schirm, Start-/Landeplätzen, Passagieren und Saison</td></tr>
         <tr><td>🧭</td><td><b>Reisen</b></td><td>Flüge zu Reisen zusammengefasst, mit Kennzahlen je Reise</td></tr>
-        <tr><td>🛠️</td><td><b>Wartung</b></td><td>Ausrüstungsverwaltung inkl. Packen-Intervall und fälligem Packdatum</td></tr>
+        <tr><td>🛠️</td><td><b>Wartung</b></td><td>Ausrüstung in 3 Kapiteln (Reserve, Schirm, Gurtzeug), inkl. Check-Intervall und fälligem Check-Datum</td></tr>
       </tbody></table>
       <h3>1.2 Offline-Nutzung</h3>
       <p>Die App merkt sich beim ersten erfolgreichen Online-Aufruf automatisch ihre eigenen Dateien (Service Worker). Ab dem <b>zweiten</b> Online-Start funktioniert sie danach auch komplett ohne Internetverbindung, inkl. Öffnen der App über das Home-Bildschirm-Icon. Fehlt die Verbindung, erscheint unten ein gelbes Banner "Offline — zuletzt gespeicherter Stand" — die Nutzung ist davon nicht eingeschränkt.</p>
@@ -33,11 +33,11 @@ const SECTIONS = [
   {
     id: "home", title: "2. Startseite",
     body: () => (<>
-      <p>Zeigt ein editierbares Titelbild mit dem App-Namen, darunter die vier Kapitel-Kacheln.</p>
-      <h3>2.1 Titelbild ändern</h3>
-      <p>Auf das Titelbild tippen öffnet die Bildauswahl des Geräts. Das Foto wird lokal gespeichert.</p>
+      <p>Zeigt ein editierbares Titelfoto mit dem App-Namen, darunter die vier Kapitel-Kacheln (jede mit Live-Kennzahlen, z.B. Anzahl Flüge).</p>
+      <h3>2.1 Titelfoto und Titeltext ändern</h3>
+      <p>Auf das Foto tippen (ausserhalb des Titeltexts) öffnet die Bildauswahl des Geräts — das Foto wird lokal gespeichert. Auf den Titeltext selbst tippen öffnet stattdessen den Titel-Editor: beliebig viele Textteile, je mit eigener Farbe, sechs Schriftarten zur Auswahl, Schriftgrösse per Regler, mit Live-Vorschau. "Zurücksetzen" stellt "meinflugbuch" in der Standard-Optik wieder her.</p>
       <h3>2.2 Einstellungen (Zahnrad)</h3>
-      <p>Öffnet ein Panel mit Hilfe, Datensicherung (Backup/Wiederherstellen) und Notizen.</p>
+      <p>Öffnet ein Panel mit: der App-URL (antippen/halten zum Kopieren), ❓ Hilfe (diese Seite), 📁 Log Files (technisches Fehlerprotokoll) und 📝 Notizen (freies App-weites Notizfeld). Die Datensicherung (Backup) liegt nicht hier, sondern im Flugbuch selbst (siehe 3.3).</p>
     </>),
   },
   {
@@ -74,12 +74,12 @@ const SECTIONS = [
       </ul>
       <p><b>Distanz wird nie automatisch berechnet</b> — bewusst manuell, da XContest-Werte (Streckenoptimierung über Wendepunkte) massgeblich sind, nicht die reine Tracklänge. Ein erneuter Import befüllt nur leere Felder; Dauer und Höhendifferenz werden immer neu berechnet, da rein rechnerisch.</p>
       <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
-      <p>Karte zeigt den Track höhenfarbig (rot = tief, blau = hoch); Vollbild per Antippen, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz mit braunem Bodenprofil (echte Geländedaten), proportional auf die eingetragene Distanz skaliert.</p>
+      <p>Karte zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
         <li>🔍 Zoom-Button — Listenauswahl 1× bis 8×</li>
         <li>Bei Zoom: im Profil wischen, um den Ausschnitt zu verschieben</li>
         <li>Karte zoomt dabei synchron mit, roter Referenzpunkt an der Fenster-Mitte</li>
-        <li>Gestrichelte Linie im Profil markiert diese Mitte</li>
+        <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Uhrzeit/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot</li>
       </ul>
       <h3>3.6 Weltkarte</h3>
       <p>Start-/Landeplätze (grün/rot) auf einer Karte, einzeln ein-/ausblendbar. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche: mehrere Wörter automatisch UND-verknüpft, das Wort „oder&quot; trennt Alternativen, z.B. <code>2026 Brasilien oder Wallis</code>.</p>
