@@ -2848,6 +2848,11 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
               ))}
             </div>
             {fl.track?.length>1&&<span style={{background:"rgba(245,158,11,0.18)",color:"#fcd34d",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
+            <button onClick={()=>window.open("https://www.xcontest.org/world/en/my-flights/","_blank")}
+              title="XContest — Meine Flüge"
+              style={{background:"rgba(65,105,225,0.18)",border:"1px solid rgba(65,105,225,0.4)",color:"#4169e1",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
+              XContest
+            </button>
           </div>
 
           {/* Notizen — kein Feld-Label mehr, Text über die volle Breite und linksbündig (statt des generischen label:value-Rechts-Layouts von InlineField). */}
