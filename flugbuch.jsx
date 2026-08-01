@@ -521,26 +521,22 @@ function FlightMap({ flight, highlightRange }) {
     const drawTrackAndMarkers = (tx, ty) => {
       const traceTrack = (highlightRange && pts !== track && pts.length > 1) ? pts : track;
       if (traceTrack.length) {
-        const alts=traceTrack.map(p=>p.gpsAlt), minA=Math.min(...alts), rng=Math.max(...alts)-minA||1;
         for(let i=1;i<traceTrack.length;i++){
-          // Fullscreen view: solid red, noticeably thicker, for maximum
-          // legibility while zoomed/panned. Small preview: keep the
-          // existing altitude-color-coded line as before.
+          // Solid, bold dark blue — not altitude/climb colour-coded, unlike
+          // the separate Höhenprofil chart which keeps its own gradient.
           if (isFullscreenCanvas) {
-            const t=(traceTrack[i].gpsAlt-minA)/rng;
             ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=9.5;
             ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
-            ctx.strokeStyle=`hsl(${t*240},100%,50%)`;
-            ctx.lineWidth=5.5; ctx.beginPath();
+            ctx.strokeStyle="#1e40af";
+            ctx.lineWidth=6.5; ctx.beginPath();
             ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
             ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
             ctx.stroke();
           } else {
-            const t=(traceTrack[i].gpsAlt-minA)/rng;
             ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=5;
             ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
-            ctx.strokeStyle=`hsl(${t*240},100%,50%)`;
-            ctx.lineWidth=2.75; ctx.beginPath();
+            ctx.strokeStyle="#1e40af";
+            ctx.lineWidth=3.25; ctx.beginPath();
             ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
             ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
             ctx.stroke();
