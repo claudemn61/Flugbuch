@@ -1149,23 +1149,16 @@ function FlightProfile({ flight, onPositionChange }) {
         ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
       }
 
-      // Local clock time + distance at that same point, shown under the
-      // X-axis at the dashed line's horizontal position — the track only
-      // stores UTC seconds-of-day, so the local offset is derived once by
-      // comparing the flight's own (already-localised) Startzeit against
-      // the first track point's UTC time.
-      const parseTimeToSec = str => {
-        const m = String(str||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-        return m ? (+m[1])*3600 + (+m[2])*60 + (+(m[3]||0)) : null;
-      };
-      const localStartSec = parseTimeToSec(flight?.startTime);
+      // Elapsed flight duration + distance at that same point, shown under
+      // the X-axis at the dashed line's horizontal position (not absolute
+      // clock time — duration since takeoff is what's actually useful when
+      // scrubbing through a flight's profile).
       const utcStartSec = track[0]?.timeSec;
-      const tzOffsetSec = (localStartSec!=null && utcStartSec!=null) ? (localStartSec - utcStartSec) : 0;
       const rawTime = track[closestIdx]?.timeSec;
-      if (rawTime != null) {
-        const localSec = ((rawTime + tzOffsetSec) % 86400 + 86400) % 86400;
-        const hh = String(Math.floor(localSec/3600)).padStart(2,"0");
-        const mm = String(Math.floor((localSec%3600)/60)).padStart(2,"0");
+      if (rawTime != null && utcStartSec != null) {
+        const elapsedSec = Math.max(0, rawTime - utcStartSec);
+        const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
+        const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
         ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
         ctx.textAlign = "center";
         ctx.fillText(`${hh}:${mm}/${centerDist.toFixed(1)}km`, padL+plotW/2, padT+plotH+29*dpr);
@@ -1241,7 +1234,7 @@ function FlightProfile({ flight, onPositionChange }) {
               <div onClick={e=>e.stopPropagation()}
                 style={{position:"absolute",top:0,right:16,marginTop:4,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70}}>
                 {[1,2,3,4,5,6,7,8].map(z=>(
-                  <button key={z} onClick={()=>{setZoomLevel(z);setZoomPickerOpen(false);}}
+                  <button key={z} onClick={()=>{setZoomLevel(z);setPanPos(0);setZoomPickerOpen(false);}}
                     style={{background:z===zoomLevel?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:z===zoomLevel?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:z===zoomLevel?700:400,cursor:"pointer",textAlign:"left"}}>
                     {z}×
                   </button>
