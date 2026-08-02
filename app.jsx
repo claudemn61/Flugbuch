@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.7";
+const APP_VERSION = "4.1.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.8", note: "CSV-Import: erkennt jetzt Kopfzeilen und ordnet Spalten flexibel zu (deutsche/englische Bezeichnungen, beliebige Reihenfolge) — nicht mehr auf das feste 53-Spalten-Format angewiesen. Fällt auf das bisherige feste Format zurück, wenn keine Kopfzeile erkannt wird." },
   { v: "4.1.7", note: "Flugdetail: neuer XContest-Button (königsblau) neben dem IGC-Badge, öffnet direkt xcontest.org/world/en/my-flights/." },
   { v: "4.1.6", note: "Kartenansicht (Übersicht + Vollbild): Trackspur jetzt einheitliches kräftiges Dunkelblau statt Höhen-Farbverlauf, etwas breiter. Das Höhenprofil-Diagramm behält seinen eigenen Farbverlauf." },
   { v: "4.1.5", note: "Höhenprofil: Bodenprofil-Raster verdichtet von 40 auf 80 Stützpunkte über die Flugstrecke." },

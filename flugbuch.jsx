@@ -3466,8 +3466,75 @@ function FlugbuchApp() {
   // different column in each. Both now go through the exact same per-row
   // parser, so a CSV file and pasting the same rows by hand always produce
   // identical results, and any future fix only has to happen once.
+  // Recognised header-name variants per field — matched case-insensitively
+  // after trimming, so a CSV exported from a different app/spreadsheet with
+  // its own column order and slightly different labels can still be read,
+  // rather than requiring the exact 53-column layout this app's own
+  // spreadsheet template uses.
+  const FIELD_ALIASES = {
+    nr: ["nr", "nr.", "nummer", "flug", "flug nr", "flugnummer", "#", "flight", "flight nr"],
+    datum: ["datum", "date"],
+    startzeit: ["startzeit", "start", "abflug", "start time", "zeit start", "starttime"],
+    startplatz: ["startplatz", "startort", "start ort", "ort start", "site", "launch", "takeoff"],
+    startlat: ["start lat", "startlat", "start latitude", "s-lat", "slat"],
+    startlon: ["start lon", "startlon", "start longitude", "s-lon", "slon"],
+    landezeit: ["landezeit", "landung zeit", "ankunft", "land time", "zeit landung", "landtime", "endtime", "end time"],
+    landeplatz: ["landeplatz", "landung", "landort", "land ort", "ort landung", "landing"],
+    landlat: ["land lat", "landlat", "l-lat", "llat"],
+    landlon: ["land lon", "landlon", "l-lon", "llon"],
+    dauer: ["dauer", "duration", "flugzeit", "flight time"],
+    distanz: ["distanz", "distance", "km", "strecke"],
+    kmh: ["km/h", "kmh", "geschwindigkeit", "speed", "ø speed", "avg speed"],
+    hdiff: ["h.diff", "hdiff", "höhendifferenz", "h diff", "altitude diff"],
+    maxsteigen: ["max.steigen", "maxsteigen", "steigen", "climb", "max climb"],
+    maxsinken: ["max.sinken", "maxsinken", "sinken", "sink", "max sink"],
+    hmax: ["h.max", "hmax", "max höhe", "maxhöhe", "höhe max", "max altitude", "max alt"],
+    hgew: ["h.gew", "hgew", "höhengewinn", "gewinn", "altitude gain"],
+    geraet: ["gerät", "geraet", "schirm", "glider", "wing"],
+    passagier: ["passagier", "passenger", "biplace", "passagiere"],
+    bemerkung: ["bemerkung", "notiz", "notizen", "comment", "comments", "remarks", "notes"],
+  };
+  // Given a header row's cells, returns { fieldKey: columnIndex } for every
+  // recognised column, or null if too few fields were recognised to be
+  // confident this is actually a header row (vs. a data row that happens
+  // to start with text).
+  const detectHeaderMapping = (headerCols) => {
+    const mapping = {};
+    headerCols.forEach((cell, idx) => {
+      const norm = String(cell||"").trim().toLowerCase();
+      if (!norm) return;
+      for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+        if (mapping[field] !== undefined) continue; // first match wins
+        if (aliases.includes(norm)) { mapping[field] = idx; break; }
+      }
+    });
+    // Require at least a date and one location field to trust this as a
+    // real header — otherwise a data row with an unlucky text-only first
+    // cell could be misread as a header and silently drop a flight.
+    if (mapping.datum === undefined) return null;
+    if (mapping.startplatz === undefined && mapping.landeplatz === undefined) return null;
+    return mapping;
+  };
+  // Extracts one row's data using a previously detected header mapping,
+  // in the same { d, sz, lz, st, la, ... } shape parseSingleRow produces,
+  // so both feed into the exact same downstream flight-creation code.
+  const parseRowWithMapping = (cols, mapping) => {
+    const get = key => mapping[key] !== undefined ? (cols[mapping[key]]||"").trim() : "";
+    const s = coordsToWgs84(get("startlat"), get("startlon"));
+    const l = coordsToWgs84(get("landlat"), get("landlon"));
+    return {
+      d: get("datum"), sz: get("startzeit"), lz: get("landezeit"),
+      st: get("startplatz"), la: get("landeplatz"),
+      sLat: s.lat, sLon: s.lon, lLat: l.lat, lLon: l.lon,
+      dur: get("dauer"), dk: get("distanz"), kmh: get("kmh"), hd: get("hdiff"),
+      msa: get("maxsteigen"), ml: get("maxsinken"), hm: get("hmax"), hg: get("hgew"),
+      ge: get("geraet"), pa: get("passagier"), be: get("bemerkung"),
+      _nr: get("nr"),
+    };
+  };
+
   const parseCSV = (text) => {
-    const lines = text.split(/\r?\n/);
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
     const results = {};
     // Defensive cleanup for a cell that accidentally contains trailing
     // coordinates along with the place name (e.g. "Fiesch, 46.234, 8.123") —
@@ -3475,8 +3542,33 @@ function FlugbuchApp() {
     // this before; parseSingleRow itself doesn't need this for its normal
     // (clean) inputs, so it's applied only here as a light post-process.
     const cleanLoc = s => { const m=String(s||"").match(/,\s*[-]?\d/); return m?s.slice(0,m.index).trim().replace(/,+$/,"").trim():String(s||"").trim(); };
+
+    // Try header-based mapping first, using whichever separator the first
+    // line actually uses (comma is the common case for a real CSV file).
+    let headerMapping = null, dataLines = lines, autoNr = 1;
+    if (lines.length > 1) {
+      const firstCols = splitCsvLine(lines[0]);
+      headerMapping = detectHeaderMapping(firstCols);
+      if (headerMapping) dataLines = lines.slice(1);
+    }
+
+    if (headerMapping) {
+      for (const line of dataLines) {
+        const cols = splitCsvLine(line).map(c => (c||"").trim().replace(/^"+|"+$/g, ""));
+        const p = parseRowWithMapping(cols, headerMapping);
+        if (!p.d) continue;
+        const nr = p._nr && /^\d+$/.test(p._nr) ? p._nr : String(autoNr);
+        autoNr = Math.max(autoNr, +nr + 1);
+        results[nr] = { ...p, st: cleanLoc(p.st), la: cleanLoc(p.la) };
+      }
+      if (Object.keys(results).length) return results;
+      // Fell through to no usable rows despite a detected header — try the
+      // fixed-position fallback below rather than returning nothing.
+    }
+
+    // Fixed-position fallback (this app's own 25-/53-column spreadsheet
+    // layout), used whenever no confident header mapping was found above.
     for (const line of lines) {
-      if (!line.trim()) continue;
       let p;
       try { p = parseSingleRow(line); } catch { continue; }
       const nr = (p._nr||"").trim();
