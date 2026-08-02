@@ -1961,30 +1961,73 @@ function formatSortValue(f, sortId) {
   }
 }
 
-function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel }) {
+function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel, isWide }) {
+  const pax = f.customFields?.passagier;
   const showSortValue = sortId && sortId !== "date" && sortId !== "number";
+
+  // Wide (iPad/desktop): compact single line — Nr, Datum, Start, Schirm,
+  // gap, IGC-badge, then far right Distanz/Dauer. iPhone below is
+  // untouched from the original 2-line design.
+  if (isWide) {
+    return (
+      <div onClick={selectMode ? ()=>onToggleSelect(f.id) : onClick}
+        style={{padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:isSelected?"rgba(14,165,233,0.1)":"transparent",transition:"background 0.15s",whiteSpace:"nowrap",overflow:"hidden"}}
+        onMouseEnter={e=>{ if(!isSelected) e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
+        onMouseLeave={e=>{ if(!isSelected) e.currentTarget.style.background="transparent"; }}>
+        {selectMode && (
+          <div style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${isSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:isSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {isSelected && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
+          </div>
+        )}
+        {isLongest&&<span style={{fontSize:10,flexShrink:0}}>🏆</span>}
+        <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
+        <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
+        <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
+        {f.glider && <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flexShrink:2}}>· {f.glider}</span>}
+        <span style={{flexShrink:0,marginLeft:6}}>
+          {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
+        </span>
+        <span style={{flex:1}} />
+        <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
+          {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist} km</span> : null}
+          <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // iPhone (original, unchanged 2-line design)
   return (
     <div onClick={selectMode ? ()=>onToggleSelect(f.id) : onClick}
-      style={{padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:isSelected?"rgba(14,165,233,0.1)":"transparent",transition:"background 0.15s",whiteSpace:"nowrap",overflow:"hidden"}}
+      style={{padding:"11px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:isSelected?"rgba(14,165,233,0.1)":"transparent",transition:"background 0.15s"}}
       onMouseEnter={e=>{ if(!isSelected) e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
       onMouseLeave={e=>{ if(!isSelected) e.currentTarget.style.background="transparent"; }}>
       {selectMode && (
-        <div style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${isSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:isSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{marginRight:10,flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${isSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:isSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
           {isSelected && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
         </div>
       )}
-      {isLongest&&<span style={{fontSize:10,flexShrink:0}}>🏆</span>}
-      <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
-      <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
-      <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
-      {f.glider && <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flexShrink:2}}>· {f.glider}</span>}
-      <span style={{flexShrink:0,marginLeft:6}}>
-        {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
-      </span>
-      <span style={{flex:1}} />
-      <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
-        {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist} km</span> : null}
-        <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+          {isLongest&&<span style={{fontSize:10}}>🏆</span>}
+          <span style={{fontWeight:700,fontSize:15}}>{f.name}</span>
+          <span style={{fontSize:10,fontWeight:700,color:"#fcd34d",minWidth:26,flexShrink:0}}>{reiseLabel||""}</span>
+          <span style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+            {f.pdfOnly&&<span style={{background:"rgba(139,92,246,0.18)",color:"#c4b5fd",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700}}>CSV</span>}
+            {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
+            {pax&&<span style={{border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤 {pax}</span>}
+          </span>
+        </div>
+        <div style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{f.date} · {f.site||"—"}{f.glider?" · "+f.glider:""}</div>
+      </div>
+      <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
+        <div style={{fontSize:13,fontWeight:600,color:"#7dd3fc",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
+          {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
+          <span>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
+        </div>
+        {!showSortValue && (
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist?f.totalDist+" km":""}</div>
+        )}
       </div>
     </div>
   );
@@ -4249,7 +4292,7 @@ function FlugbuchApp() {
             {(() => {
               const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
               return sorted.map(f=>(
-                <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
+                <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
                   selectMode={selectMode} isSelected={selectedIds.has(f.id)}
                   onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
                   onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
@@ -4300,7 +4343,7 @@ function FlugbuchApp() {
               </div>
               {!collapsed && (
                 yFlights.map(f=>(
-                  <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
+                  <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
                     selectMode={selectMode} isSelected={selectedIds.has(f.id)}
                     onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
                     onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
