@@ -279,7 +279,7 @@ function WartungApp() {
         </button>
         <button onClick={()=>setActiveTab("gurtzeug")}
           style={{flex:1,background:activeTab==="gurtzeug"?"rgba(245,158,11,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="gurtzeug"?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="gurtzeug"?"#f59e0b":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          🎒 Gurtzeug
+          💺 Sitz
         </button>
       </div>
 
@@ -429,7 +429,7 @@ function WartungApp() {
                     onChange={e=>updateGurtzeugSlot(slotId,{title:e.target.value})}
                     onBlur={()=>setEditingGurtzeugTab(null)}
                     onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                    placeholder={`Gurtzeug ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
+                    placeholder={`Sitz ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
                     style={{...tabStyle, cursor:"text", outline:"none"}} />
                 );
               }
@@ -437,7 +437,7 @@ function WartungApp() {
                 <button key={slotId}
                   onClick={()=> isActive ? setEditingGurtzeugTab(slotId) : setActiveGurtzeugSlot(slotId)}
                   style={{...tabStyle, cursor:"pointer"}}>
-                  {displayTitle || `Gurtzeug ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
+                  {displayTitle || `Sitz ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
                 </button>
               );
             })}
@@ -536,7 +536,7 @@ function WartungApp() {
           <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
             {RESERVE_SLOTS.map(slot => {
               const slotData = reserves[slot.id] || emptyReserve();
-              const displayTitle = slotData.title || (slotData.category && slotData.category!=="–" ? slotData.category : slot.label);
+              const displayTitle = slotData.title || (slotData.category && slotData.category!=="–" ? slotData.category : "");
               const isActive = activeReserveSlot===slot.id;
               const isEditing = editingReserveTab===slot.id;
               const tabStyle = {
@@ -551,6 +551,7 @@ function WartungApp() {
                     onChange={e=>updateSlot(slot.id,{title:e.target.value})}
                     onBlur={()=>setEditingReserveTab(null)}
                     onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                    placeholder={`Reserve ${RESERVE_SLOTS.indexOf(slot)+1}`}
                     style={{...tabStyle, cursor:"text", outline:"none"}} />
                 );
               }
@@ -558,7 +559,7 @@ function WartungApp() {
                 <button key={slot.id}
                   onClick={()=> isActive ? setEditingReserveTab(slot.id) : setActiveReserveSlot(slot.id)}
                   style={{...tabStyle, cursor:"pointer"}}>
-                  {displayTitle}
+                  {displayTitle || `Reserve ${RESERVE_SLOTS.indexOf(slot)+1}`}
                 </button>
               );
             })}
