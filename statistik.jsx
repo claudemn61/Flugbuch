@@ -291,7 +291,7 @@ function StatistikApp() {
     { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#f5a623", glow: "rgba(245,166,35,0.5)" },
     { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa", glow: "rgba(167,139,250,0.5)" },
     { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a", glow: "rgba(224,48,74,0.5)" },
-  ];
+  ].filter(t => t.id !== "passagiere" || passagierRows.length > 0);
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}

@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.10";
+const APP_VERSION = "4.1.11";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.11", note: "Statistik: Passagiere-Badge blendet sich aus, wenn kein Flug einen Passagier hat (Saison rutscht nach). Home: Reisen-Kachel blendet sich aus, wenn keine Reisen erfasst sind." },
   { v: "4.1.10", note: "Statistik/Saison: Kachel \"Total Distanz\" ersetzt durch \"Flugtage\" (Anzahl unterschiedlicher Tage mit mindestens einem Flug)." },
   { v: "4.1.9", note: "Höhenprofil-Zoom: Zeitangabe an der gestrichelten Linie zeigt jetzt Flugdauer seit Start statt absoluter Uhrzeit. Beim Aktivieren eines Zoom-Levels springt die Markierung auf Flugstart (0:00)." },
   { v: "4.1.8", note: "CSV-Import: erkennt jetzt Kopfzeilen und ordnet Spalten flexibel zu (deutsche/englische Bezeichnungen, beliebige Reihenfolge) — nicht mehr auf das feste 53-Spalten-Format angewiesen. Fällt auf das bisherige feste Format zurück, wenn keine Kopfzeile erkannt wird." },
@@ -703,7 +704,7 @@ function HomeApp() {
       href: "reisen.html",
       ready: true,
     },
-  ];
+  ].filter(t => t.id !== "reisen" || statistikCounts.reisen !== 0);
 
   return (
     <div style={{
