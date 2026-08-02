@@ -3812,27 +3812,27 @@ function FlugbuchApp() {
       {/* Row 2: Import / Backup / Auswahl / Weltkarte / Richtung / Jahr — 6 quadratische Icon-Buttons */}
       <div style={{padding:"10px 16px 0",display:"flex",gap:8}}>
         <button onClick={()=>{ setShowImportMenu(m=>!m); setShowBackupMenu(false); }} title="Import"
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showImportMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showImportMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:25,cursor:"pointer"}}>
           📥
         </button>
         <button onClick={()=>{ setShowBackupMenu(m=>!m); setShowImportMenu(false); }} title="Backup"
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showBackupMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showBackupMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showBackupMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showBackupMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:25,cursor:"pointer"}}>
           💾
         </button>
         <button onClick={()=>{ setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl"
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${selectMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:23,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${selectMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:29,cursor:"pointer"}}>
           {selectMode?"✕":"☑"}
         </button>
         <button onClick={()=>setView("worldmap")} title="Weltkarte"
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:10,color:"#fff",fontSize:25,cursor:"pointer"}}>
           🗺️
         </button>
         <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")} title={sortDir==="asc"?"Aufsteigend":"Absteigend"}
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:19,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:25,cursor:"pointer"}}>
           {sortDir==="asc"?"↑":"↓"}
         </button>
         <button onClick={()=>setCollapsedYears(s=>s.size===0?new Set(years):new Set())} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:15,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:19,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
           {collapsedYears.size===0?"⊟⊟":"⊞⊞"}
         </button>
       </div>
@@ -4258,28 +4258,11 @@ function FlugbuchApp() {
           <div>
             {(() => {
               const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
-              if (!isWide) {
-                return sorted.map(f=>(
-                  <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
-                    selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                    onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                    onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                ));
-              }
-              // Wide: render explicit row pairs so left-to-right reading order
-              // matches the actual sort order (grid auto-flow would fill column-
-              // by-column instead, scrambling the visual order).
-              const rows = [];
-              for (let i=0;i<sorted.length;i+=2) rows.push([sorted[i], sorted[i+1]]);
-              return rows.map((pair,idx)=>(
-                <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
-                  {pair.map(f=>f && (
-                    <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
-                      selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                      onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                      onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                  ))}
-                </div>
+              return sorted.map(f=>(
+                <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
+                  selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+                  onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+                  onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
               ));
             })()}
           </div>
@@ -4325,29 +4308,14 @@ function FlugbuchApp() {
                 </div>
                 <span style={{fontSize:12,color:"rgba(232,244,253,0.35)"}}>{yrH}h{yrM}m {collapsed?"▸":"▾"}</span>
               </div>
-              {!collapsed && (isWide ? (
-                (() => {
-                  const rows = [];
-                  for (let i=0;i<yFlights.length;i+=2) rows.push([yFlights[i], yFlights[i+1]]);
-                  return rows.map((pair,idx)=>(
-                    <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
-                      {pair.map(f=>f && (
-                        <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
-                          selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                          onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                          onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                      ))}
-                    </div>
-                  ));
-                })()
-              ) : (
+              {!collapsed && (
                 yFlights.map(f=>(
                   <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)}
                     selectMode={selectMode} isSelected={selectedIds.has(f.id)}
                     onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
                     onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
                 ))
-              ))}
+              )}
             </div>
           );
         })}

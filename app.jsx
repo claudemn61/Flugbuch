@@ -595,13 +595,17 @@ function HomeApp() {
       if (photoCardRef.current) setPhotoTopOffset(photoCardRef.current.getBoundingClientRect().top);
     };
     measure();
-    // A couple of follow-up measurements catch the photo's own load/decode
-    // (its rendered aspect-ratio box can only be measured once the browser
-    // has actually laid it out) and any font/webfont-driven reflow.
-    const t1 = setTimeout(measure, 50);
-    const t2 = setTimeout(measure, 300);
     window.addEventListener("resize", measure);
-    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", measure); };
+    // ResizeObserver reacts to the photo card's actual rendered box
+    // changing (image finishing decode, font load, layout shift, etc.)
+    // rather than guessing with fixed delays — reliable regardless of how
+    // long the photo itself takes to load.
+    let ro;
+    if (photoCardRef.current && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(photoCardRef.current);
+    }
+    return () => { window.removeEventListener("resize", measure); if (ro) ro.disconnect(); };
   }, [isWide, photoUrl]);
 
   useEffect(() => {
