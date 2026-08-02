@@ -58,7 +58,7 @@ const SECTIONS = [
       <p className="hint">💡 Mehrere Bedingungen kombinierbar, z.B. <code>jahr=2026 dauer&gt;2h</code>.</p>
       <h3>3.3 Icon-Reihe (6 Buttons)</h3>
       <ul>
-        <li>📥 Import — IGC-Dateien, CSV oder eingefügte Tabellenzeilen (Copy/Paste aus Numbers/Excel). Kopfzeilen-Erkennung ordnet Spalten automatisch zu, sofern vorhanden.</li>
+        <li>📥 Import — IGC-Dateien, CSV oder eingefügte Tabellenzeilen (Copy/Paste aus Numbers/Excel). Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>
         <li>💾 Backup — Datensicherung exportieren/wiederherstellen</li>
         <li>☑ Auswahl — Mehrfachauswahl von Flügen (z.B. für die Weltkarte)</li>
         <li>🗺️ Weltkarte — siehe 3.6</li>
@@ -72,14 +72,14 @@ const SECTIONS = [
         <li>Schirm-Modell und Passagier, falls im Logger hinterlegt</li>
         <li>Dauer, Höhengewinn, max./min. Höhe, max. Steigen/Sinken</li>
       </ul>
-      <p><b>Distanz wird nie automatisch berechnet</b> — bewusst manuell, da XContest-Werte (Streckenoptimierung über Wendepunkte) massgeblich sind, nicht die reine Tracklänge. Ein erneuter Import befüllt nur leere Felder; Dauer und Höhendifferenz werden immer neu berechnet, da rein rechnerisch.</p>
+      <p><b>Distanz wird nie automatisch berechnet</b> — bewusst manuell, da XContest-Werte (Streckenoptimierung über Wendepunkte) massgeblich sind, nicht die reine Tracklänge. Ein erneuter Import befüllt nur leere Felder; Dauer und Höhendifferenz werden immer neu berechnet, da rein rechnerisch. Ein königsblauer "XContest"-Button neben dem IGC-Badge im Flugdetail öffnet direkt die eigene XContest-Flugliste.</p>
       <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
       <p>Karte zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
         <li>🔍 Zoom-Button — Listenauswahl 1× bis 8×</li>
         <li>Bei Zoom: im Profil wischen, um den Ausschnitt zu verschieben</li>
         <li>Karte zoomt dabei synchron mit, roter Referenzpunkt an der Fenster-Mitte</li>
-        <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Uhrzeit/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot</li>
+        <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Flugdauer/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot. Beim Wählen eines Zoom-Levels springt die Markierung auf Flugstart (0:00)</li>
       </ul>
       <h3>3.6 Weltkarte</h3>
       <p>Start-/Landeplätze (grün/rot) auf einer Karte, einzeln ein-/ausblendbar. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche: mehrere Wörter automatisch UND-verknüpft, das Wort „oder&quot; trennt Alternativen, z.B. <code>2026 Brasilien oder Wallis</code>.</p>
@@ -125,9 +125,10 @@ function KurzContent() {
       <ul>
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
         <li>📥 Import (IGC/CSV/Copy-Paste) · 💾 Backup · ☑ Auswahl · 🗺️ Weltkarte · ↕ Richtung · Jahr</li>
-        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch — Distanz bleibt manuell (XContest-Wert)</li>
+        <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
+        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
-        <li>Höhenprofil: 🔍-Button für Zoom 1-8×, bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit</li>
+        <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>
       </ul>
       <h3>Statistik</h3>
       <p>5 Badges: Schirm · Startplätze · Landeplätze · Passagiere · Saison (Jahresübersicht + Rekorde)</p>
