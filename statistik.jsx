@@ -117,6 +117,7 @@ function SeasonSection({ flights }) {
   const getAlt = getFlightAlt;
   const totalSec = yf.reduce((s,f)=>s+parseDur(f),0);
   const totalDist = yf.reduce((s,f)=>s+getDist(f),0);
+  const flugtage = new Set(yf.map(f=>f.date).filter(Boolean)).size;
   const getDur = f => parseDur(f);
   const prDur  = yf.length ? Math.max(...yf.map(getDur))  : 0;
   const prDist = yf.length ? Math.max(...yf.map(getDist)) : 0;
@@ -176,7 +177,7 @@ function SeasonSection({ flights }) {
         <div style={S.grid}>
           <div style={S.box}><div style={S.bigNum}>{yf.length}</div><div style={S.lbl}>Flüge</div></div>
           <div style={S.box}><div style={S.bigNum}>{fmtDur(totalSec)}</div><div style={S.lbl}>Total Flugzeit</div></div>
-          <div style={S.box}><div style={S.bigNum}>{totalDist.toFixed(0)} km</div><div style={S.lbl}>Total Distanz</div></div>
+          <div style={S.box}><div style={S.bigNum}>{flugtage}</div><div style={S.lbl}>Flugtage</div></div>
           <div style={S.box}><div style={S.bigNum}>{yf.length>0?(totalDist/yf.length).toFixed(1):0} km</div><div style={S.lbl}>Ø / Flug</div></div>
         </div>
         <div style={S.prBox}>

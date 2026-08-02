@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.9";
+const APP_VERSION = "4.1.10";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.1.10", note: "Statistik/Saison: Kachel \"Total Distanz\" ersetzt durch \"Flugtage\" (Anzahl unterschiedlicher Tage mit mindestens einem Flug)." },
   { v: "4.1.9", note: "Höhenprofil-Zoom: Zeitangabe an der gestrichelten Linie zeigt jetzt Flugdauer seit Start statt absoluter Uhrzeit. Beim Aktivieren eines Zoom-Levels springt die Markierung auf Flugstart (0:00)." },
   { v: "4.1.8", note: "CSV-Import: erkennt jetzt Kopfzeilen und ordnet Spalten flexibel zu (deutsche/englische Bezeichnungen, beliebige Reihenfolge) — nicht mehr auf das feste 53-Spalten-Format angewiesen. Fällt auf das bisherige feste Format zurück, wenn keine Kopfzeile erkannt wird." },
   { v: "4.1.7", note: "Flugdetail: neuer XContest-Button (königsblau) neben dem IGC-Badge, öffnet direkt xcontest.org/world/en/my-flights/." },
