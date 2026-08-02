@@ -555,6 +555,8 @@ function HomeApp() {
   const isWide = useIsWide();
   const [photoUrl, setPhotoUrl] = useState(null);
   const fileRef = React.useRef(null);
+  const photoCardRef = React.useRef(null);
+  const [photoTopOffset, setPhotoTopOffset] = useState(20);
   const [flightCount, setFlightCount] = useState(null);
   const [biplaceCount, setBiplaceCount] = useState(null);
   const [serviceUrgency, setServiceUrgency] = useState({ overdue: [], nextReserve: null });
@@ -586,6 +588,21 @@ function HomeApp() {
   useEffect(() => {
     readServiceUrgency().then(setServiceUrgency);
   }, []);
+
+  useEffect(() => {
+    if (!isWide) return; // only relevant for the wide side-by-side layout
+    const measure = () => {
+      if (photoCardRef.current) setPhotoTopOffset(photoCardRef.current.getBoundingClientRect().top);
+    };
+    measure();
+    // A couple of follow-up measurements catch the photo's own load/decode
+    // (its rendered aspect-ratio box can only be measured once the browser
+    // has actually laid it out) and any font/webfont-driven reflow.
+    const t1 = setTimeout(measure, 50);
+    const t2 = setTimeout(measure, 300);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", measure); };
+  }, [isWide, photoUrl]);
 
   useEffect(() => {
     // Load previously saved photo (stored as a base64 data URL, since blob:
@@ -735,10 +752,11 @@ function HomeApp() {
           anywhere on the image to change the photo — just without the
           former small "Bild ändern" caption spelling that out. */}
       <div style={isWide
-        ? { flex: "0 0 42%", display: "flex", alignItems: "center", justifyContent: "center", padding: 28 }
+        ? { flex: "0 0 42%", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 28px 28px" }
         : { flex: "1 1 auto", minHeight: 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
+          ref={photoCardRef}
           onClick={() => fileRef.current && fileRef.current.click()}
           style={{
             position: "relative",
@@ -795,7 +813,7 @@ function HomeApp() {
           (single column) next to the photo, but each tile has a fixed,
           modest height instead of stretching to fill the available space. */}
       <div style={isWide
-        ? { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }
+        ? { padding: `${photoTopOffset}px 24px 20px`, display: "flex", flexDirection: "column", gap: 12, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }
         : { padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: "0 0 auto" }}>
         {TILES.map((t) => (
           <div
