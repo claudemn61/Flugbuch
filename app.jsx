@@ -712,7 +712,7 @@ function HomeApp() {
       height: "100vh",
       overflow: "hidden",
       display: "flex",
-      flexDirection: "column",
+      flexDirection: isWide ? "row" : "column",
       background: "#040e20",
       color: "#e8f4fd",
       fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
@@ -734,7 +734,7 @@ function HomeApp() {
           of the page. Title sits bottom-left over it. Still tappable
           anywhere on the image to change the photo — just without the
           former small "Bild ändern" caption spelling that out. */}
-      <div style={{ flex: "1 1 auto", minHeight: 0 }}>
+      <div style={{ flex: isWide ? "0 0 42%" : "1 1 auto", minHeight: isWide ? undefined : 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
           onClick={() => fileRef.current && fileRef.current.click()}
@@ -779,10 +779,16 @@ function HomeApp() {
         </div>
       </div>
 
-      <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "0 20px", flexShrink: 0 }} />
+      <div style={isWide
+        ? { width: 1, background: "rgba(255,255,255,0.08)", margin: "20px 0", flexShrink: 0 }
+        : { height: 1, background: "rgba(255,255,255,0.08)", margin: "0 20px", flexShrink: 0 }} />
 
-      {/* Tiles — fill remaining space, each tile sized proportionally */}
-      <div style={{ padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: "0 0 auto" }}>
+      {/* Tiles — on phone: stacked, each proportionally sized to fill
+          remaining space. On tablet/desktop (isWide): 2-column grid next
+          to the photo, filling the available height instead. */}
+      <div style={isWide
+        ? { padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 14, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }
+        : { padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: "0 0 auto" }}>
         {TILES.map((t) => (
           <div
             key={t.id}
@@ -793,8 +799,9 @@ function HomeApp() {
               position: "relative",
               display: "flex",
               alignItems: "stretch",
-              flex: "0 0 auto",
-              height: "calc((100vw - 40px) * 0.3326)",
+              flex: isWide ? undefined : "0 0 auto",
+              height: isWide ? "100%" : "calc((100vw - 40px) * 0.3326)",
+              minHeight: isWide ? 130 : undefined,
               borderRadius: 14,
               background: "rgba(255,255,255,0.035)",
               border: `1px solid ${t.ready ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)"}`,
