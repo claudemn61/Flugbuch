@@ -1,5 +1,15 @@
 const { useState, useEffect, useRef } = React;
 
+function useIsWide() {
+  const [isWide, setIsWide] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : false);
+  useEffect(() => {
+    const onResize = () => setIsWide(window.innerWidth >= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isWide;
+}
+
 // ── Statistik Page ───────────────────────────────────────────────────────
 // Four aggregated views built from the same flight data the Flugbuch app
 // stores: Schirm (glider), Passagiere, Landeplätze, Startplätze. Shown as
@@ -202,6 +212,7 @@ function SeasonSection({ flights }) {
 }
 
 function StatistikApp() {
+  const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [openTable, setOpenTable] = useState(null); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze"
@@ -313,22 +324,24 @@ function StatistikApp() {
           colour accent rail plus a radial-gradient glow blob behind the
           icon, exactly matching Home's tile design (rail + icon glow)
           rather than a uniform 2x2 grid of same-coloured boxes. */}
-      <div style={{padding:"14px 16px 0",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={isWide
+        ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
+        : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
         {TABLES.map(t => (
           <button key={t.id} onClick={()=>setOpenTable(openTable===t.id?null:t.id)}
-            style={{width:"100%",boxSizing:"border-box",display:"flex",alignItems:"stretch",padding:0,overflow:"hidden",
+            style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
               background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
               border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
               borderRadius:12,color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
             {/* Accent rail */}
-            <div style={{width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
+            <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
             {/* Icon block with glow blob */}
-            <div style={{width:56,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+            <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
               background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
               {t.icon}
             </div>
-            <span style={{flex:1,display:"flex",alignItems:"center",padding:"14px 8px"}}>{t.label}</span>
-            <span style={{opacity:0.6,fontSize:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>
+            <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
+            {!isWide && <span style={{opacity:0.6,fontSize:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>}
           </button>
         ))}
       </div>

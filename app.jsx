@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.1.12";
+const APP_VERSION = "4.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.2", note: "Tablet/Desktop-Optimierung (ab 768px Breite): Home mit Foto+Kacheln nebeneinander, Flugbuch mit Master-Detail-Ansicht und kompakter einzeiliger Liste, Statistik-Badges nebeneinander, Wartung-Unterkacheln als feste offene Spalten statt Tabs. iPhone-Ansicht überall unverändert." },
   { v: "4.1.12", note: "Wartung/Reserve: Platzhalter-Titel jetzt \"Reserve 1-3\" statt der alten festen Namen (Schirm 1-4 und Sitz 1-5 waren bereits so). Alle Unterkacheln bleiben editierbar, Werte werden automatisch im Backup erfasst." },
   { v: "4.1.11", note: "Statistik: Passagiere-Badge blendet sich aus, wenn kein Flug einen Passagier hat (Saison rutscht nach). Home: Reisen-Kachel blendet sich aus, wenn keine Reisen erfasst sind." },
   { v: "4.1.10", note: "Statistik/Saison: Kachel \"Total Distanz\" ersetzt durch \"Flugtage\" (Anzahl unterschiedlicher Tage mit mindestens einem Flug)." },

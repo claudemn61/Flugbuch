@@ -1,5 +1,15 @@
 const { useState, useEffect, useCallback } = React;
 
+function useIsWide() {
+  const [isWide, setIsWide] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : false);
+  useEffect(() => {
+    const onResize = () => setIsWide(window.innerWidth >= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isWide;
+}
+
 // ── Wartung Page (ehem. "Service") ───────────────────────────────────────
 // Two top-level badges: Reserve (fully built) and Schirm (placeholder, comes
 // later). Reserve has exactly 3 fixed slots: Solo integriert, Solo extern,
@@ -91,7 +101,105 @@ function emptySchirmSlot() {
   return { title: "", category: "–", name: "", serialNr: "", zulassung: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
 
+// Wide-screen (iPad/desktop) view: every slot shown as its own permanently
+// open column instead of switching between them via tabs — "spaltenartig
+// fix offen". Used for all three chapters (Reserve/Schirm/Sitz); Reserve
+// has no Zulassung field, the others do.
+function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung }) {
+  return (
+    <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 16px 20px"}}>
+      {slotIds.map((slotId, i) => {
+        const data = dataMap[slotId] || emptySchirmSlot();
+        const isEditing = editingTab===slotId;
+        const displayTitle = data.title || (data.category && data.category!=="–" ? data.category : "");
+        const lastCheck = (data.checks && data.checks.length ? parseDateStr(data.checks[0].date) : null) || parseDateStr(data.purchaseDate);
+        const nextDue = lastCheck ? addMonths(lastCheck, data.intervalMonths||12) : null;
+        const dueDays = daysUntil(nextDue);
+        const overdue = dueDays !== null && dueDays < 0;
+        const soonDue = dueDays !== null && dueDays >= 0 && dueDays <= 30;
+        return (
+          <div key={slotId} style={{flex:"0 0 260px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
+            {isEditing ? (
+              <input autoFocus value={displayTitle}
+                onChange={e=>updateSlot(slotId,{title:e.target.value})}
+                onBlur={()=>setEditingTab(null)}
+                onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                placeholder={defaultTitle(i)}
+                style={{background:accentBg,border:`1px solid ${accentColor}66`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
+            ) : (
+              <div onClick={()=>setEditingTab(slotId)} style={{cursor:"text",background:accentBg,border:`1px solid ${accentColor}40`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700}}>
+                {displayTitle || defaultTitle(i)}
+              </div>
+            )}
+            <div>
+              <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
+              <input value={data.name} onChange={e=>updateSlot(slotId,{name:e.target.value})}
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
+              <input value={data.serialNr} onChange={e=>updateSlot(slotId,{serialNr:e.target.value})}
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+            {hasZulassung && (
+              <div>
+                <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
+                <input value={data.zulassung||""} onChange={e=>updateSlot(slotId,{zulassung:e.target.value})}
+                  style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+              </div>
+            )}
+            <div>
+              <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
+              <input value={data.purchaseDate} onChange={e=>updateSlot(slotId,{purchaseDate:e.target.value})}
+                placeholder="TT.MM.JJJJ"
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+            <div>
+              <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Intervall (Monate)</div>
+              <input type="number" min="1" value={data.intervalMonths}
+                onChange={e=>updateSlot(slotId,{intervalMonths:e.target.value})}
+                onBlur={e=>updateSlot(slotId,{intervalMonths:Math.max(1,parseInt(e.target.value)||1)})}
+                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+            </div>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
+                <button onClick={()=>addCheck(slotId, todayStr())}
+                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"3px 8px",color:"#4ade80",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                  + Check
+                </button>
+              </div>
+              <div style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:20,display:"inline-block",marginBottom:8,
+                background: overdue ? "rgba(239,68,68,0.18)" : soonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
+                color: overdue ? "#f87171" : soonDue ? "#fcd34d" : "#4ade80"}}>
+                {overdue ? "Überfällig" : `Nächster Check ${fmtDate(nextDue)}`}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {(data.checks||[]).map((c, idx) => (
+                  <div key={idx} style={{display:"flex",gap:5,alignItems:"center"}}>
+                    <input value={c.note} onChange={e=>updateCheck(slotId, idx, {note:e.target.value})}
+                      placeholder="Notiz"
+                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 7px",color:"#e8f4fd",fontSize:11,boxSizing:"border-box"}} />
+                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(slotId, idx, {date:e.target.value})}
+                      onBlur={e=>updateCheck(slotId, idx, {date:normalizeCheckDate(e.target.value)})}
+                      style={{width:78,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 7px",color:"#e8f4fd",fontSize:11,boxSizing:"border-box"}} />
+                    <button onClick={()=>deleteCheck(slotId, idx)}
+                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:24,height:24,color:"#f87171",fontSize:11,cursor:"pointer",flexShrink:0}}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function WartungApp() {
+  const isWide = useIsWide();
   const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" — always exactly one, never both/neither
   const [activeReserveSlot, setActiveReserveSlot] = useState(RESERVE_SLOTS[0].id);
   const [editingReserveTab, setEditingReserveTab] = useState(null); // slot.id currently being renamed, or null
@@ -284,7 +392,13 @@ function WartungApp() {
       </div>
 
       {/* Schirm section: 4 tab positions, each with an editable category dropdown */}
-      {activeTab==="schirm" && (
+      {activeTab==="schirm" && (isWide ? (
+        <SlotColumnsView slotIds={SCHIRM_SLOT_IDS} dataMap={schirme} updateSlot={updateSchirmSlot}
+          addCheck={addSchirmCheck} updateCheck={updateSchirmCheck} deleteCheck={deleteSchirmCheck}
+          editingTab={editingSchirmTab} setEditingTab={setEditingSchirmTab}
+          accentColor="#7dd3fc" accentBg="rgba(56,189,248,0.15)" hasZulassung={true}
+          defaultTitle={i=>`Schirm ${i+1}`} />
+      ) : (
         <div style={{padding:"12px 16px 0"}}>
           {/* Tabs: tap an inactive tab to switch to it; tap the already-
               active tab again to rename it (the only tap that couldn't
@@ -404,10 +518,16 @@ function WartungApp() {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
-      {/* Gurtzeug section: 5 tab positions, identical structure to Schirm */}
-      {activeTab==="gurtzeug" && (
+      {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
+      {activeTab==="gurtzeug" && (isWide ? (
+        <SlotColumnsView slotIds={GURTZEUG_SLOT_IDS} dataMap={gurtzeuge} updateSlot={updateGurtzeugSlot}
+          addCheck={addGurtzeugCheck} updateCheck={updateGurtzeugCheck} deleteCheck={deleteGurtzeugCheck}
+          editingTab={editingGurtzeugTab} setEditingTab={setEditingGurtzeugTab}
+          accentColor="#f59e0b" accentBg="rgba(245,158,11,0.15)" hasZulassung={true}
+          defaultTitle={i=>`Sitz ${i+1}`} />
+      ) : (
         <div style={{padding:"12px 16px 0"}}>
           {/* Tabs: tap an inactive tab to switch to it; tap the already-
               active tab again to rename it. */}
@@ -526,10 +646,16 @@ function WartungApp() {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Reserve section: category selector (Auswahl) + fields for the active one */}
-      {activeTab==="reserve" && (
+      {activeTab==="reserve" && (isWide ? (
+        <SlotColumnsView slotIds={RESERVE_SLOTS.map(s=>s.id)} dataMap={reserves} updateSlot={updateSlot}
+          addCheck={addCheck} updateCheck={updateCheck} deleteCheck={deleteCheck}
+          editingTab={editingReserveTab} setEditingTab={setEditingReserveTab}
+          accentColor="#4ade80" accentBg="rgba(34,197,94,0.15)" hasZulassung={false}
+          defaultTitle={i=>`Reserve ${i+1}`} />
+      ) : (
         <div style={{padding:"12px 16px 0"}}>
           {/* Tabs: tap an inactive tab to switch to it; tap the already-
               active tab again to rename it. */}
@@ -650,7 +776,7 @@ function WartungApp() {
             </div>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
