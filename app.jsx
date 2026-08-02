@@ -784,10 +784,11 @@ function HomeApp() {
         : { height: 1, background: "rgba(255,255,255,0.08)", margin: "0 20px", flexShrink: 0 }} />
 
       {/* Tiles — on phone: stacked, each proportionally sized to fill
-          remaining space. On tablet/desktop (isWide): 2-column grid next
-          to the photo, filling the available height instead. */}
+          remaining space. On tablet/desktop (isWide): still stacked
+          (single column) next to the photo, but each tile has a fixed,
+          modest height instead of stretching to fill the available space. */}
       <div style={isWide
-        ? { padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "1fr", gap: 14, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }
+        ? { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12, flex: "1 1 auto", minHeight: 0, overflowY: "auto" }
         : { padding: "10px 20px", display: "flex", flexDirection: "column", gap: 9, flex: "0 0 auto" }}>
         {TILES.map((t) => (
           <div
@@ -799,9 +800,8 @@ function HomeApp() {
               position: "relative",
               display: "flex",
               alignItems: "stretch",
-              flex: isWide ? undefined : "0 0 auto",
-              height: isWide ? "100%" : "calc((100vw - 40px) * 0.3326)",
-              minHeight: isWide ? 130 : undefined,
+              flex: isWide ? "0 0 auto" : "0 0 auto",
+              height: isWide ? 96 : "calc((100vw - 40px) * 0.3326)",
               borderRadius: 14,
               background: "rgba(255,255,255,0.035)",
               border: `1px solid ${t.ready ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.05)"}`,
