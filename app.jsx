@@ -734,14 +734,21 @@ function HomeApp() {
           of the page. Title sits bottom-left over it. Still tappable
           anywhere on the image to change the photo — just without the
           former small "Bild ändern" caption spelling that out. */}
-      <div style={{ flex: isWide ? "0 0 42%" : "1 1 auto", minHeight: isWide ? undefined : 0 }}>
+      <div style={isWide
+        ? { flex: "0 0 42%", display: "flex", alignItems: "center", justifyContent: "center", padding: 28 }
+        : { flex: "1 1 auto", minHeight: 0 }}>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickPhoto} />
         <div
           onClick={() => fileRef.current && fileRef.current.click()}
           style={{
             position: "relative",
             overflow: "hidden",
-            height: "100%",
+            height: isWide ? undefined : "100%",
+            width: isWide ? "100%" : undefined,
+            aspectRatio: isWide ? "3/4" : undefined,
+            maxHeight: isWide ? "100%" : undefined,
+            borderRadius: isWide ? 20 : 0,
+            boxShadow: isWide ? "0 12px 40px rgba(0,0,0,0.5)" : "none",
             background: photoUrl
               ? `#000 url(${photoUrl}) center/cover no-repeat`
               : "linear-gradient(180deg, #4a5260 0%, #3d4552 60%, #333a45 100%)",
