@@ -596,6 +596,10 @@ function HomeApp() {
     };
     measure();
     window.addEventListener("resize", measure);
+    // iOS Safari's address bar/toolbar showing or hiding changes the
+    // effective viewport height without always firing a plain "resize"
+    // event — visualViewport's own resize event catches that reliably.
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", measure);
     // ResizeObserver reacts to the photo card's actual rendered box
     // changing (image finishing decode, font load, layout shift, etc.)
     // rather than guessing with fixed delays — reliable regardless of how
@@ -605,7 +609,11 @@ function HomeApp() {
       ro = new ResizeObserver(measure);
       ro.observe(photoCardRef.current);
     }
-    return () => { window.removeEventListener("resize", measure); if (ro) ro.disconnect(); };
+    return () => {
+      window.removeEventListener("resize", measure);
+      if (window.visualViewport) window.visualViewport.removeEventListener("resize", measure);
+      if (ro) ro.disconnect();
+    };
   }, [isWide, photoUrl]);
 
   useEffect(() => {
@@ -730,7 +738,7 @@ function HomeApp() {
 
   return (
     <div style={{
-      height: "100vh",
+      height: "100dvh",
       overflow: "hidden",
       display: "flex",
       flexDirection: isWide ? "row" : "column",
