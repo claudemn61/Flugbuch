@@ -118,7 +118,7 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
         const overdue = dueDays !== null && dueDays < 0;
         const soonDue = dueDays !== null && dueDays >= 0 && dueDays <= 30;
         return (
-          <div key={slotId} style={{flex:"0 0 260px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
+          <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
             {isEditing ? (
               <input autoFocus value={displayTitle}
                 onChange={e=>updateSlot(slotId,{title:e.target.value})}
