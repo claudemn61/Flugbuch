@@ -3230,6 +3230,32 @@ function CsvColumnConfigModal({ columns, onSave, onClose }) {
   );
 }
 
+function DateAmbiguousResolver({ item, onAssign, onCreateNew, onClose }) {
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:380,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:6}}>Welchem Flug zuordnen?</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>
+          "{item.file.name}" ({item.date}) passt zu keiner Flug-Nr., aber es gibt mehrere Flüge an diesem Datum ohne GPS-Track.
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12,maxHeight:"40vh",overflowY:"auto"}}>
+          {item.candidates.map(c => (
+            <button key={c.id} onClick={()=>onAssign(c)}
+              style={{textAlign:"left",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
+              <b>{c.name}</b>{c.site ? " · "+c.site : ""}{c.startTime ? " · "+c.startTime : ""}
+            </button>
+          ))}
+        </div>
+        <button onClick={onCreateNew}
+          style={{width:"100%",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"9px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          + Stattdessen neuen Flug anlegen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FlugbuchApp() {
   const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
@@ -3251,6 +3277,10 @@ function FlugbuchApp() {
   const [pdfResult, setPdfResult] = useState(null);
   const [pendingDups, setPendingDups] = useState([]);
   const [dupWarning, setDupWarning] = useState(null);
+  // Queue of IGC files that matched no flight by filename, but matched
+  // MULTIPLE existing (track-less) flights by date — resolved one at a
+  // time via a picker rather than guessing which flight each belongs to.
+  const [pendingDateAmbiguous, setPendingDateAmbiguous] = useState([]); // [{file, date, candidates}]
   const [editData, setEditData] = useState({});
   const [customFieldDefs, setCustomFieldDefs] = useState([{id:"passagier",name:"Passagier",type:"text",formula:""}]);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
@@ -3736,10 +3766,40 @@ function FlugbuchApp() {
     await processIGCFiles(toImport);
   }, [flights]);
 
+  // Applies parsed IGC data onto an existing flight (shared by both the
+  // filename-match and the date-match paths, so they stay in sync).
+  const attachIgcToFlight = useCallback(async (existing, track, date, pilot, glider, passagier, igcData) => {
+    const cf = { ...(existing.customFields||{}) };
+    if (!(cf.hGew||"").trim() && !isNaN(igcData.totalGain)) cf.hGew = String(igcData.totalGain);
+    if (!(cf.passagier||"").trim() && passagier) cf.passagier = passagier;
+    if (igcData.hDiff) cf.hDiff = String(igcData.hDiff);
+    if (!(cf.maxSteigen||"").trim() && igcData.maxClimb) cf.maxSteigen = String(igcData.maxClimb);
+    if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
+    const updated = {
+      ...existing, track, customFields: cf,
+      pilot: (existing.pilot||"").trim() ? existing.pilot : (pilot||existing.pilot),
+      glider: (existing.glider||"").trim() ? existing.glider : (glider||existing.glider),
+      maxAlt: existing.maxAlt || igcData.maxAlt,
+      minAlt: existing.minAlt || igcData.minAlt,
+      startPt: existing.startPt || igcData.startPt,
+      endPt: existing.endPt || igcData.endPt,
+      startAlt: existing.startAlt || igcData.startAlt,
+      endAlt: existing.endAlt || igcData.endAlt,
+      durationSec: igcData.durationSec || existing.durationSec,
+      durationStr: igcData.durationStr || existing.durationStr,
+      startTime: (existing.startTime||"").trim() ? existing.startTime : igcData.startTime,
+      endTime: (existing.endTime||"").trim() ? existing.endTime : igcData.endTime,
+    };
+    await saveFlight(updated);
+    setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
+    if (selected?.id===updated.id) setSelected(updated);
+  }, [selected, saveFlight]);
+
   const processIGCFiles = useCallback(async (igcFiles) => {
     setImporting(true); setImportProgress({done:0,total:igcFiles.length});
     const newFlights = [];
     let updatedCount = 0;
+    const dateAmbiguous = [];
     for (let i=0; i<igcFiles.length; i++) {
       const file = igcFiles[i];
       const text = await file.text();
@@ -3757,51 +3817,42 @@ function FlugbuchApp() {
         // cleared) never got a chance to be recalculated. Now it fills in
         // anything currently blank, without touching values that are
         // already set (manually or from a previous import).
-        const cf = { ...(existing.customFields||{}) };
-        if (!(cf.hGew||"").trim() && !isNaN(igcData.totalGain)) cf.hGew = String(igcData.totalGain);
-        if (!(cf.passagier||"").trim() && passagier) cf.passagier = passagier;
-        if (igcData.hDiff) cf.hDiff = String(igcData.hDiff);
-        if (!(cf.maxSteigen||"").trim() && igcData.maxClimb) cf.maxSteigen = String(igcData.maxClimb);
-        if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
-        const updated = {
-          ...existing, track, customFields: cf,
-          pilot: (existing.pilot||"").trim() ? existing.pilot : (pilot||existing.pilot),
-          glider: (existing.glider||"").trim() ? existing.glider : (glider||existing.glider),
-          maxAlt: existing.maxAlt || igcData.maxAlt,
-          minAlt: existing.minAlt || igcData.minAlt,
-          startPt: existing.startPt || igcData.startPt,
-          endPt: existing.endPt || igcData.endPt,
-          startAlt: existing.startAlt || igcData.startAlt,
-          endAlt: existing.endAlt || igcData.endAlt,
-          durationSec: igcData.durationSec || existing.durationSec,
-          durationStr: igcData.durationStr || existing.durationStr,
-          startTime: (existing.startTime||"").trim() ? existing.startTime : igcData.startTime,
-          endTime: (existing.endTime||"").trim() ? existing.endTime : igcData.endTime,
-        };
-        await saveFlight(updated);
-        setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
-        if(selected?.id===updated.id) setSelected(updated);
+        await attachIgcToFlight(existing, track, date, pilot, glider, passagier, igcData);
         updatedCount++;
       } else {
-        const newF = { id:`igc_${baseName}_${Date.now()}`, name:baseName, pdfOnly:false,
-          date:dateStr, rawDate:date, year:yr, month:mo, pilot:pilot||"",site:"",glider:glider||"",
-          startTime:"", endTime:"", comment:"", rating:0, notes:"",
-          customFields:{passagier:passagier||"",landung:"",
-            hGew: igcData.totalGain ? String(igcData.totalGain) : "",
-            hDiff: igcData.hDiff ? String(igcData.hDiff) : "",
-            maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
-            maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : ""},
-          ...igcData, startPt:igcData.startPt, endPt:igcData.endPt };
-        await saveFlight(newF);
-        newFlights.push(newF);
+        // No filename match — try matching by date instead, but only
+        // against flights that don't already have a real track (a flight
+        // that's already got GPS data from a previous import shouldn't be
+        // silently overwritten just because the date happens to match).
+        const dateCandidates = flights.filter(f => f.date===dateStr && (!f.track || f.track.length<=1));
+        if (dateCandidates.length === 1) {
+          await attachIgcToFlight(dateCandidates[0], track, date, pilot, glider, passagier, igcData);
+          updatedCount++;
+        } else if (dateCandidates.length > 1) {
+          // Ambiguous — don't guess. Resolved via a picker after this loop.
+          dateAmbiguous.push({ file, date: dateStr, track, pilot, glider, passagier, igcData, candidates: dateCandidates });
+        } else {
+          const newF = { id:`igc_${baseName}_${Date.now()}`, name:baseName, pdfOnly:false,
+            date:dateStr, rawDate:date, year:yr, month:mo, pilot:pilot||"",site:"",glider:glider||"",
+            startTime:"", endTime:"", comment:"", rating:0, notes:"",
+            customFields:{passagier:passagier||"",landung:"",
+              hGew: igcData.totalGain ? String(igcData.totalGain) : "",
+              hDiff: igcData.hDiff ? String(igcData.hDiff) : "",
+              maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
+              maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : ""},
+            ...igcData, startPt:igcData.startPt, endPt:igcData.endPt };
+          await saveFlight(newF);
+          newFlights.push(newF);
+        }
       }
       setImportProgress({done:i+1,total:igcFiles.length});
     }
     if (newFlights.length) setFlights(prev=>[...newFlights,...prev].sort((a,b)=>(parseInt((b.name||"").match(/\d+/)?.[0]||"0",10))-(parseInt((a.name||"").match(/\d+/)?.[0]||"0",10))));
-    setIgcResult({ created: newFlights.length, updated: updatedCount, total: igcFiles.length });
+    if (dateAmbiguous.length) setPendingDateAmbiguous(dateAmbiguous);
+    setIgcResult({ created: newFlights.length, updated: updatedCount, total: igcFiles.length, deferred: dateAmbiguous.length });
     setTimeout(() => setIgcResult(null), 6000);
     setImporting(false); setImportProgress(null);
-  }, [flights, selected, saveFlight]);
+  }, [flights, selected, saveFlight, attachIgcToFlight]);
 
   const importIGCFiles = useCallback(async (files) => {
     const igc = files.filter(f=>f.name.toLowerCase().endsWith(".igc"));
@@ -3999,6 +4050,37 @@ function FlugbuchApp() {
 
       {showCsvColumnConfig && (
         <CsvColumnConfigModal columns={csvColumns} onSave={saveCsvColumns} onClose={()=>setShowCsvColumnConfig(false)} />
+      )}
+
+      {pendingDateAmbiguous.length > 0 && (
+        <DateAmbiguousResolver
+          item={pendingDateAmbiguous[0]}
+          onClose={()=>setPendingDateAmbiguous(q=>q.slice(1))}
+          onAssign={async (chosen) => {
+            const item = pendingDateAmbiguous[0];
+            await attachIgcToFlight(chosen, item.track, item.date, item.pilot, item.glider, item.passagier, item.igcData);
+            setPendingDateAmbiguous(q=>q.slice(1));
+          }}
+          onCreateNew={async () => {
+            const item = pendingDateAmbiguous[0];
+            const baseName = item.file.name.replace(/\.igc$/i,"");
+            const dateParts = item.date.split(".");
+            let yr="", mo="";
+            if (dateParts.length===3) { yr=dateParts[2]; mo=dateParts[1]; }
+            const newF = { id:`igc_${baseName}_${Date.now()}`, name:baseName, pdfOnly:false,
+              date:item.date, rawDate:item.date, year:yr, month:mo, pilot:item.pilot||"",site:"",glider:item.glider||"",
+              startTime:"", endTime:"", comment:"", rating:0, notes:"",
+              customFields:{passagier:item.passagier||"",landung:"",
+                hGew: item.igcData.totalGain ? String(item.igcData.totalGain) : "",
+                hDiff: item.igcData.hDiff ? String(item.igcData.hDiff) : "",
+                maxSteigen: item.igcData.maxClimb ? String(item.igcData.maxClimb) : "",
+                maxSinken: item.igcData.maxSinkRate ? String(item.igcData.maxSinkRate) : ""},
+              ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt };
+            await saveFlight(newF);
+            setFlights(prev=>[newF,...prev]);
+            setPendingDateAmbiguous(q=>q.slice(1));
+          }}
+        />
       )}
 
       {showBackupMenu && (
@@ -4242,7 +4324,7 @@ function FlugbuchApp() {
       {igcResult && (
         <div style={{margin:"10px 16px 0",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:12,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:13,color:"#4ade80"}}>
-            ✅ {(igcResult.created>0?igcResult.created+" neu  ":"")}{(igcResult.updated>0?igcResult.updated+" aktualisiert":"")} ({igcResult.total} erkannt)
+            ✅ {(igcResult.created>0?igcResult.created+" neu  ":"")}{(igcResult.updated>0?igcResult.updated+" aktualisiert":"")}{(igcResult.deferred>0?"  "+igcResult.deferred+" zur Zuordnung":"")} ({igcResult.total} erkannt)
           </span>
           <button onClick={()=>setIgcResult(null)} style={{background:"none",border:"none",color:"rgba(74,222,128,0.5)",cursor:"pointer",fontSize:16}}>✕</button>
         </div>

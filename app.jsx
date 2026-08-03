@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.2.1";
+const APP_VERSION = "4.2.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.2.2", note: "IGC-Import: wenn eine Datei zu keiner Flug-Nr. passt, wird jetzt zusätzlich nach Datum abgeglichen (gegen Flüge ohne GPS-Track). Bei mehreren Treffern am gleichen Tag fragt die App aktiv nach, welchem Flug zugeordnet werden soll, statt zu raten. Mehrere IGC-Dateien gleichzeitig laden war bereits möglich." },
   { v: "4.2.1", note: "Flugbuch: \"Kopieren\" (Mehrfachauswahl) hat jetzt eine ⚙️-Spaltenkonfiguration — Spalten an-/abwählbar und per ↑/↓ neu anordenbar, gespeichert und automatisch im Backup erfasst, damit die kopierte Tabelle an externe Tabellenkalkulationen angepasst werden kann." },
   { v: "4.2", note: "Tablet/Desktop-Optimierung (ab 768px Breite): Home mit Foto+Kacheln nebeneinander, Flugbuch mit Master-Detail-Ansicht und kompakter einzeiliger Liste, Statistik-Badges nebeneinander, Wartung-Unterkacheln als feste offene Spalten statt Tabs. iPhone-Ansicht überall unverändert." },
   { v: "4.1.12", note: "Wartung/Reserve: Platzhalter-Titel jetzt \"Reserve 1-3\" statt der alten festen Namen (Schirm 1-4 und Sitz 1-5 waren bereits so). Alle Unterkacheln bleiben editierbar, Werte werden automatisch im Backup erfasst." },
