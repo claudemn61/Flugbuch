@@ -1378,7 +1378,41 @@ function wgs84ToLv03(lat, lon) {
 // by hand after pasting. Nr/Flugreise (1,3) are
 // deliberately left blank per the person's instructions.
 const FORMULA_PLACEHOLDER = "#F#";
-function flightToCsvRow(f) {
+// All 25 columns from the original fixed layout, now available as
+// individually selectable/reorderable entries for the configurable copy
+// feature. "getter" is a key into flightToCsvValues()'s output; columns
+// without real source data (Numbers-formula placeholders in the original
+// sheet) use getter:null and always emit FORMULA_PLACEHOLDER.
+const CSV_COLUMN_DEFS = [
+  { key: "nr", label: "Nr.", getter: "nr" },
+  { key: "flugreise", label: "Flugreise", getter: "flugreise" },
+  { key: "datum", label: "Datum", getter: "datum" },
+  { key: "startzeit", label: "Startzeit", getter: "startzeit" },
+  { key: "start", label: "Start", getter: "start" },
+  { key: "landezeit", label: "Landezeit", getter: "landezeit" },
+  { key: "landung", label: "Landung", getter: "landung" },
+  { key: "sl_entf", label: "S-L Entf.", getter: null },
+  { key: "dauer", label: "Dauer", getter: null },
+  { key: "rang", label: "Rang", getter: null },
+  { key: "prozent", label: "%", getter: null },
+  { key: "distanz", label: "Distanz", getter: "distanz" },
+  { key: "kmh", label: "km/h", getter: null },
+  { key: "hdiff", label: "H.Diff.", getter: null },
+  { key: "muemS", label: "müM S", getter: "muemS" },
+  { key: "muemL", label: "müM L", getter: "muemL" },
+  { key: "hmax", label: "H.Max", getter: "hmax" },
+  { key: "sue", label: "SÜ", getter: null },
+  { key: "hgew", label: "H.Gew.", getter: "hgew" },
+  { key: "sinken", label: "Sinken", getter: "sinken" },
+  { key: "steigen", label: "Steigen", getter: "steigen" },
+  { key: "geraet", label: "Gerät", getter: "geraet" },
+  { key: "passagier", label: "Passagier", getter: "passagier" },
+  { key: "datum2", label: "Datum2", getter: null },
+  { key: "bemerkung", label: "Bemerkung", getter: "bemerkung" },
+];
+const CSV_COLUMN_DEFAULT_ORDER = CSV_COLUMN_DEFS.map(c => c.key);
+
+function flightToCsvValues(f) {
   const cf = f.customFields || {};
   // Combines a place name with its altitude and lat/lon (5 decimals) into
   // one comma+space-separated string for the Start/Landung columns, e.g.
@@ -1394,7 +1428,9 @@ function flightToCsvRow(f) {
     }
     return parts.join(", ");
   };
-  const val = {
+  return {
+    nr:       f.name || "",
+    flugreise: "",
     datum:    f.rawDate || f.date || "",
     startzeit: f.startTime || "",
     start:    combineLocation(f.site || "", f.startAlt ? String(f.startAlt) : (cf.msa || ""), f.startPt),
@@ -1411,39 +1447,22 @@ function flightToCsvRow(f) {
     passagier: cf.passagier || "",
     bemerkung: f.notes || "",
   };
-  // Ordered exactly as the 25 visible columns appear in the sheet:
-  // 1=Nr, 3=Flugreise, 6=Datum, 7=Startzeit, 10=Start, 21=Landezeit, 23=Landung,
-  // 34=S-L Entf.*, 35=Dauer*, 36=Rang*, 37=%*, 38=Distanz, 39=km/h*, 40=H.Diff.*,
-  // 41=müM S, 42=müM L, 43=H.Max, 44=SÜ*, 45=H.Gew., 46=Sinken, 47=Steigen,
-  // 48=Gerät, 49=Passagier, 50=Datum2*, 53=Bemerkung   (* = formula placeholder)
-  const row = [
-    f.name || "",             // 1  Nr
-    "",                       // 3  Flugreise
-    val.datum,                // 6  Datum
-    val.startzeit,            // 7  Startzeit
-    val.start,                // 10 Start
-    val.landezeit,            // 21 Landezeit
-    val.landung,               // 23 Landung
-    FORMULA_PLACEHOLDER,      // 34 S-L Entf.
-    FORMULA_PLACEHOLDER,      // 35 Dauer
-    FORMULA_PLACEHOLDER,      // 36 Rang
-    FORMULA_PLACEHOLDER,      // 37 %
-    val.distanz,              // 38 Distanz
-    FORMULA_PLACEHOLDER,      // 39 km/h
-    FORMULA_PLACEHOLDER,      // 40 H.Diff.
-    val.muemS,                // 41 müM S
-    val.muemL,                // 42 müM L
-    val.hmax,                 // 43 H.Max
-    FORMULA_PLACEHOLDER,      // 44 SÜ
-    val.hgew,                 // 45 H.Gew.
-    val.sinken,                // 46 Sinken
-    val.steigen,               // 47 Steigen
-    val.geraet,                // 48 Gerät
-    val.passagier,             // 49 Passagier
-    FORMULA_PLACEHOLDER,      // 50 Datum (Zeitwert)
-    val.bemerkung,              // 53 Bemerkung
-  ];
-  return row.join("\t");
+}
+
+// Builds one tab-separated row using an arbitrary, user-chosen subset/order
+// of CSV_COLUMN_DEFS (by key) — this is what makes the copy feature
+// adaptable to whatever column layout an external spreadsheet expects.
+function buildCsvRow(f, columnKeys) {
+  const values = flightToCsvValues(f);
+  return columnKeys.map(key => {
+    const def = CSV_COLUMN_DEFS.find(c => c.key === key);
+    if (!def) return "";
+    return def.getter ? (values[def.getter] || "") : FORMULA_PLACEHOLDER;
+  }).join("\t");
+}
+
+function flightToCsvRow(f) {
+  return buildCsvRow(f, CSV_COLUMN_DEFAULT_ORDER);
 }
 
 // Header row matching flightToCsvRow's 25 columns exactly, so a re-exported
@@ -3158,6 +3177,59 @@ function useIsWide() {
   return isWide;
 }
 
+// Lets the person choose exactly which of the 25 possible columns get
+// included when copying flights to the clipboard, and in what order —
+// so the copied table's columns can be made to match whatever external
+// spreadsheet template they're pasting into. Saved via window.storage
+// (see FlugbuchApp), so it's picked up automatically by the app's generic
+// backup export/import too, without needing any special-casing there.
+function CsvColumnConfigModal({ columns, onSave, onClose }) {
+  const [local, setLocal] = useState(columns);
+  const toggle = (key) => setLocal(cols => cols.map(c => c.key===key ? {...c, enabled: !c.enabled} : c));
+  const move = (idx, dir) => setLocal(cols => {
+    const next = [...cols];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return cols;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    return next;
+  });
+  const labelFor = key => CSV_COLUMN_DEFS.find(c=>c.key===key)?.label || key;
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Spalten für "Kopieren"</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen, passend zur Ziel-Tabelle.</div>
+        <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+          {local.map((c, idx) => (
+            <div key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:c.enabled?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.03)"}}>
+              <div onClick={()=>toggle(c.key)}
+                style={{width:20,height:20,borderRadius:6,border:`2px solid ${c.enabled?"#4ade80":"rgba(232,244,253,0.3)"}`,background:c.enabled?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                {c.enabled && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
+              </div>
+              <span style={{flex:1,fontSize:13,color:c.enabled?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{labelFor(c.key)}</span>
+              <button onClick={()=>move(idx,-1)} disabled={idx===0}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===0?"default":"pointer"}}>▲</button>
+              <button onClick={()=>move(idx,1)} disabled={idx===local.length-1}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===local.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===local.length-1?"default":"pointer"}}>▼</button>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:16}}>
+          <button onClick={()=>setLocal(CSV_COLUMN_DEFS.map(c => ({ key: c.key, enabled: true })))}
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
+            Zurücksetzen
+          </button>
+          <button onClick={()=>{ onSave(local); onClose(); }}
+            style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FlugbuchApp() {
   const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
@@ -3194,6 +3266,30 @@ function FlugbuchApp() {
   const [selectMode, setSelectMode] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [showBackupMenu, setShowBackupMenu] = useState(false);
+  const [csvColumns, setCsvColumns] = useState(
+    CSV_COLUMN_DEFS.map(c => ({ key: c.key, enabled: true }))
+  );
+  const [showCsvColumnConfig, setShowCsvColumnConfig] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("csvColumnConfig");
+        if (r) {
+          const saved = JSON.parse(r.value);
+          // Merge with the full column list so a newly-added column (from
+          // an app update) still shows up even in an old saved config,
+          // appended at the end rather than silently missing.
+          const savedKeys = new Set(saved.map(c => c.key));
+          const merged = [...saved, ...CSV_COLUMN_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: true }))];
+          setCsvColumns(merged);
+        }
+      } catch (e) { console.error("Load error (csvColumnConfig):", e); }
+    })();
+  }, []);
+  const saveCsvColumns = async (next) => {
+    setCsvColumns(next);
+    try { await window.storage.set("csvColumnConfig", JSON.stringify(next)); } catch (e) { console.error("Save error (csvColumnConfig):", e); }
+  };
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
@@ -3901,6 +3997,10 @@ function FlugbuchApp() {
       <input ref={backupFileRef} type="file" accept=".json" style={{display:"none"}}
         onChange={e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=""; }} />
 
+      {showCsvColumnConfig && (
+        <CsvColumnConfigModal columns={csvColumns} onSave={saveCsvColumns} onClose={()=>setShowCsvColumnConfig(false)} />
+      )}
+
       {showBackupMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
           <button onClick={exportBackup}
@@ -3919,7 +4019,9 @@ function FlugbuchApp() {
           <button onClick={async()=>{
               if (!selectedIds.size) { setCopyMsg("Keine Flüge ausgewählt."); return; }
               const chosen = flights.filter(f=>selectedIds.has(f.id));
-              const rows = chosen.map(flightToCsvRow).join("\r\n");
+              const activeKeys = csvColumns.filter(c=>c.enabled).map(c=>c.key);
+              const rowFor = f => buildCsvRow(f, activeKeys);
+              const rows = chosen.map(rowFor).join("\r\n");
               try {
                 // Numbers (and most spreadsheet apps) only recognise pasted text as a
                 // table when it comes with an HTML <table> clipboard representation —
@@ -3927,7 +4029,7 @@ function FlugbuchApp() {
                 const escapeHtml = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
                 const cellStyle = "font-family:Helvetica,sans-serif;font-size:10px;font-weight:normal;text-align:left;";
                 const htmlTable = `<table style="${cellStyle}">` + chosen.map(f => {
-                  const cols = flightToCsvRow(f).split("\t");
+                  const cols = rowFor(f).split("\t");
                   return "<tr>" + cols.map((c,i) => i===0
                     ? `<th style="${cellStyle}">${escapeHtml(c)}</th>`
                     : `<td style="${cellStyle}">${escapeHtml(c)}</td>`
@@ -3951,6 +4053,10 @@ function FlugbuchApp() {
             title="Auswahl kopieren"
             style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"9px 4px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
             📋 {selectedIds.size}
+          </button>
+          <button onClick={()=>setShowCsvColumnConfig(true)} title="Spalten für Kopieren einrichten"
+            style={{flexShrink:0,width:40,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 4px",color:"rgba(232,244,253,0.7)",fontSize:15,cursor:"pointer",textAlign:"center"}}>
+            ⚙️
           </button>
           <button onClick={()=>{
               if (!selectedIds.size) { setCopyMsg("Keine Flüge ausgewählt."); return; }
