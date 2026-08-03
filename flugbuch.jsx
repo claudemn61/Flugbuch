@@ -2617,7 +2617,7 @@ function ReiseSelect({ value, onSave }) {
 // actual names entered on the Service/Schirm page's 4 category tabs — not
 // the category labels (Solo, Solo light, etc.) themselves, just whatever
 // name the person gave each of their up-to-4 gliders there.
-function SchirmSelect({ value, onSave }) {
+function SchirmSelect({ value, onSave, extra }) {
   const [names, setNames] = useState([]);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
@@ -2647,7 +2647,10 @@ function SchirmSelect({ value, onSave }) {
       <div data-inline-row onClick={()=>setEditing(true)}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
         <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Schirm</span>
-        <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
+        <span style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
+          {extra}
+        </span>
       </div>
     );
   }
@@ -3002,13 +3005,24 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           <div id="flugdaten-section" style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Flugdaten</div>
             <InlineField label="Datum" value={fl.date} onSave={saveDateField} />
-            <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})} />
-            {(fl.customFields?.typ || typRevealed) ? (
-              <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v}})} />
-            ) : (
-              <div onClick={()=>setTypRevealed(true)}
-                style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer",padding:"2px 0 4px"}}>
-                + Typ
+            <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})}
+              extra={(!fl.customFields?.typ && !typRevealed) ? (
+                <span onClick={(e)=>{ e.stopPropagation(); setTypRevealed(true); }}
+                  style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer"}}>
+                  + Typ
+                </span>
+              ) : null} />
+            {(fl.customFields?.typ || typRevealed) && (
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v}})} />
+                </div>
+                {!fl.customFields?.typ && (
+                  <span onClick={()=>setTypRevealed(false)}
+                    style={{fontSize:13,color:"rgba(232,244,253,0.25)",cursor:"pointer",padding:"0 2px"}}>
+                    ✕
+                  </span>
+                )}
               </div>
             )}
             <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} />
