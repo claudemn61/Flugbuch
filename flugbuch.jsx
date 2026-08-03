@@ -1648,6 +1648,7 @@ function createFlightFromPDF(nr, p) {
       distKm: p.dk||"", kmh: p.kmh||"",
       hDiff: p.hd||"", hMax: p.hm||"", hGew: p.hg||"",
       maxSinken: p.ms||"", maxSteigen: p.mst||"",
+      typ: p.ty||"",
     },
   };
 }
@@ -2672,6 +2673,12 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
     const manualFields = customFieldDefs.filter(d=>!d.formula);
     const flIdx = flights.findIndex(f=>f.id===fl.id);
 
+    // "Typ" is only shown when it has content; this tracks a manual reveal
+    // via the discreet "+ Typ" link for entering it the first time, reset
+    // whenever the person moves to a different flight.
+    const [typRevealed, setTypRevealed] = useState(false);
+    useEffect(() => { setTypRevealed(false); }, [fl.id]);
+
     // Swipe-to-navigate: replaces the small prev/next arrow buttons. Swipe
     // left moves to the next flight in the list (same direction as the old
     // "◀" button, which incremented flIdx), swipe right moves to the
@@ -2996,6 +3003,14 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
             <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Flugdaten</div>
             <InlineField label="Datum" value={fl.date} onSave={saveDateField} />
             <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})} />
+            {(fl.customFields?.typ || typRevealed) ? (
+              <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v}})} />
+            ) : (
+              <div onClick={()=>setTypRevealed(true)}
+                style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer",padding:"2px 0 4px"}}>
+                + Typ
+              </div>
+            )}
             <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} />
             <InlineField label="Landezeit"   value={fl.endTime}                     onSave={v=>saveComputedField(fl,{endTime:v})} />
             <PlaceInlineField label="Startplatz" value={fl.site} flights={flights} kind="start"
@@ -3580,6 +3595,7 @@ function FlugbuchApp() {
           hDiff: p.hd || "", hMax: p.hm || "", hGew: p.hg || "",
           maxSinken: p.ms || f.customFields?.maxSinken || "",
           maxSteigen: p.mst || f.customFields?.maxSteigen || "",
+          typ: p.ty || f.customFields?.typ || "",
           msa: p.msa||"", ml: p.ml||"", dk: p.dk||"",
         }
       };
@@ -3645,6 +3661,7 @@ function FlugbuchApp() {
     geraet: ["gerät", "geraet", "schirm", "glider", "wing"],
     passagier: ["passagier", "passenger", "biplace", "passagiere"],
     bemerkung: ["bemerkung", "notiz", "notizen", "comment", "comments", "remarks", "notes"],
+    typ: ["typ", "type", "schirmtyp", "kategorie", "category"],
   };
   // Given a header row's cells, returns { fieldKey: columnIndex } for every
   // recognised column, or null if too few fields were recognised to be
@@ -3680,7 +3697,7 @@ function FlugbuchApp() {
       sLat: s.lat, sLon: s.lon, lLat: l.lat, lLon: l.lon,
       dur: get("dauer"), dk: get("distanz"), kmh: get("kmh"), hd: get("hdiff"),
       msa: get("maxsteigen"), ml: get("maxsinken"), hm: get("hmax"), hg: get("hgew"),
-      ge: get("geraet"), pa: get("passagier"), be: get("bemerkung"),
+      ge: get("geraet"), pa: get("passagier"), be: get("bemerkung"), ty: get("typ"),
       _nr: get("nr"),
     };
   };
