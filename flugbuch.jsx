@@ -2646,11 +2646,11 @@ function SchirmSelect({ value, onSave, extra }) {
     return (
       <div data-inline-row onClick={()=>setEditing(true)}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
-        <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Schirm</span>
         <span style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
+          <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Schirm</span>
           {extra}
         </span>
+        <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
       </div>
     );
   }
