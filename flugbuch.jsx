@@ -1046,10 +1046,36 @@ function FlightProfile({ flight, onPositionChange }) {
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
     canvas.addEventListener("touchmove", onTouchMove, { passive: false });
     canvas.addEventListener("touchend", onTouchEnd);
+
+    // Mouse equivalent (Mac/desktop: no touch events at all). mousemove/up
+    // are attached to window rather than the canvas so a fast drag that
+    // briefly leaves the canvas bounds doesn't get stuck.
+    const onMouseDown = (e) => {
+      if (zoomLevelRef.current <= 1) return;
+      e.preventDefault();
+      panGestureRef.current = { startX: e.clientX, startPan: panPosRef.current };
+    };
+    const onMouseMove = (e) => {
+      const g = panGestureRef.current;
+      if (!g || zoomLevelRef.current <= 1) return;
+      e.preventDefault();
+      const dx = e.clientX - g.startX;
+      const fracDelta = -dx / canvas.clientWidth / zoomLevelRef.current * 2;
+      setPanPos(Math.min(1, Math.max(0, g.startPan + fracDelta)));
+    };
+    const onMouseUp = () => { panGestureRef.current = null; };
+    canvas.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    canvas.style.cursor = "grab";
+
     return () => {
       canvas.removeEventListener("touchstart", onTouchStart);
       canvas.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
 
@@ -2836,7 +2862,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
 
     return (
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-        style={{maxWidth:isWide?720:480,margin:"0 auto",padding:"0 0 32px",background:"#040e20",minHeight:"100vh",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
+        style={{maxWidth:isWide?1100:480,margin:"0 auto",padding:"0 0 32px",background:"#040e20",minHeight:"100vh",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(16px + env(safe-area-inset-top, 0px)) 16px 10px"}}>
           {!hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer"}}>←</button>}
           {hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 14px",color:"rgba(232,244,253,0.6)",fontSize:13,cursor:"pointer"}}>✕ Liste</button>}
@@ -3152,7 +3178,7 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
   const filtered = matchFlights(flights, filterText);
   const years = [...new Set(filtered.map(f=>f.year).filter(Boolean))].sort((a,b)=>b-a);
   return (
-    <div style={{width:340,minWidth:340,height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,0.08)",background:"#040e20",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
+    <div style={{width:"clamp(340px, 22vw, 440px)",minWidth:340,height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,0.08)",background:"#040e20",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
       <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 14px 8px",position:"sticky",top:0,background:"#040e20",zIndex:5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
         <div style={{marginBottom:6}}>
           <SearchBar filterText={filterText} setFilterText={setFilterText} />
@@ -4014,7 +4040,7 @@ function FlugbuchApp() {
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div style={{maxWidth:isWide?900:480,margin:"0 auto",minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
+    <div style={{maxWidth:isWide?1400:480,margin:"0 auto",minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
       <input ref={fileRef} type="file" accept=".igc" multiple style={{display:"none"}} onChange={e=>importIGCFiles(Array.from(e.target.files))} />
       <input ref={pdfFileRef} type="file" accept=".pdf,.csv" style={{display:"none"}} onChange={e=>e.target.files[0]&&importPDFFile(e.target.files[0])} />
 
