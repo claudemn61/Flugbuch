@@ -14,7 +14,7 @@ const SECTIONS = [
         <tr><td>✈️</td><td><b>Flugbuch</b></td><td>Liste aller Flüge, Suche, IGC-/CSV-Import, Backup, Detailansicht mit Karte und Höhenprofil</td></tr>
         <tr><td>📊</td><td><b>Statistik</b></td><td>Automatische Auswertungen nach Schirm, Start-/Landeplätzen, Passagieren und Saison</td></tr>
         <tr><td>🧭</td><td><b>Reisen</b></td><td>Flüge zu Reisen zusammengefasst, mit Kennzahlen je Reise</td></tr>
-        <tr><td>🛠️</td><td><b>Wartung</b></td><td>Ausrüstung in 3 Kapiteln (Reserve, Schirm, Gurtzeug), inkl. Check-Intervall und fälligem Check-Datum</td></tr>
+        <tr><td>🛠️</td><td><b>Wartung</b></td><td>Ausrüstung in 3 Kapiteln (Reserve, Schirm, Sitz), inkl. Check-Intervall und fälligem Check-Datum</td></tr>
       </tbody></table>
       <h3>1.2 Offline-Nutzung</h3>
       <p>Die App merkt sich beim ersten erfolgreichen Online-Aufruf automatisch ihre eigenen Dateien (Service Worker). Ab dem <b>zweiten</b> Online-Start funktioniert sie danach auch komplett ohne Internetverbindung, inkl. Öffnen der App über das Home-Bildschirm-Icon. Fehlt die Verbindung, erscheint unten ein gelbes Banner "Offline — zuletzt gespeicherter Stand" — die Nutzung ist davon nicht eingeschränkt.</p>
@@ -28,12 +28,14 @@ const SECTIONS = [
       </ul>
       <h3>1.3 Wo werden die Daten gespeichert?</h3>
       <p>Alle Einträge werden in einem app-eigenen Speicher auf dem jeweiligen Gerät abgelegt. Es gibt keine Cloud-Synchronisation zwischen mehreren Geräten. Für den Umzug auf ein neues Gerät oder als Sicherheitskopie dient die Backup-Funktion (siehe 2.9). <b>Wichtig:</b> Wird der Browser-Cache geleert, gehen gespeicherte Flüge ohne vorheriges Backup verloren.</p>
+      <h3>1.4 iPad/Desktop</h3>
+      <p>Ab ca. 768px Bildschirmbreite (iPad, Mac-Browserfenster) wechseln mehrere Seiten automatisch auf ein breiteres Layout: Home zeigt Foto und Kacheln nebeneinander, Flugbuch eine Liste-plus-Detail-Ansicht (wie in Mail-Apps) mit kompakter einzeiliger Flugliste, Statistik alle 5 Badges nebeneinander, Wartung alle Unterkacheln gleichzeitig als feste Spalten statt per Tab. Auf dem iPhone bleibt alles wie gewohnt.</p>
     </>),
   },
   {
     id: "home", title: "2. Startseite",
     body: () => (<>
-      <p>Zeigt ein editierbares Titelfoto mit dem App-Namen, darunter die vier Kapitel-Kacheln (jede mit Live-Kennzahlen, z.B. Anzahl Flüge).</p>
+      <p>Zeigt ein editierbares Titelfoto mit dem App-Namen, darunter die vier Kapitel-Kacheln (jede mit Live-Kennzahlen, z.B. Anzahl Flüge). Die Reisen-Kachel blendet sich automatisch aus, solange keine Reisen erfasst sind.</p>
       <h3>2.1 Titelfoto und Titeltext ändern</h3>
       <p>Auf das Foto tippen (ausserhalb des Titeltexts) öffnet die Bildauswahl des Geräts — das Foto wird lokal gespeichert. Auf den Titeltext selbst tippen öffnet stattdessen den Titel-Editor: beliebig viele Textteile, je mit eigener Farbe, sechs Schriftarten zur Auswahl, Schriftgrösse per Regler, mit Live-Vorschau. "Zurücksetzen" stellt "meinflugbuch" in der Standard-Optik wieder her.</p>
       <h3>2.2 Einstellungen (Zahnrad)</h3>
@@ -73,6 +75,10 @@ const SECTIONS = [
         <li>Dauer, Höhengewinn, max./min. Höhe, max. Steigen/Sinken</li>
       </ul>
       <p><b>Distanz wird nie automatisch berechnet</b> — bewusst manuell, da XContest-Werte (Streckenoptimierung über Wendepunkte) massgeblich sind, nicht die reine Tracklänge. Ein erneuter Import befüllt nur leere Felder; Dauer und Höhendifferenz werden immer neu berechnet, da rein rechnerisch. Ein königsblauer "XContest"-Button neben dem IGC-Badge im Flugdetail öffnet direkt die eigene XContest-Flugliste.</p>
+      <p>Max. Steigen/Sinken wird über ein 30-Sekunden-Zeitfenster ermittelt (grösste Höhenänderung innerhalb eines beliebigen 30-Sekunden-Abschnitts) — dieses Zeitfenster wurde anhand eigener Flüge mit bekannten XContest-Werten empirisch bestimmt und kommt den XContest-Werten deutlich näher als eine reine Momentanwert-Berechnung.</p>
+      <p>Passt eine IGC-Datei zu keiner Flug-Nr. im Dateinamen, wird zusätzlich nach Datum gegen Flüge ohne GPS-Track abgeglichen. Bei genau einem Treffer wird automatisch zugeordnet; bei mehreren Flügen am selben Tag fragt die App aktiv nach, welchem Flug zugeordnet werden soll.</p>
+      <p>Direkt nach dem Feld Gerät/Schirm steht ein optionales Feld "Typ" — erscheint nur bei Inhalt, sonst nur ein dezenter "+ Typ"-Link zum erstmaligen Eintragen. Wird auch beim CSV-Import erkannt (Spalten "Typ", "Type", "Schirmtyp", "Kategorie").</p>
+      <p>Im Mehrfachauswahl-Modus lässt sich die Spaltenauswahl/-reihenfolge für "📋 Kopieren" über das ⚙️-Zahnrad daneben frei konfigurieren (an-/abwählen, per ↑/↓ neu anordnen) — praktisch, um die kopierte Tabelle an eine externe Tabellenkalkulation anzupassen.</p>
       <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
       <p>Karte zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
@@ -88,13 +94,13 @@ const SECTIONS = [
   {
     id: "statistik", title: "4. Statistik",
     body: () => (<>
-      <p>Fünf farbige Badges, volle Bildschirmbreite:</p>
+      <p>Fünf farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
       <ul>
         <li>🪂 Schirm (blau) — Flüge, Flugzeit, Distanz, Bewertungen je Fluggerät</li>
         <li>🛫 Startplätze (grün)</li>
         <li>🛬 Landeplätze (orange)</li>
-        <li>👤 Passagiere (violett) — erster/letzter Flug je Person, Bewertungen</li>
-        <li>📅 Saison (rot) — Jahresauswahl mit Kennzahlen und persönlichen Rekorden</li>
+        <li>👤 Passagiere (violett) — erster/letzter Flug je Person, Bewertungen. Blendet sich aus, wenn kein Flug im ganzen Flugbuch einen Passagier hat.</li>
+        <li>📅 Saison (rot) — Jahresauswahl (Alle/aktuell/-1/-2/Mehr) mit Kennzahlen (Flüge, Flugzeit, Flugtage, Ø/Flug) und persönlichen Rekorden</li>
       </ul>
     </>),
   },
@@ -105,8 +111,8 @@ const SECTIONS = [
   {
     id: "wartung", title: "6. Wartung",
     body: () => (<>
-      <p>Verwaltet Ausrüstung in drei Kapiteln: 🪂 Reserve (3 Positionen), ⛰️ Schirm (4 Positionen), 🎒 Gurtzeug (5 Positionen). Für jede Position: Name, Serien-Nummer, Zulassung (bei Schirm/Gurtzeug), Kaufdatum, Check-Intervall (Monate) und eine Liste vergangener Checks mit Datum und Notiz. Das nächste fällige Check-Datum wird automatisch angezeigt (grün/gelb/rot je nach Dringlichkeit).</p>
-      <p>Die Titel der einzelnen Positionen (z.B. "Solo integriert", eigener Schirm-Name) sind direkt editierbar: auf einen bereits ausgewählten (hervorgehobenen) Titel nochmals tippen öffnet ein Eingabefeld zum Umbenennen.</p>
+      <p>Verwaltet Ausrüstung in drei Kapiteln: 🪂 Reserve (3 Positionen), ⛰️ Schirm (4 Positionen), 💺 Sitz (5 Positionen). Für jede Position: Name, Serien-Nummer, Zulassung (bei Schirm/Sitz), Kaufdatum, Check-Intervall (Monate) und eine Liste vergangener Checks mit Datum und Notiz. Das nächste fällige Check-Datum wird automatisch angezeigt (grün/gelb/rot je nach Dringlichkeit).</p>
+      <p>Die Titel der einzelnen Positionen sind direkt editierbar: auf einen bereits ausgewählten (hervorgehobenen) Titel nochmals tippen öffnet ein Eingabefeld zum Umbenennen. Ohne eigene Eingabe erscheinen generische Platzhalter ("Reserve 1", "Schirm 1" usw.). Ab 768px Breite sind alle Positionen einer Kategorie gleichzeitig als feste Spalten sichtbar, statt einzeln per Tab.</p>
     </>),
   },
   {
@@ -126,7 +132,8 @@ function KurzContent() {
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
         <li>📥 Import (IGC/CSV/Copy-Paste) · 💾 Backup · ☑ Auswahl · 🗺️ Weltkarte · ↕ Richtung · Jahr</li>
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
-        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge</li>
+        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
+        <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
         <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>
       </ul>
@@ -135,11 +142,13 @@ function KurzContent() {
       <h3>Reisen</h3>
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
       <h3>Wartung</h3>
-      <p>3 Kapitel: Reserve (3) · Schirm (4) · Gurtzeug (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt</p>
+      <p>3 Kapitel: Reserve (3) · Schirm (4) · Sitz (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt</p>
       <h3>Weltkarte-Suche</h3>
       <p>Mehrere Wörter = automatisch UND. Das Wort "oder" trennt Alternativen: <code>2026 Brasilien oder Wallis</code></p>
       <h3>Offline</h3>
       <p>Ab dem zweiten Online-Start funktioniert die App komplett offline (Service Worker). Gelbes Banner zeigt an, wenn offline. Nur neue Kartenkacheln/Höhenprofil-Bodendaten/Zeitzonen-Bestimmung brauchen weiterhin Verbindung.</p>
+      <h3>iPad/Desktop</h3>
+      <p>Ab ca. 768px Breite: Home mit Foto+Kacheln nebeneinander, Flugbuch mit Liste+Detail nebeneinander, Statistik-Badges nebeneinander, Wartung-Unterkacheln alle gleichzeitig als feste Spalten. iPhone bleibt unverändert.</p>
     </div>
   );
 }

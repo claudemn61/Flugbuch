@@ -108,23 +108,40 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
   const maxAlt = Math.max(...alts), minAlt = Math.min(...alts);
   const startAlt = track[0].gpsAlt, endAlt = track[track.length-1].gpsAlt;
   const startPt = track[0], endPt = track[track.length-1];
-  // Thermals
+  // Max.Steigen / Max.Sinken: for every point, look at the altitude change
+  // over the next ~30 seconds (nearest available sample), take the best/
+  // worst rate found anywhere in the flight. Replaces both the old thermal-
+  // segment-average approach (Steigen) and the raw single-step rate
+  // (Sinken) — this 30s sliding window was derived empirically by comparing
+  // 83 flights against their known XContest-entered values (best match of
+  // any window tested: ~50% exact matches, lowest average error).
+  const CLIMB_WINDOW_SEC = 30;
+  let maxClimb = -Infinity, maxSinkRate = Infinity;
+  {
+    let j = 0;
+    for (let i=0; i<track.length; i++) {
+      const t0 = track[i].timeSec;
+      const target = t0 + CLIMB_WINDOW_SEC;
+      while (j < track.length && track[j].timeSec < target) j++;
+      if (j >= track.length) break;
+      if (j === i) continue;
+      const dt = track[j].timeSec - t0;
+      if (dt <= 0) continue;
+      const rate = (track[j].gpsAlt - track[i].gpsAlt) / dt;
+      if (rate > maxClimb) maxClimb = rate;
+      if (rate < maxSinkRate) maxSinkRate = rate;
+    }
+  }
+  maxClimb = isFinite(maxClimb) ? +maxClimb.toFixed(1) : 0;
+  maxSinkRate = isFinite(maxSinkRate) ? +maxSinkRate.toFixed(1) : 0;
+  // Thermal count (separate from the climb/sink rate calc above) — counts
+  // sustained climb segments using a simple threshold-crossing detector.
   const thermals=[]; let inT=false, tStart=null;
   for(let i=1;i<track.length;i++){
     const rate=(track[i].gpsAlt-track[i-1].gpsAlt)/(track[i].timeSec-track[i-1].timeSec||1);
     if(rate>0.5&&!inT){inT=true;tStart=i;}
-    else if(rate<=0.5&&inT){inT=false;if(tStart)thermals.push({start:tStart,end:i,avgRate:(track[i].gpsAlt-track[tStart].gpsAlt)/(track[i].timeSec-track[tStart].timeSec||1)});}
+    else if(rate<=0.5&&inT){inT=false;if(tStart)thermals.push({start:tStart,end:i});}
   }
-  const maxClimb = thermals.length ? +Math.max(...thermals.map(t=>t.avgRate)).toFixed(1) : 0;
-  // Max.Sinken wasn't computed at all before — same per-step rate the
-  // thermal detector already uses, just tracking the most negative value
-  // across the whole track instead of only within detected climb segments.
-  let maxSinkRate = 0;
-  for (let i=1;i<track.length;i++) {
-    const rate=(track[i].gpsAlt-track[i-1].gpsAlt)/(track[i].timeSec-track[i-1].timeSec||1);
-    if (rate < maxSinkRate) maxSinkRate = rate;
-  }
-  maxSinkRate = +maxSinkRate.toFixed(1);
   // Total height gain ("Höhengewinn"): sum of every positive altitude step
   // across the whole track, not just within detected thermals — this is
   // the standard "total climb" metric (matches what tools like XCSoar/
