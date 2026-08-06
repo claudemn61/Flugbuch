@@ -12,40 +12,31 @@
 <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png" />
 <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png" />
 <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png" />
-<meta name="theme-color" content="#040e20" />
+<link rel="icon" href="favicon-32.png" sizes="32x32" />
+<meta name="theme-color" content="#0a1628" />
+<link rel="manifest" href="manifest.json" />
 
 <style>
-  html, body { margin:0; padding:0; background:#040e20; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; background:#0a1628; -webkit-tap-highlight-color: transparent; }
   #root { min-height: 100vh; }
   * { -webkit-touch-callout: none; }
   input, textarea, button { -webkit-user-select: text; user-select: text; }
   #load-status { color:#fcd34d; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
-<!-- Latitude/longitude -> IANA timezone lookup, used to convert IGC B-record
-     times (always UTC per the IGC spec) to correct local time when the file
-     doesn't carry its own HFTZN timezone header. Exposes a global
-     `tzlookup(lat, lon)` function. -->
-<script src="https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/tz.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 <div id="load-status">Lade React/Babel…</div>
 <div id="root"></div>
 
 <script>
-  // Storage backed by IndexedDB (much higher quota than localStorage — often
-  // 50MB+ vs. ~5-10MB shared across the whole origin). Falls back to
-  // localStorage automatically if IndexedDB is unavailable for any reason.
-  // Note: this does NOT protect against iOS resetting the whole storage
-  // container when a Home Screen icon is removed and re-added — that's a
-  // platform-level behaviour, not something any web storage API can prevent.
-  // Use the app's iCloud backup feature after importing data as the real
-  // safety net against that.
+  // Storage backed by IndexedDB — identical bootstrap to index.html/flugbuch,
+  // so Tauchbuch shares the same robust, high-quota persistence layer.
   (function () {
-    const DB_NAME = "flugbuch-db";
+    const DB_NAME = "tauchbuch-db";
     const STORE = "kv";
     let dbPromise = null;
 
@@ -98,11 +89,9 @@
       });
     }
 
-    const PREFIX = "flugbuch:";
+    const PREFIX = "tauchbuch:";
     function keyFor(key) { return PREFIX + key; }
 
-    // One-time migration: if there's data in localStorage from before this
-    // upgrade, copy it into IndexedDB so nothing already saved is lost.
     let migrated = false;
     async function migrateFromLocalStorageOnce() {
       if (migrated) return;
@@ -124,7 +113,6 @@
           await migrateFromLocalStorageOnce();
           const raw = await idbGet(keyFor(key));
           if (raw !== null) return { key, value: raw };
-          // Fallback read in case IndexedDB is empty but localStorage has it
           const lsRaw = localStorage.getItem(keyFor(key));
           return lsRaw !== null ? { key, value: lsRaw } : null;
         } catch (e) {
@@ -186,17 +174,36 @@
     };
   })();
 
+  // Persistenter Log — schreibt Fehler/Ereignisse seitenübergreifend in den
+  // gemeinsamen Storage, damit sie im Settings-Panel der Startseite (Log-
+  // Dateien) einsehbar sind, unabhängig davon, auf welcher Seite sie auftraten.
+  const LOG_PAGE_NAME = (document.title || location.pathname).replace(/^\/|\.html$/g, "") || "app";
+  async function appendLog(message) {
+    try {
+      const key = "settings:logs";
+      let list = [];
+      try { const r = await window.storage.get(key); if (r) list = JSON.parse(r.value) || []; } catch {}
+      list.push({ ts: new Date().toISOString(), page: LOG_PAGE_NAME, message: String(message).slice(0, 2000) });
+      if (list.length > 50) list = list.slice(list.length - 50);
+      await window.storage.set(key, JSON.stringify(list));
+    } catch (e) { console.error("Log-Speicherfehler:", e); }
+  }
+
   window.addEventListener("error", function (e) {
     const el = document.getElementById("load-status");
     el.style.display = "block";
     el.style.color = "#f87171";
-    el.textContent = "JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message) + " (Zeile " + e.lineno + ")";
+    const msg = "JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message) + " (Zeile " + e.lineno + ")";
+    el.textContent = msg;
+    appendLog(msg);
   });
   window.addEventListener("unhandledrejection", function (e) {
     const el = document.getElementById("load-status");
     el.style.display = "block";
     el.style.color = "#f87171";
-    el.textContent = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+    const msg = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+    el.textContent = msg;
+    appendLog(msg);
   });
 
   async function checkAndRender() {
@@ -204,14 +211,14 @@
     if (typeof React === "undefined") { status.textContent = "FEHLER: React konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
     if (typeof ReactDOM === "undefined") { status.textContent = "FEHLER: ReactDOM konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
     if (typeof Babel === "undefined") { status.textContent = "FEHLER: Babel konnte nicht geladen werden (CDN blockiert?)"; status.style.color="#f87171"; return; }
-    status.textContent = "React/Babel geladen ✓ — lade App-Code…";
+    status.textContent = "React/Babel geladen ✓ — lade Seite…";
 
     let appSource;
     try {
       const resp = await fetch("hilfe.jsx");
       if (!resp.ok) { status.textContent = "FEHLER beim Laden von hilfe.jsx: HTTP " + resp.status; status.style.color = "#f87171"; return; }
       appSource = await resp.text();
-      status.textContent = "App-Code geladen ✓ (" + appSource.length + " Zeichen) — kompiliere…";
+      status.textContent = "Code geladen ✓ (" + appSource.length + " Zeichen) — kompiliere…";
     } catch (e) {
       status.style.color = "#f87171";
       status.textContent = "FEHLER beim Laden von hilfe.jsx:\n" + (e.message || String(e));
@@ -220,37 +227,80 @@
 
     let compiled;
     try {
-      compiled = Babel.transform(appSource, { presets: ["react"] }).code;
-      status.textContent = "Kompiliert ✓ — starte App…";
+      compiled = Babel.transform(appSource, { presets: ["react"] }).code + "\n//# sourceURL=hilfe.jsx";
+      status.textContent = "Kompiliert ✓ — starte Seite…";
     } catch (e) {
       status.style.color = "#f87171";
       status.textContent = "BABEL-KOMPILIER-FEHLER:\n" + (e.message || String(e));
+      appendLog("BABEL-KOMPILIER-FEHLER: " + (e.message || String(e)));
       return;
     }
     try {
       const runApp = new Function("React", "ReactDOM", compiled + "\n; return HilfeApp;");
       const HilfeApp = runApp(React, ReactDOM);
+
+      // Error Boundary: catches errors thrown during render/lifecycle — even
+      // ones happening later (e.g. after data finishes loading from storage),
+      // which the outer try/catch below can't see since those happen outside
+      // this synchronous call. React hands componentDidCatch the real Error
+      // object directly, so the message is never masked the way a global
+      // window "error" event can be for cross-origin script code.
+      class AppErrorBoundary extends React.Component {
+        constructor(props) { super(props); this.state = { error: null, info: null }; }
+        static getDerivedStateFromError(error) { return { error }; }
+        componentDidCatch(error, info) {
+          console.error("App-Fehler:", error, info);
+          this.setState({ info });
+          appendLog("APP-FEHLER: " + ((error && (error.stack || error.message)) || String(error)));
+        }
+        render() {
+          if (this.state.error) {
+            const e = this.state.error;
+            const stack = (e && (e.stack || e.message)) || String(e);
+            const compStack = this.state.info && this.state.info.componentStack || "";
+            return React.createElement("div", {
+              style: { padding: "20px 16px", color: "#f87171", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap", lineHeight: 1.6 }
+            }, "APP-FEHLER:\n\n" + stack + (compStack ? "\n\nKOMPONENTEN-STACK:" + compStack : ""));
+          }
+          return this.props.children;
+        }
+      }
+
       const root = ReactDOM.createRoot(document.getElementById("root"));
-      root.render(React.createElement(HilfeApp));
+      root.render(React.createElement(AppErrorBoundary, null, React.createElement(HilfeApp)));
       setTimeout(function() {
         if (!status.textContent.includes("FEHLER")) status.style.display = "none";
       }, 800);
     } catch (e) {
       status.style.color = "#f87171";
       status.textContent = "RENDER-FEHLER:\n" + (e.message || String(e)) + "\n\n" + (e.stack || "");
+      appendLog("RENDER-FEHLER: " + (e.message || String(e)));
     }
   }
 
+
+  function updateOnlineStatus() {
+    const existing = document.getElementById("offline-banner");
+    if (!navigator.onLine) {
+      if (!existing) {
+        const b = document.createElement("div");
+        b.id = "offline-banner";
+        b.textContent = "📴 Offline — zuletzt gespeicherter Stand";
+        b.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:#f59e0b;color:#1a1200;font:600 11px -apple-system,sans-serif;text-align:center;padding:6px;z-index:9999;padding-bottom:calc(6px + env(safe-area-inset-bottom, 0px));";
+        document.body.appendChild(b);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+  window.addEventListener("online", updateOnlineStatus);
+  window.addEventListener("offline", updateOnlineStatus);
+
   window.addEventListener("load", function() {
     setTimeout(checkAndRender, 300);
-  });
-</script>
-
-
-<script>
-  // Service Worker: ermöglicht Offline-Nutzung ab dem zweiten Online-Start.
-  // Siehe sw.js für die Cache-Strategie (network-first, cache-fallback).
-  window.addEventListener("load", function() {
+    updateOnlineStatus();
+    // Service Worker: macht die App ab dem zweiten erfolgreichen
+    // Online-Start auch ohne Internetverbindung nutzbar.
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(function(e) {
         console.error("Service-Worker-Registrierung fehlgeschlagen:", e);
@@ -259,17 +309,5 @@
   });
 </script>
 
-<div id="offline-banner" style="display:none;position:fixed;bottom:calc(10px + env(safe-area-inset-bottom, 0px));left:10px;right:10px;background:rgba(245,158,11,0.8);color:#1a1200;font-weight:700;text-align:center;padding:7px 16px;border-radius:10px;z-index:9999;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;">
-  📴 Offline — zuletzt gespeicherter Stand
-</div>
-<script>
-  function updateOfflineBanner() {
-    var el = document.getElementById("offline-banner");
-    if (el) el.style.display = navigator.onLine ? "none" : "block";
-  }
-  window.addEventListener("online", updateOfflineBanner);
-  window.addEventListener("offline", updateOfflineBanner);
-  updateOfflineBanner();
-</script>
 </body>
 </html>
