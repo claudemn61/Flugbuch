@@ -293,31 +293,45 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   const [showLP, setShowLP] = useState(true);
   const [search, setSearch] = useState("");
   const [missingTileCount, setMissingTileCount] = useState(0);
+  // Third, freely-configurable filter (yellow) — its condition uses the
+  // exact same search syntax as the main search box (feld:wert, feld>wert,
+  // +wort, UND/ODER, etc.), so no separate field-picker UI is needed: the
+  // person just types a condition once (e.g. "passagier:*") and toggles it
+  // on/off from then on. Persisted so it's still set up next time.
+  const [thirdEnabled, setThirdEnabled] = useState(false);
+  const [thirdQuery, setThirdQuery] = useState("");
+  const [editingThird, setEditingThird] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("worldMapThirdFilter");
+        if (r) {
+          const saved = JSON.parse(r.value);
+          if (saved.query) setThirdQuery(saved.query);
+          if (saved.enabled) setThirdEnabled(true);
+        }
+      } catch (e) { console.error("Load error (worldMapThirdFilter):", e); }
+    })();
+  }, []);
+  const saveThirdFilter = async (query, enabled) => {
+    try { await window.storage.set("worldMapThirdFilter", JSON.stringify({ query, enabled })); } catch (e) { console.error("Save error:", e); }
+  };
 
   const relevantFlights = (selectedIds && selectedIds.size > 0)
     ? flights.filter(f => selectedIds.has(f.id))
     : flights;
 
   const points = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    // Same advanced syntax as the main Flugliste search (feld:wert,
+    // feld=wert, feld>wert, +wort/-wort, UND/ODER) — matchFlights is the
+    // exact function that search uses, reused here instead of a separate,
+    // more limited implementation.
+    let searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
+    if (thirdEnabled && thirdQuery.trim()) {
+      searched = matchFlights(searched, thirdQuery);
+    }
     const seen = new Map();
-    const flightMatches = f => {
-      if (!q) return true;
-      const cf = f.customFields || {};
-      const hay = [
-        f.name, f.site, f.glider, f.pilot, f.date, f.year, f.comment, f.notes,
-        cf.landung, cf.passagier, cf.reise, cf.hGew, cf.hDiff, cf.maxSteigen, cf.maxSinken, cf.kmh,
-      ].filter(Boolean).join(" ").toLowerCase();
-      // "oder" splits into alternatives (any one matching is enough); within
-      // each alternative, space-separated words are implicitly AND'd (all
-      // must appear somewhere in the flight's combined fields) — e.g.
-      // "2026 Brasilien oder Wallis" means (2026 AND Brasilien) OR Wallis.
-      const orGroups = q.split(/\s+oder\s+/i).map(g => g.trim()).filter(Boolean);
-      if (!orGroups.length) return true;
-      return orGroups.some(group => group.split(/\s+/).filter(Boolean).every(term => hay.includes(term)));
-    };
-    for (const f of relevantFlights) {
-      if (!flightMatches(f)) continue;
+    for (const f of searched) {
       if (showSP && f.startPt && f.startPt.lat != null) {
         const name = f.site || "";
         const key = `SP:${f.startPt.lat.toFixed(3)},${f.startPt.lon.toFixed(3)}`;
@@ -330,7 +344,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
       }
     }
     return [...seen.values()];
-  }, [relevantFlights, showSP, showLP, search]);
+  }, [relevantFlights, showSP, showLP, search, thirdEnabled, thirdQuery]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -416,7 +430,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         </div>
       </div>
 
-      <div style={{padding:"0 16px 10px",display:"flex",gap:8,alignItems:"center"}}>
+      <div style={{padding:"0 16px 10px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <button onClick={()=>setShowSP(s=>!s)}
           style={{background:showSP?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showSP?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showSP?"#4ade80":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           🛫 Startplätze
@@ -425,9 +439,25 @@ function WorldMapView({ flights, selectedIds, onBack }) {
           style={{background:showLP?"rgba(248,113,113,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showLP?"rgba(248,113,113,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showLP?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           🛬 Landeplätze
         </button>
+        {editingThird ? (
+          <input autoFocus value={thirdQuery}
+            onChange={e=>setThirdQuery(e.target.value)}
+            onBlur={()=>{ setEditingThird(false); const en=thirdQuery.trim()?thirdEnabled:false; setThirdEnabled(en); saveThirdFilter(thirdQuery, en); }}
+            onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+            placeholder="z.B. passagier:*"
+            style={{background:"rgba(252,211,77,0.12)",border:"1px solid rgba(252,211,77,0.4)",borderRadius:20,padding:"7px 14px",color:"#fcd34d",fontSize:13,fontWeight:700,outline:"none",minWidth:140}} />
+        ) : (
+          <button
+            onClick={()=>{ if(!thirdQuery.trim()){setEditingThird(true);return;} const en=!thirdEnabled; setThirdEnabled(en); saveThirdFilter(thirdQuery, en); }}
+            onDoubleClick={()=>setEditingThird(true)}
+            title={thirdQuery ? "Antippen: ein-/ausschalten · Doppel-Tipp: Bedingung ändern" : "Antippen: eigene Bedingung festlegen"}
+            style={{background:thirdEnabled?"rgba(252,211,77,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${thirdEnabled?"rgba(252,211,77,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:thirdEnabled?"#fcd34d":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            🟡 {thirdQuery ? thirdQuery : "Eigener Filter"}
+          </button>
+        )}
       </div>
       <div style={{padding:"0 16px 12px"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen, z.B. „2026 Brasilien oder Wallis“…"
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen — z.B. „schirm:Advance jahr>=2025“…"
           style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 12px",color:"#e8f4fd",fontSize:14}} />
       </div>
 

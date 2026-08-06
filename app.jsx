@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.2.5";
+const APP_VERSION = "4.2.6";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.2.6", note: "Weltkarte: Suche nutzt jetzt dieselbe erweiterte Syntax wie die Flugliste (feld:wert, Vergleiche, UND/ODER, +/-Wort). Neuer dritter, gelber Filter-Umschalter neben Start-/Landeplätze — frei mit einer eigenen Bedingung (gleiche Syntax) konfigurierbar, z.B. \"passagier:*\", gespeichert für künftige Aufrufe." },
   { v: "4.2.5", note: "Höhenprofil-Zoom: Verschieben per Maus (Klicken+Ziehen) funktioniert jetzt auch am Mac, nicht mehr nur per Touch. Flugbuch-Desktop-Layout deutlich breiter (Liste bis 1400px, Detail bis 1100px, Seitenleiste leicht mitwachsend) statt fest begrenzt." },
   { v: "4.2.4", note: "IGC-Import: Max. Steigen/Sinken wird jetzt über ein 30-Sekunden-Zeitfenster berechnet statt Momentanwert bzw. Thermik-Segment-Mittel — empirisch anhand von 83 eigenen Flügen mit bekannten XContest-Werten hergeleitet (deutlich näher an XContest als vorher). Weiterhin manuell überschreibbar. Hilfe entsprechend ergänzt." },
   { v: "4.2.3", note: "Flugbuch/Detail: neues Feld \"Typ\" direkt nach Gerät/Schirm — nur sichtbar wenn befüllt, sonst dezenter \"+ Typ\"-Link zum erstmaligen Eintragen. Auch per flexiblem CSV-Import befüllbar (Spalten Typ/Type/Schirmtyp/Kategorie)." },
