@@ -322,8 +322,12 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 function FlightMap({ flight, highlightRange }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
+  const previewRefMarkerRef = useRef(null);
+  const previewReadyRef = useRef(false);
   const fullDivRef = useRef(null);
   const fullMapRef = useRef(null);
+  const fullRefMarkerRef = useRef(null);
+  const fullReadyRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
 
@@ -359,28 +363,25 @@ function FlightMap({ flight, highlightRange }) {
     return { segment: seg.length > 1 ? seg : null, refPoint: track[bestIdx] };
   }, [track, highlightRange]);
 
-  // Builds (or updates) one MapTiler map instance in the given container:
-  // track line (white casing + blue line), S/L markers, red reference-point
-  // marker when zoomed into a segment, and fits the camera to whichever
-  // point set is currently relevant. Shared between the small preview and
-  // the fullscreen view so their behaviour can never drift apart.
-  const buildMap = (container, mapRefObj) => {
+  // Creates ONE MapTiler map instance (and its one WebGL context) per
+  // flight: track line (white casing + blue line) and S/L markers, added
+  // once the style finishes loading. Deliberately does NOT depend on
+  // highlightRange — recreating the whole map (and its GL context) on
+  // every profile pan/zoom tick was exactly what caused the "WebGL context
+  // was lost" errors, since browsers cap how many live contexts can exist
+  // at once. Camera position and the reference marker are instead updated
+  // in place by the separate effect below.
+  const buildMap = (container, mapRefObj, readyRef) => {
     if (!container || !window.maptilersdk || !hasMap) return;
     const sdk = window.maptilersdk;
     if (mapRefObj.current) { mapRefObj.current.remove(); mapRefObj.current = null; }
+    readyRef.current = false;
     const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
     const map = new sdk.Map({
       container, apiKey: MAPTILER_API_KEY, style: sdk.MapStyle.OUTDOOR,
       language: "de", center: initialCenter, zoom: 11,
     });
     mapRefObj.current = map;
-
-    const fitToPoints = (pts) => {
-      if (!pts.length) return;
-      const lons = pts.map(p=>p.lon), lats = pts.map(p=>p.lat);
-      if (pts.length === 1) { map.jumpTo({ center: [lons[0], lats[0]], zoom: 12 }); return; }
-      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 36, animate: false });
-    };
 
     const addMarker = (pt, color, label) => {
       const el = document.createElement("div");
@@ -390,11 +391,11 @@ function FlightMap({ flight, highlightRange }) {
     };
 
     map.on("load", () => {
-      const traceTrack = segment || (cleanTrack.length ? cleanTrack : track);
-      if (traceTrack.length > 1) {
+      const fullTrace = cleanTrack.length ? cleanTrack : track;
+      if (fullTrace.length > 1) {
         map.addSource("track", {
           type: "geojson",
-          data: { type: "Feature", geometry: { type: "LineString", coordinates: traceTrack.map(p=>[p.lon,p.lat]) } },
+          data: { type: "Feature", geometry: { type: "LineString", coordinates: fullTrace.map(p=>[p.lon,p.lat]) } },
         });
         map.addLayer({ id: "track-casing", type: "line", source: "track",
           layout: { "line-join": "round", "line-cap": "round" },
@@ -410,34 +411,65 @@ function FlightMap({ flight, highlightRange }) {
         addMarker(sP, "#22c55e", "S");
         addMarker(eP, "#ef4444", "L");
       }
-      if (refPoint) {
-        const el = document.createElement("div");
-        el.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 4px #dc2626, 0 1px 6px rgba(0,0,0,0.6);background:#dc2626;`;
-        const inner = document.createElement("div");
-        inner.style.cssText = `width:8px;height:8px;margin:5px;border-radius:50%;background:#dc2626;`;
-        new sdk.Marker({ element: el }).setLngLat([refPoint.lon, refPoint.lat]).addTo(map);
-      }
-      if (segment && segment.length > 1) fitToPoints(segment);
-      else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
-      else fitToPoints([sP, eP]);
+      readyRef.current = true;
+      applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef);
     });
   };
 
+  // Lightweight in-place update for a profile pan/zoom change: moves the
+  // camera (fitBounds, no new context) and the single reference marker,
+  // and swaps the track source's data between the full track and just the
+  // zoomed-in segment. Safe to call repeatedly — does nothing until the
+  // map's initial "load" has actually finished.
+  const applyHighlight = (map, refMarkerRefObj) => {
+    if (!map) return;
+    const sdk = window.maptilersdk;
+    const src = map.getSource && map.getSource("track");
+    if (src) {
+      const traceTrack = segment || (cleanTrack.length ? cleanTrack : track);
+      if (traceTrack.length > 1) src.setData({ type: "Feature", geometry: { type: "LineString", coordinates: traceTrack.map(p=>[p.lon,p.lat]) } });
+    }
+    if (refMarkerRefObj.current) { refMarkerRefObj.current.remove(); refMarkerRefObj.current = null; }
+    if (refPoint) {
+      const el = document.createElement("div");
+      el.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 4px #dc2626, 0 1px 6px rgba(0,0,0,0.6);background:#dc2626;`;
+      refMarkerRefObj.current = new sdk.Marker({ element: el }).setLngLat([refPoint.lon, refPoint.lat]).addTo(map);
+    }
+    const fitToPoints = (pts) => {
+      if (!pts.length) return;
+      const lons = pts.map(p=>p.lon), lats = pts.map(p=>p.lat);
+      if (pts.length === 1) { map.jumpTo({ center: [lons[0], lats[0]], zoom: 12 }); return; }
+      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 36, animate: false });
+    };
+    if (segment && segment.length > 1) fitToPoints(segment);
+    else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
+    else if (sP && eP) fitToPoints([sP, eP]);
+  };
+
   useEffect(() => {
-    buildMap(previewDivRef.current, previewMapRef);
+    buildMap(previewDivRef.current, previewMapRef, previewReadyRef);
     return () => { if (previewMapRef.current) { previewMapRef.current.remove(); previewMapRef.current = null; } };
-  }, [flight?.id, highlightRange?.start, highlightRange?.end]);
+  }, [flight?.id]);
 
   useEffect(() => {
     if (!isFullscreen) return;
     // A frame's delay so the fullscreen overlay's container has its real
     // layout size before MapTiler reads it.
-    const raf = requestAnimationFrame(() => buildMap(fullDivRef.current, fullMapRef));
+    const raf = requestAnimationFrame(() => buildMap(fullDivRef.current, fullMapRef, fullReadyRef));
     return () => {
       cancelAnimationFrame(raf);
       if (fullMapRef.current) { fullMapRef.current.remove(); fullMapRef.current = null; }
     };
-  }, [isFullscreen, flight?.id, highlightRange?.start, highlightRange?.end]);
+  }, [isFullscreen, flight?.id]);
+
+  // Profile pan/zoom changes land here — updates the already-live map(s) in
+  // place (camera + reference marker + track segment) instead of rebuilding
+  // them, which is what previously exhausted the browser's WebGL context
+  // budget during a drag gesture.
+  useEffect(() => {
+    if (previewReadyRef.current) applyHighlight(previewMapRef.current, previewRefMarkerRef);
+    if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef);
+  }, [highlightRange?.start, highlightRange?.end, isFullscreen]);
 
   // Opens the track in GPS Visualizer as an alternative map view — POSTs the
   // data directly (no file hosting needed, per gpsvisualizer.com/misc/
