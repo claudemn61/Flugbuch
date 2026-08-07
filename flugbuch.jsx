@@ -2218,7 +2218,7 @@ function SearchBar({ filterText, setFilterText }) {
       </div>
 
       {advOpen && (
-        <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(92vw, 420px)",zIndex:50,background:"#0f1f36",boxShadow:"0 12px 32px rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:10}}>
+        <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(92vw, 420px)",zIndex:2000,background:"#0f1f36",boxShadow:"0 12px 32px rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:10}}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {rows.map((row, idx) => {
               const fieldDef = SEARCH_FIELDS.find(f=>f.id===row.field);
