@@ -20,13 +20,6 @@
   * { -webkit-touch-callout: none; }
   input, textarea, button { -webkit-user-select: text; user-select: text; }
   #load-status { color:#fcd34d; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; }
-  /* Dark-theme Leaflet popups/attribution (Weltkarte) to match the rest of the app */
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#0f1f36; color:#e8f4fd; }
-  .leaflet-popup-content { font-family:-apple-system,BlinkMacSystemFont,sans-serif; font-size:13px; }
-  .leaflet-container a.leaflet-popup-close-button { color:rgba(232,244,253,0.6); }
-  .leaflet-control-attribution { background:rgba(4,14,32,0.75) !important; color:rgba(232,244,253,0.5) !important; }
-  .leaflet-control-attribution a { color:rgba(125,211,252,0.8) !important; }
-  .leaflet-control-zoom a { background:#0f1f36 !important; color:#e8f4fd !important; border-color:rgba(255,255,255,0.15) !important; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
@@ -37,8 +30,8 @@
      doesn't carry its own HFTZN timezone header. Exposes a global
      `tzlookup(lat, lon)` function. -->
 <script src="https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/tz.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.maptiler.com/maptiler-sdk-js/v3.0.0/maptiler-sdk.umd.min.js"></script>
+<link href="https://cdn.maptiler.com/maptiler-sdk-js/v3.0.0/maptiler-sdk.css" rel="stylesheet" />
 </head>
 <body>
 <div id="load-status">Lade React/Babel…</div>

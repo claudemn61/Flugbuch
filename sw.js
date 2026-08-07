@@ -7,7 +7,7 @@
 //   geladene Version aus dem Cache ausgeliefert.
 // Damit ist die App ab dem zweiten (erfolgreichen) Online-Start auch ohne
 // Verbindung nutzbar — inkl. der von CDN geladenen React/ReactDOM/Babel/
-// tz-lookup-Bibliotheken, die beim Vorab-Cache (install) mit heruntergeladen
+// tz-lookup/MapTiler-Bibliotheken, die beim Vorab-Cache (install) mit heruntergeladen
 // werden.
 //
 // CACHE_VERSION bei strukturellen Änderungen (neue/entfernte Dateien)
@@ -32,8 +32,8 @@ const PRECACHE_URLS = [
   "https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js",
   "https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js",
   "https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/tz.js",
-  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css",
-  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
+  "https://cdn.maptiler.com/maptiler-sdk-js/v3.0.0/maptiler-sdk.umd.min.js",
+  "https://cdn.maptiler.com/maptiler-sdk-js/v3.0.0/maptiler-sdk.css",
 ];
 
 self.addEventListener("install", (event) => {
@@ -67,7 +67,7 @@ self.addEventListener("fetch", (event) => {
   // Für eigene Dateien (HTML/JSX) den Browser- UND jeden zwischengeschalteten
   // CDN-Cache (z.B. von GitHub Pages) umgehen, damit "network-first"
   // wirklich "frisch vom Server" bedeutet. Für die von CDN geladenen
-  // Bibliotheken (React/Babel/tz-lookup, ändern sich nie) ist normales
+  // Bibliotheken (React/Babel/tz-lookup/MapTiler, ändern sich kaum) ist normales
   // Caching dagegen sinnvoll und schneller.
   const isOwnFile = url.origin === self.location.origin;
   const fetchOptions = isOwnFile ? { cache: "no-store" } : undefined;

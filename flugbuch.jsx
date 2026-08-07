@@ -283,15 +283,17 @@ function loadTileImage(url) {
 
 // ── WorldMapView ───────────────────────────────────────────────────────────
 // Shows Startplatz/Landeplatz markers across all (or just the currently
-// multi-selected) flights, rendered with Leaflet (loaded via CDN in
-// flugbuch.html) for real pinch/scroll/double-tap zoom and pan — separate
-// from FlightMap's own custom canvas renderer used in the flight detail
-// view, which stays exactly as it was (it needs the height-profile zoom
-// sync, which this map has no equivalent of).
+// multi-selected) flights, rendered with the MapTiler SDK (loaded via CDN
+// in flugbuch.html) — same approach as meintauchbuch's MiniMap component,
+// using the OUTDOOR (terrain/relief) style with German-language labels.
+// Separate from FlightMap's own custom canvas renderer used in the flight
+// detail view, which stays exactly as it was (it needs the height-profile
+// zoom sync, which this map has no equivalent of).
+const MAPTILER_API_KEY = "HFElbKEufz9KOHI4w2jB";
+
 function WorldMapView({ flights, selectedIds, onBack }) {
   const mapDivRef = useRef(null);
-  const leafletMapRef = useRef(null);
-  const markersLayerRef = useRef(null);
+  const mapRef = useRef(null);
   const [showSP, setShowSP] = useState(true);
   const [showLP, setShowLP] = useState(true);
   const [search, setSearch] = useState("");
@@ -322,55 +324,39 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     return [...seen.values()];
   }, [relevantFlights, showSP, showLP, search]);
 
-  // Leaflet map lifecycle: created once when the container first has
-  // points to show, then reused — only the markers layer gets cleared and
-  // rebuilt when the filtered point set changes, so panning/zoom the
-  // person did isn't reset by every filter tweak (except the very first
-  // render, which fits bounds to show everything).
+  // MapTiler SDK map, same approach as meintauchbuch's MiniMap: OUTDOOR
+  // style (terrain/relief/hillshading — unlike Leaflet+OpenTopoMap, this
+  // is a more reliable CDN with German-language labels built in) with a
+  // German locale. Rebuilt whenever the filtered point set actually
+  // changes (compared via a stable JSON key), same as Tauchbuch does.
+  const pointsKey = JSON.stringify(points);
   useEffect(() => {
-    if (!mapDivRef.current) return;
-    if (!leafletMapRef.current) {
-      const map = L.map(mapDivRef.current, { zoomControl: true, attributionControl: true });
-      L.tileLayer("https://tile.opentopomap.org/{z}/{x}/{y}.png", {
-        maxZoom: 17,
-        attribution: '© OpenTopoMap (CC-BY-SA)',
-      }).addTo(map);
-      // Sensible default view (world) until the first real point set fits
-      // bounds — the container needs *some* view set before markers can
-      // be added, even if that first set turns out to be empty.
-      map.setView([20, 0], 2);
-      leafletMapRef.current = map;
-      markersLayerRef.current = L.layerGroup().addTo(map);
-    }
-    const map = leafletMapRef.current;
-    const layer = markersLayerRef.current;
-    layer.clearLayers();
-    if (!points.length) { setTimeout(() => map.invalidateSize(), 50); return; }
-    const bounds = [];
-    for (const p of points) {
-      L.circleMarker([p.lat, p.lon], {
-        radius: 7,
-        color: "rgba(255,255,255,0.8)",
-        weight: 1.5,
-        fillColor: p.type === "SP" ? "#4ade80" : "#f87171",
-        fillOpacity: 1,
-      }).bindPopup(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")).addTo(layer);
-      bounds.push([p.lat, p.lon]);
-    }
-    if (!leafletMapRef.current._fittedOnce) {
-      map.fitBounds(bounds, { padding: [30, 30] });
-      leafletMapRef.current._fittedOnce = true;
-    }
-    // Invalidate size once the container has actually settled into the
-    // layout (Leaflet needs a correct container size at init time, but
-    // this component's container height can still be finalising on the
-    // very first paint).
-    setTimeout(() => map.invalidateSize(), 50);
-  }, [points]);
+    if (!mapDivRef.current || !window.maptilersdk || !points.length) return;
+    const sdk = window.maptilersdk;
+    const map = new sdk.Map({
+      container: mapDivRef.current,
+      apiKey: MAPTILER_API_KEY,
+      style: sdk.MapStyle.OUTDOOR,
+      language: "de",
+      center: [points[0].lon, points[0].lat],
+      zoom: 8,
+    });
+    mapRef.current = map;
 
-  useEffect(() => {
-    return () => { if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null; } };
-  }, []);
+    points.forEach(p => {
+      const el = document.createElement("div");
+      el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${p.type==="SP"?"#4ade80":"#f87171"};border:2px solid rgba(255,255,255,0.85);box-shadow:0 1px 4px rgba(0,0,0,0.5);`;
+      const marker = new sdk.Marker({ element: el }).setLngLat([p.lon, p.lat]);
+      marker.setPopup(new sdk.Popup({ offset: 14 }).setText(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")));
+      marker.addTo(map);
+    });
+
+    if (points.length > 1) {
+      const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
+      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
+    }
+    return () => { map.remove(); mapRef.current = null; };
+  }, [pointsKey]);
 
   return (
     <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>

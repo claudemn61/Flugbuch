@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.2.8";
+const APP_VERSION = "4.2.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.2.9", note: "Weltkarte läuft jetzt auf dem MapTiler SDK (wie meintauchbuch) statt Leaflet/OpenTopoMap: Geländestil (Höhenlinien/Relief) mit deutscher Beschriftung, zuverlässigeres Kachel-Laden über MapTilers Infrastruktur." },
   { v: "4.2.8", note: "Weltkarte läuft jetzt auf Leaflet (echtes Pinch-/Doppeltipp-Zoom, träges Pan) statt eigenem Canvas-Renderer. Die Flugdetail-Karte (Höhenprofil-Synchronisierung) ist davon komplett unberührt, bleibt wie bisher." },
   { v: "4.2.7", note: "Weltkarte: Suche hat jetzt dieselbe erweiterbare Zeilen-Baukasten-Ansicht wie die Flugliste (mehrere Bedingungen, UND/ODER) statt nur eines Textfelds. Die drei Umschalter (Start-/Landeplätze, eigener Filter) bleiben jetzt immer auf einer Zeile." },
   { v: "4.2.6", note: "Weltkarte: Suche nutzt jetzt dieselbe erweiterte Syntax wie die Flugliste (feld:wert, Vergleiche, UND/ODER, +/-Wort). Neuer dritter, gelber Filter-Umschalter neben Start-/Landeplätze — frei mit einer eigenen Bedingung (gleiche Syntax) konfigurierbar, z.B. \"passagier:*\", gespeichert für künftige Aufrufe." },
