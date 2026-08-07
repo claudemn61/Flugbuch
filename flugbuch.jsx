@@ -283,16 +283,18 @@ function loadTileImage(url) {
 
 // ── WorldMapView ───────────────────────────────────────────────────────────
 // Shows Startplatz/Landeplatz markers across all (or just the currently
-// multi-selected) flights on a real map. Reuses the same tile-fetching/
-// projection machinery as FlightMap (lonLatToTile, pickZoomForBounds,
-// runWithConcurrencyLimit, loadTileImage — all defined further below, hence
-// this component's own draw effect calling them directly).
+// multi-selected) flights, rendered with Leaflet (loaded via CDN in
+// flugbuch.html) for real pinch/scroll/double-tap zoom and pan — separate
+// from FlightMap's own custom canvas renderer used in the flight detail
+// view, which stays exactly as it was (it needs the height-profile zoom
+// sync, which this map has no equivalent of).
 function WorldMapView({ flights, selectedIds, onBack }) {
-  const canvasRef = useRef(null);
+  const mapDivRef = useRef(null);
+  const leafletMapRef = useRef(null);
+  const markersLayerRef = useRef(null);
   const [showSP, setShowSP] = useState(true);
   const [showLP, setShowLP] = useState(true);
   const [search, setSearch] = useState("");
-  const [missingTileCount, setMissingTileCount] = useState(0);
   // Third, freely-configurable filter (yellow) — its condition uses the
   // exact same search syntax as the main search box (feld:wert, feld>wert,
   // +wort, UND/ODER, etc.), so no separate field-picker UI is needed: the
@@ -346,73 +348,50 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     return [...seen.values()];
   }, [relevantFlights, showSP, showLP, search, thirdEnabled, thirdQuery]);
 
+  // Leaflet map lifecycle: created once when the container first has
+  // points to show, then reused — only the markers layer gets cleared and
+  // rebuilt when the filtered point set changes, so panning/zoom the
+  // person did isn't reset by every filter tweak (except the very first
+  // render, which fits bounds to show everything).
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !points.length) return;
-    let cancelled = false;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * dpr;
-    canvas.height = canvas.clientHeight * dpr;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width, H = canvas.height;
-
-    (async () => {
-      const lats = points.map(p=>p.lat), lons = points.map(p=>p.lon);
-      const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-      const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-      // Same zoom-picking idea as pickZoomForBounds, but allowed to go much
-      // further out (down to z=1) since markers can legitimately span
-      // continents, unlike a single flight's track.
-      let zoom = 12;
-      for (let z = 12; z >= 1; z--) {
-        const p1 = lonLatToTile(minLon, maxLat, z);
-        const p2 = lonLatToTile(maxLon, minLat, z);
-        if (Math.abs(p2.x-p1.x)*256 <= W*2 && Math.abs(p2.y-p1.y)*256 <= H*2) { zoom = z; break; }
-        zoom = z;
-      }
-      const pad = 0.5; // extra tiles of margin around the bounding box
-      const tl = lonLatToTile(minLon, maxLat, zoom);
-      const br = lonLatToTile(maxLon, minLat, zoom);
-      const xMin = Math.floor(tl.x-pad), xMax = Math.floor(br.x+pad);
-      const yMin = Math.floor(tl.y-pad), yMax = Math.floor(br.y+pad);
-      const n = Math.pow(2, zoom);
-
-      const tileTasks = [];
-      for (let xi = xMin; xi <= xMax; xi++) {
-        for (let yi = yMin; yi <= yMax; yi++) {
-          const xw = ((xi % n) + n) % n;
-          const url = `https://tile.opentopomap.org/${zoom}/${xw}/${yi}.png`;
-          tileTasks.push(() => loadTileImage(url).then(img => ({ xi, yi, img })));
-        }
-      }
-      const tiles = await runWithConcurrencyLimit(tileTasks, 6);
-      if (cancelled) return;
-
-      const cx0 = xMin, cy0 = yMin;
-      const scale = W / ((xMax-xMin+1));
-      ctx.fillStyle = "#040e20";
-      ctx.fillRect(0,0,W,H);
-      for (const {xi,yi,img} of tiles) {
-        if (!img) continue;
-        ctx.drawImage(img, (xi-cx0)*scale, (yi-cy0)*scale, scale, scale);
-      }
-      setMissingTileCount(tiles.filter(t=>!t.img).length);
-
-      const xPos = lon => { const t = lonLatToTile(lon, 0, zoom); return (t.x-cx0)*scale; };
-      const yPos = lat => { const t = lonLatToTile(0, lat, zoom); return (t.y-cy0)*scale; };
-
-      for (const p of points) {
-        const px = xPos(p.lon), py = yPos(p.lat);
-        ctx.beginPath();
-        ctx.arc(px, py, 6*dpr, 0, Math.PI*2);
-        ctx.fillStyle = p.type === "SP" ? "#4ade80" : "#f87171";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.5*dpr;
-        ctx.stroke();
-      }
-    })();
-    return () => { cancelled = true; };
+    if (!mapDivRef.current || !points.length) return;
+    if (!leafletMapRef.current) {
+      const map = L.map(mapDivRef.current, { zoomControl: true, attributionControl: true });
+      L.tileLayer("https://tile.opentopomap.org/{z}/{x}/{y}.png", {
+        maxZoom: 17,
+        attribution: '© OpenTopoMap (CC-BY-SA)',
+      }).addTo(map);
+      leafletMapRef.current = map;
+      markersLayerRef.current = L.layerGroup().addTo(map);
+    }
+    const map = leafletMapRef.current;
+    const layer = markersLayerRef.current;
+    layer.clearLayers();
+    const bounds = [];
+    for (const p of points) {
+      L.circleMarker([p.lat, p.lon], {
+        radius: 7,
+        color: "rgba(255,255,255,0.8)",
+        weight: 1.5,
+        fillColor: p.type === "SP" ? "#4ade80" : "#f87171",
+        fillOpacity: 1,
+      }).bindPopup(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")).addTo(layer);
+      bounds.push([p.lat, p.lon]);
+    }
+    if (!leafletMapRef.current._fittedOnce) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+      leafletMapRef.current._fittedOnce = true;
+    }
+    // Invalidate size once the container has actually settled into the
+    // layout (Leaflet needs a correct container size at init time, but
+    // this component's container height can still be finalising on the
+    // very first paint).
+    setTimeout(() => map.invalidateSize(), 50);
   }, [points]);
+
+  useEffect(() => {
+    return () => { if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null; } };
+  }, []);
 
   return (
     <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>
@@ -430,7 +409,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         </div>
       </div>
 
-      <div style={{padding:"0 16px 10px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{padding:"0 16px 10px",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflowX:"auto"}}>
         <button onClick={()=>setShowSP(s=>!s)}
           style={{background:showSP?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showSP?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showSP?"#4ade80":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           🛫 Startplätze
@@ -457,19 +436,15 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         )}
       </div>
       <div style={{padding:"0 16px 12px"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen — z.B. „schirm:Advance jahr>=2025“…"
-          style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px 12px",color:"#e8f4fd",fontSize:14}} />
+        <SearchBar filterText={search} setFilterText={setSearch} />
       </div>
 
       {points.length === 0 ? (
         <div style={{padding:"0 16px",color:"rgba(232,244,253,0.35)",fontSize:14}}>Keine Orte gefunden.</div>
       ) : (
         <div style={{margin:"0 16px",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
-          <canvas ref={canvasRef} style={{width:"100%",height:"60vh",display:"block"}} />
+          <div ref={mapDivRef} style={{width:"100%",height:"60vh",background:"#040e20"}} />
         </div>
-      )}
-      {missingTileCount > 0 && (
-        <div style={{padding:"8px 16px 0",fontSize:11,color:"rgba(232,244,253,0.35)"}}>{missingTileCount} Kachel(n) konnten nicht geladen werden.</div>
       )}
     </div>
   );

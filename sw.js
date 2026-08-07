@@ -32,6 +32,8 @@ const PRECACHE_URLS = [
   "https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js",
   "https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js",
   "https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/tz.js",
+  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css",
+  "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
 ];
 
 self.addEventListener("install", (event) => {
