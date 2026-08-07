@@ -326,7 +326,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -357,6 +357,17 @@ function FlightMap({ flight, highlightRange }) {
     const medLat = median(track.map(p=>p.lat)), medLon = median(track.map(p=>p.lon));
     const filtered = track.filter(p => Math.abs(p.lat-medLat)<=0.5 && Math.abs(p.lon-medLon)<=0.5);
     return filtered.length ? filtered : track;
+  }, [track]);
+
+  // Cumulative flown distance up to each track point (same basis
+  // FlightProfile's own "distances" array uses) — lets playback report its
+  // current position in a form the profile's cine-sync marker can use
+  // directly, without either component needing to know how the other one
+  // is internally structured.
+  const cumDist = useMemo(() => {
+    const arr = new Array(track.length).fill(0);
+    for (let i=1;i<track.length;i++) arr[i] = arr[i-1] + (haversineDistKm(track[i-1], track[i]) || 0);
+    return arr;
   }, [track]);
 
   // The segment highlightRange refers to (by cumulative flown distance
@@ -553,6 +564,11 @@ function FlightMap({ flight, highlightRange }) {
       playMarkerRef.current.setLngLat([lon, lat]);
     }
     if (playMarkerRef.current._imgEl) playMarkerRef.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+
+    if (onPlaybackPositionChange && cumDist.length) {
+      const distKm = (cumDist[i]||0) + ((cumDist[i+1]||cumDist[i]||0) - (cumDist[i]||0)) * frac;
+      onPlaybackPositionChange(distKm);
+    }
   }, [playElapsedSec, isFullscreen]);
 
   // Cleans up the playback marker whenever fullscreen closes or the flight
@@ -562,12 +578,14 @@ function FlightMap({ flight, highlightRange }) {
       setIsPlaying(false);
       setPlayElapsedSec(0);
       if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+      if (onPlaybackPositionChange) onPlaybackPositionChange(null);
     }
   }, [isFullscreen]);
   useEffect(() => {
     setIsPlaying(false);
     setPlayElapsedSec(0);
     if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+    if (onPlaybackPositionChange) onPlaybackPositionChange(null);
   }, [flight?.id]);
 
   // Opens the track in GPS Visualizer as an alternative map view — POSTs the
@@ -701,7 +719,7 @@ function FlightMap({ flight, highlightRange }) {
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
-function FlightProfile({ flight, onPositionChange }) {
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -964,6 +982,24 @@ function FlightProfile({ flight, onPositionChange }) {
       }
     }
 
+    if (playbackDistanceKm != null) {
+      const scaledDist = playbackDistanceKm * scale;
+      if (scaledDist >= visStart && scaledDist <= visEnd) {
+        const px = xPos(scaledDist);
+        ctx.save();
+        ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2*dpr;
+        ctx.beginPath();
+        ctx.moveTo(px, padT);
+        ctx.lineTo(px, padT+plotH);
+        ctx.stroke();
+        ctx.fillStyle = "#4ade80";
+        ctx.beginPath();
+        ctx.arc(px, padT+plotH, 4*dpr, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
     if (groundProfile && groundProfile.length) {
       // Only the points inside (plus one just outside on each side, so the
       // fill/line doesn't visibly stop short at the window edge) the
@@ -1014,7 +1050,7 @@ function FlightProfile({ flight, onPositionChange }) {
       ctx.lineTo(xPos(distances[i]), yPos(track[i].gpsAlt));
       ctx.stroke();
     }
-  }, [track, distances, totalDist, groundProfile, viewStart, viewScale]);
+  }, [track, distances, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm]);
 
   if (!track.length) return null;
 
@@ -2576,6 +2612,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
     };
     const [notesEditing, setNotesEditing] = useState(false);
     const [profileRange, setProfileRange] = useState(null);
+    const [playbackDistance, setPlaybackDistance] = useState(null);
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
     useEffect(() => {
@@ -2740,8 +2777,8 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} />
+          <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
