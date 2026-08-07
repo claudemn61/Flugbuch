@@ -80,7 +80,7 @@ const SECTIONS = [
       <p>Direkt nach dem Feld Gerät/Schirm steht ein optionales Feld "Typ" — erscheint nur bei Inhalt, sonst nur ein dezenter "+ Typ"-Link zum erstmaligen Eintragen. Wird auch beim CSV-Import erkannt (Spalten "Typ", "Type", "Schirmtyp", "Kategorie").</p>
       <p>Im Mehrfachauswahl-Modus lässt sich die Spaltenauswahl/-reihenfolge für "📋 Kopieren" über das ⚙️-Zahnrad daneben frei konfigurieren (an-/abwählen, per ↑/↓ neu anordnen) — praktisch, um die kopierte Tabelle an eine externe Tabellenkalkulation anzupassen.</p>
       <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
-      <p>Karte zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
+      <p>Karte (MapTiler, Geländestil mit deutscher Beschriftung) zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen mit echtem Pinch-/Doppeltipp-Zoom, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
         <li>🔍 Zoom-Button — Listenauswahl 1× bis 8×</li>
         <li>Bei Zoom: im Profil wischen, um den Ausschnitt zu verschieben</li>
@@ -88,7 +88,7 @@ const SECTIONS = [
         <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Flugdauer/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot. Beim Wählen eines Zoom-Levels springt die Markierung auf Flugstart (0:00)</li>
       </ul>
       <h3>3.6 Weltkarte</h3>
-      <p>Start-/Landeplätze (grün/rot) auf einer Karte, einzeln ein-/ausblendbar. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche: mehrere Wörter automatisch UND-verknüpft, das Wort „oder&quot; trennt Alternativen, z.B. <code>2026 Brasilien oder Wallis</code>.</p>
+      <p>Start-/Landeplätze (grün/rot) auf einer MapTiler-Geländekarte (deutsche Beschriftung), einzeln ein-/ausblendbar, mit echtem Pinch-/Doppeltipp-Zoom. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche nutzt denselben erweiterbaren Zeilen-Baukasten wie die Flugliste (siehe 3.2) — mehrere Bedingungen, UND/ODER.</p>
     </>),
   },
   {
@@ -143,8 +143,8 @@ function KurzContent() {
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
       <h3>Wartung</h3>
       <p>3 Kapitel: Reserve (3) · Schirm (4) · Sitz (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt</p>
-      <h3>Weltkarte-Suche</h3>
-      <p>Mehrere Wörter = automatisch UND. Das Wort "oder" trennt Alternativen: <code>2026 Brasilien oder Wallis</code></p>
+      <h3>Weltkarte</h3>
+      <p>MapTiler-Geländekarte, deutsche Beschriftung, echtes Pinch-Zoom. Suche wie Flugliste (Zeilen-Baukasten, UND/ODER)</p>
       <h3>Offline</h3>
       <p>Ab dem zweiten Online-Start funktioniert die App komplett offline (Service Worker). Gelbes Banner zeigt an, wenn offline. Nur neue Kartenkacheln/Höhenprofil-Bodendaten/Zeitzonen-Bestimmung brauchen weiterhin Verbindung.</p>
       <h3>iPad/Desktop</h3>

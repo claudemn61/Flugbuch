@@ -182,22 +182,9 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
 }
 
 // ── FlightMap ──────────────────────────────────────────────────────────────
-// Converts lat/lon to OSM/OpenTopoMap slippy-map tile x/y coordinates at a
-// given zoom level. Standard Web Mercator tile math.
-function lonLatToTile(lon, lat, zoom) {
-  const n = Math.pow(2, zoom);
-  const x = (lon + 180) / 360 * n;
-  const latRad = lat * Math.PI / 180;
-  const y = (1 - Math.log(Math.tan(latRad) + 1/Math.cos(latRad)) / Math.PI) / 2 * n;
-  return { x, y };
-}
-
-// Picks the smallest zoom level (most zoomed-out, i.e. most tiles fit) that
-// still keeps the track's bounding box within a reasonable number of tiles,
-// so terrain detail is as high as possible without loading excessive tiles.
-// Builds a minimal valid GPX 1.1 track file from a flight's IGC track points,
-// so it can be opened in an external map viewer (gpx.studio) that renders
-// real map tiles reliably instead of our own hand-drawn canvas tiles.
+// Builds a minimal valid GPX 1.1 track file from a flight's IGC track
+// points, so it can be opened in an external map viewer (gpx.studio) that
+// renders real map tiles reliably instead of our own hand-drawn canvas tiles.
 function buildGpxFromFlight(flight) {
   const track = flight?.track || [];
   if (!track.length) return null;
@@ -210,75 +197,6 @@ function buildGpxFromFlight(flight) {
 <gpx version="1.1" creator="meinflugApp" xmlns="http://www.topografix.com/GPX/1/1">
   <trk><name>${flight?.name || "Flug"}</name><trkseg>${points}</trkseg></trk>
 </gpx>`;
-}
-
-function pickZoomForBounds(minLat, maxLat, minLon, maxLon, pixelW, pixelH) {
-  for (let z = 15; z >= 5; z--) {
-    const p1 = lonLatToTile(minLon, maxLat, z);
-    const p2 = lonLatToTile(maxLon, minLat, z);
-    const tilesW = Math.abs(p2.x - p1.x);
-    const tilesH = Math.abs(p2.y - p1.y);
-    // Each OSM/OpenTopoMap tile is 256px — stop zooming in once the bounds
-    // would need more screen space than we actually have to render.
-    if (tilesW * 256 <= pixelW * 2.2 && tilesH * 256 <= pixelH * 2.2) return z;
-  }
-  return 5;
-}
-
-const tileImageCache = new Map();
-// Requesting every tile for a flight's bounding box at once (a long
-// cross-country track can need 30-50+) regularly overwhelmed OpenTopoMap's
-// free tile server, causing it to drop a scattered subset of them under
-// load — this ran a limited number of tile fetches at a time instead of
-// firing everything simultaneously, which is much friendlier to the server
-// and noticeably reduces how often tiles come back missing in the first place.
-async function runWithConcurrencyLimit(tasks, limit) {
-  const results = new Array(tasks.length);
-  let next = 0;
-  async function worker() {
-    while (next < tasks.length) {
-      const i = next++;
-      results[i] = await tasks[i]();
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
-  return results;
-}
-function loadTileImageOnce(url) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-}
-function loadTileImage(url) {
-  if (tileImageCache.has(url)) return tileImageCache.get(url);
-  // OpenTopoMap occasionally rejects/drops individual tile requests under
-  // load (the service has limited capacity and no guaranteed SLA), which
-  // showed up as random missing tiles even though the surrounding tiles
-  // loaded fine. A couple of short-delayed retries recovers most of these
-  // without meaningfully slowing down the common case where tiles load on
-  // the first try.
-  const promise = (async () => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 400 * attempt));
-      const img = await loadTileImageOnce(attempt === 0 ? url : url + (url.includes("?") ? "&" : "?") + "retry=" + attempt);
-      if (img) return img;
-    }
-    // All retries failed — remove this entry rather than keep it cached.
-    // Caching the failure too was the actual bug behind tiles staying
-    // permanently blank for the rest of the session: a transient server
-    // hiccup got treated as a permanent one, and reopening the map just
-    // replayed the same cached null instead of trying again. Now a still-
-    // missing tile gets a genuinely fresh three-try attempt the next time
-    // it's requested (e.g. reopening the fullscreen map).
-    tileImageCache.delete(url);
-    return null;
-  })();
-  tileImageCache.set(url, promise);
-  return promise;
 }
 
 // ── WorldMapView ───────────────────────────────────────────────────────────
@@ -402,367 +320,124 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 
 
 function FlightMap({ flight, highlightRange }) {
-  const canvasRef = useRef(null);
-  const fullCanvasRef = useRef(null);
+  const previewDivRef = useRef(null);
+  const previewMapRef = useRef(null);
+  const fullDivRef = useRef(null);
+  const fullMapRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [missingTileCount, setMissingTileCount] = useState(0);
-  const [tileRetryTick, setTileRetryTick] = useState(0);
-  const [retrying, setRetrying] = useState(false);
   const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
 
-  const draw = (canvas, isFullscreenCanvas) => {
-    if (!canvas) return () => {};
-    let cancelled = false;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width, H = canvas.height;
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle = "#0d1b2a"; ctx.fillRect(0,0,W,H);
-    const track = flight?.track||[];
-    const sP = flight?.startPt, eP = flight?.endPt;
-    const drawM=(x,y,col,lbl)=>{
-      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,5,0,2*Math.PI); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.font="bold 8px system-ui"; ctx.textAlign="center";
-      ctx.fillText(lbl,x,y+3);
-    };
-    if (!track.length && (!sP||!eP)) {
-      // No IGC track at all — leave the canvas as an empty field in the
-      // Flugbuch app's own base blue, rather than showing a placeholder
-      // message or terrain tiles that don't apply here.
-      ctx.fillStyle = "#040e20"; ctx.fillRect(0,0,W,H);
-      return () => { cancelled = true; };
-    }
+  const track = flight?.track || [];
+  const sP = flight?.startPt, eP = flight?.endPt;
+  const hasMap = track.length > 0 || (sP && eP);
 
-    let pts = track.length ? track : [sP,eP].filter(Boolean);
-    if (highlightRange && track.length > 1) {
-      let acc = 0;
-      const segment = [];
-      if (acc >= highlightRange.start - 0.05 && acc <= highlightRange.end + 0.05) segment.push(track[0]);
-      for (let i=1;i<track.length;i++) {
-        acc += haversineDistKm(track[i-1], track[i]) || 0;
-        if (acc >= highlightRange.start - 0.05 && acc <= highlightRange.end + 0.05) segment.push(track[i]);
-      }
-      if (segment.length > 1) pts = segment;
-    }
-    // A single noisy/erroneous GPS fix in the IGC file (common near the edges
-    // of a recording) can sit far outside the real flight area and blow up
-    // the whole bounding box, forcing a huge zoomed-out area full of empty/
-    // missing tiles. Filter out points whose lat/lon differ from the median
-    // by more than a generous threshold before computing the map bounds.
-    function median(arr) {
-      const s = [...arr].sort((a,b)=>a-b);
-      const mid = Math.floor(s.length/2);
-      return s.length % 2 ? s[mid] : (s[mid-1]+s[mid])/2;
-    }
-    const rawLats = pts.map(p=>p.lat), rawLons = pts.map(p=>p.lon);
-    const medLat = median(rawLats), medLon = median(rawLons);
-    // ~0.5 degrees is roughly 35-55km depending on latitude — generous enough
-    // for any real single flight, but tight enough to reject GPS glitches
-    // that jump to another region entirely.
-    const MAX_DEV = 0.5;
-    const filtered = pts.filter(p => Math.abs(p.lat-medLat) <= MAX_DEV && Math.abs(p.lon-medLon) <= MAX_DEV);
-    const cleanPts = filtered.length ? filtered : pts;
-    const lats=cleanPts.map(p=>p.lat), lons=cleanPts.map(p=>p.lon);
-    const latPad = Math.max((Math.max(...lats)-Math.min(...lats))*0.15, 0.003);
-    const lonPad = Math.max((Math.max(...lons)-Math.min(...lons))*0.15, 0.003);
-    let minLat=Math.min(...lats)-latPad, maxLat=Math.max(...lats)+latPad;
-    let minLon=Math.min(...lons)-lonPad, maxLon=Math.max(...lons)+lonPad;
-    // Expand whichever dimension is "too narrow" so the fetched geographic
-    // box's own aspect ratio already matches the canvas — avoids the old
-    // contain-fit letterboxing, since there's now nothing to letterbox.
-    // Longitude degrees need a cos(latitude) correction to compare fairly
-    // against latitude degrees (a degree of longitude covers less real
-    // distance the further from the equator you are).
-    {
-      const destAspect = W / H;
-      const centerLatRad = (minLat+maxLat)/2 * Math.PI/180;
-      const lonSpanPhysical = (maxLon-minLon) * Math.cos(centerLatRad);
-      const latSpan = maxLat-minLat;
-      const currentAspect = lonSpanPhysical / (latSpan||0.0001);
-      if (currentAspect > destAspect) {
-        const neededLatSpan = lonSpanPhysical / destAspect;
-        const extra = (neededLatSpan - latSpan) / 2;
-        minLat -= extra; maxLat += extra;
-      } else {
-        const neededLonSpanPhysical = latSpan * destAspect;
-        const neededLonSpan = neededLonSpanPhysical / Math.cos(centerLatRad);
-        const extra = (neededLonSpan - (maxLon-minLon)) / 2;
-        minLon -= extra; maxLon += extra;
-      }
-    }
+  // Same GPS-glitch rejection as before: a single wild fix shouldn't blow
+  // out the bounding box used for fitBounds.
+  const cleanTrack = useMemo(() => {
+    if (track.length < 3) return track;
+    const median = arr => { const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+    const medLat = median(track.map(p=>p.lat)), medLon = median(track.map(p=>p.lon));
+    const filtered = track.filter(p => Math.abs(p.lat-medLat)<=0.5 && Math.abs(p.lon-medLon)<=0.5);
+    return filtered.length ? filtered : track;
+  }, [track]);
 
-    const drawTrackAndMarkers = (tx, ty) => {
-      const traceTrack = (highlightRange && pts !== track && pts.length > 1) ? pts : track;
-      if (traceTrack.length) {
-        for(let i=1;i<traceTrack.length;i++){
-          // Solid, bold dark blue — not altitude/climb colour-coded, unlike
-          // the separate Höhenprofil chart which keeps its own gradient.
-          if (isFullscreenCanvas) {
-            ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=9.5;
-            ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
-            ctx.strokeStyle="#1e40af";
-            ctx.lineWidth=6.5; ctx.beginPath();
-            ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
-            ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
-            ctx.stroke();
-          } else {
-            ctx.strokeStyle="rgba(255,255,255,0.55)"; ctx.lineWidth=5;
-            ctx.beginPath(); ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat)); ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat)); ctx.stroke();
-            ctx.strokeStyle="#1e40af";
-            ctx.lineWidth=3.25; ctx.beginPath();
-            ctx.moveTo(tx(traceTrack[i-1].lon),ty(traceTrack[i-1].lat));
-            ctx.lineTo(tx(traceTrack[i].lon),ty(traceTrack[i].lat));
-            ctx.stroke();
-          }
-        }
-        drawM(tx(track[0].lon),ty(track[0].lat),"#22c55e","S");
-        drawM(tx(track[track.length-1].lon),ty(track[track.length-1].lat),"#ef4444","L");
-        if (highlightRange != null && track.length > 1) {
-          // Find the track point nearest the excerpt's centre along the
-          // flown path (cumulative haversine distance) — same basis
-          // FlightProfile itself uses before any manual-Distanz rescale,
-          // since that rescale is purely a display thing for the profile's
-          // own axis.
-          let acc = 0, bestIdx = 0, bestDiff = Infinity;
-          for (let i=0;i<track.length;i++) {
-            if (i>0) acc += haversineDistKm(track[i-1], track[i]) || 0;
-            const diff = Math.abs(acc - highlightRange.center);
-            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-          }
-          const hp = track[bestIdx];
-          const hx = tx(hp.lon), hy = ty(hp.lat);
-          ctx.beginPath(); ctx.arc(hx,hy,11,0,2*Math.PI);
-          ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.stroke();
-          ctx.beginPath(); ctx.arc(hx,hy,11,0,2*Math.PI);
-          ctx.strokeStyle="#dc2626"; ctx.lineWidth=4; ctx.stroke();
-          ctx.beginPath(); ctx.arc(hx,hy,4,0,2*Math.PI);
-          ctx.fillStyle="#dc2626"; ctx.fill();
-        }
-      } else {
-        if(sP) drawM(tx(sP.lon),ty(sP.lat),"#22c55e","S");
-        if(eP) drawM(tx(eP.lon),ty(eP.lat),"#ef4444","L");
-      }
+  // The segment highlightRange refers to (by cumulative flown distance
+  // along the *raw* track, same basis FlightProfile itself uses), plus the
+  // single nearest point to use for the red reference marker.
+  const { segment, refPoint } = useMemo(() => {
+    if (!highlightRange || track.length < 2) return { segment: null, refPoint: null };
+    let acc = 0;
+    const seg = [];
+    if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(track[0]);
+    let bestIdx = 0, bestDiff = Math.abs(0 - highlightRange.center);
+    for (let i=1;i<track.length;i++) {
+      acc += haversineDistKm(track[i-1], track[i]) || 0;
+      if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(track[i]);
+      const diff = Math.abs(acc - highlightRange.center);
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    }
+    return { segment: seg.length > 1 ? seg : null, refPoint: track[bestIdx] };
+  }, [track, highlightRange]);
+
+  // Builds (or updates) one MapTiler map instance in the given container:
+  // track line (white casing + blue line), S/L markers, red reference-point
+  // marker when zoomed into a segment, and fits the camera to whichever
+  // point set is currently relevant. Shared between the small preview and
+  // the fullscreen view so their behaviour can never drift apart.
+  const buildMap = (container, mapRefObj) => {
+    if (!container || !window.maptilersdk || !hasMap) return;
+    const sdk = window.maptilersdk;
+    if (mapRefObj.current) { mapRefObj.current.remove(); mapRefObj.current = null; }
+    const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
+    const map = new sdk.Map({
+      container, apiKey: MAPTILER_API_KEY, style: sdk.MapStyle.OUTDOOR,
+      language: "de", center: initialCenter, zoom: 11,
+    });
+    mapRefObj.current = map;
+
+    const fitToPoints = (pts) => {
+      if (!pts.length) return;
+      const lons = pts.map(p=>p.lon), lats = pts.map(p=>p.lat);
+      if (pts.length === 1) { map.jumpTo({ center: [lons[0], lats[0]], zoom: 12 }); return; }
+      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 36, animate: false });
     };
 
-    (async () => {
-      const zoom = pickZoomForBounds(minLat, maxLat, minLon, maxLon, W, H);
-      const TILE_PX = 256;
-      const p1 = lonLatToTile(minLon, maxLat, zoom);
-      const p2 = lonLatToTile(maxLon, minLat, zoom);
-      const xMinF = Math.min(p1.x, p2.x), xMaxF = Math.max(p1.x, p2.x);
-      const yMinF = Math.min(p1.y, p2.y), yMaxF = Math.max(p1.y, p2.y);
-      const xMin = Math.floor(xMinF), xMax = Math.floor(xMaxF);
-      const yMin = Math.floor(yMinF), yMax = Math.floor(yMaxF);
+    const addMarker = (pt, color, label) => {
+      const el = document.createElement("div");
+      el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font:800 10px system-ui;`;
+      el.textContent = label;
+      new sdk.Marker({ element: el }).setLngLat([pt.lon, pt.lat]).addTo(map);
+    };
 
-      const tileTasks = [];
-      for (let xi = xMin; xi <= xMax; xi++) {
-        for (let yi = yMin; yi <= yMax; yi++) {
-          const url = `https://tile.opentopomap.org/${zoom}/${xi}/${yi}.png`;
-          tileTasks.push(() => loadTileImage(url).then(img => ({ xi, yi, img })));
-        }
-      }
-      let tiles = await runWithConcurrencyLimit(tileTasks, 6);
-      if (cancelled) return;
-
-      // A handful of tiles can still come back empty even after each one's
-      // own internal 3-try retry — usually because the whole batch hit the
-      // server in the same short window. Giving it a longer breather and
-      // then retrying just the stragglers (a much smaller, gentler batch)
-      // recovers most of what's left without noticeably delaying the
-      // common case where nothing needs a second pass at all.
-      const stillMissing = tiles.filter(t => !t.img);
-      if (stillMissing.length && !cancelled) {
-        await new Promise(r => setTimeout(r, 1200));
-        if (cancelled) return;
-        const retryTasks = stillMissing.map(({xi,yi}) => () => {
-          const url = `https://tile.opentopomap.org/${zoom}/${xi}/${yi}.png`;
-          return loadTileImage(url).then(img => ({ xi, yi, img }));
+    map.on("load", () => {
+      const traceTrack = segment || (cleanTrack.length ? cleanTrack : track);
+      if (traceTrack.length > 1) {
+        map.addSource("track", {
+          type: "geojson",
+          data: { type: "Feature", geometry: { type: "LineString", coordinates: traceTrack.map(p=>[p.lon,p.lat]) } },
         });
-        const retried = await runWithConcurrencyLimit(retryTasks, 4);
-        if (cancelled) return;
-        const retriedByKey = new Map(retried.map(t => [`${t.xi},${t.yi}`, t]));
-        tiles = tiles.map(t => retriedByKey.get(`${t.xi},${t.yi}`) || t);
+        map.addLayer({ id: "track-casing", type: "line", source: "track",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "rgba(255,255,255,0.55)", "line-width": 6.5 } });
+        map.addLayer({ id: "track-line", type: "line", source: "track",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#1e40af", "line-width": 3.5 } });
       }
-      if (isFullscreenCanvas && !cancelled) {
-        setMissingTileCount(tiles.filter(t => !t.img).length);
+      if (track.length) {
+        addMarker(track[0], "#22c55e", "S");
+        addMarker(track[track.length-1], "#ef4444", "L");
+      } else if (sP && eP) {
+        addMarker(sP, "#22c55e", "S");
+        addMarker(eP, "#ef4444", "L");
       }
-
-      // Standard slippy-map technique: render every tile at its native,
-      // whole-pixel position on an offscreen canvas laid out in pure
-      // tile-grid space (tile (xMin,yMin) at pixel (0,0), each tile exactly
-      // TILE_PX apart) — since every position here is a whole-number
-      // multiple of TILE_PX, adjacent tiles are always pixel-perfect
-      // adjacent with zero possibility of a rounding-induced gap. Only
-      // afterwards do we scale/crop that single flat image onto the visible
-      // canvas, which is one clean transform instead of one per tile.
-      const gridW = (xMax - xMin + 1) * TILE_PX;
-      const gridH = (yMax - yMin + 1) * TILE_PX;
-      const offscreen = document.createElement("canvas");
-      offscreen.width = gridW;
-      offscreen.height = gridH;
-      const octx = offscreen.getContext("2d");
-      octx.fillStyle = "#3d4552";
-      octx.fillRect(0, 0, gridW, gridH);
-      let anyLoaded = false;
-      tiles.forEach(({ xi, yi, img }) => {
-        if (!img) return;
-        anyLoaded = true;
-        octx.drawImage(img, (xi - xMin) * TILE_PX, (yi - yMin) * TILE_PX, TILE_PX, TILE_PX);
-      });
-
-      ctx.clearRect(0,0,W,H);
-      let mapDX = 0, mapDY = 0, mapDW = W, mapDH = H;
-      if (!anyLoaded) {
-        ctx.fillStyle = "#0d1b2a"; ctx.fillRect(0,0,W,H);
-      } else {
-        // Crop/scale the flat tile grid onto the visible canvas: the visible
-        // area corresponds to tile-space [xMinF,xMaxF] x [yMinF,yMaxF],
-        // which is some sub-rectangle of the offscreen grid measured in
-        // TILE_PX units.
-        const srcX = (xMinF - xMin) * TILE_PX, srcY = (yMinF - yMin) * TILE_PX;
-        const srcW = (xMaxF - xMinF) * TILE_PX, srcH = (yMaxF - yMinF) * TILE_PX;
-        const destAspect = W / H, srcAspect = srcW / srcH;
-        // Fit the source rect into the destination canvas preserving aspect
-        // ratio (letterboxing handled by drawing full W/H since we already
-        // padded lat/lon bounds — this just avoids stretching).
-        let dW = W, dH = H;
-        if (srcAspect > destAspect) { dH = W / srcAspect; } else { dW = H * srcAspect; }
-        const dX = (W - dW) / 2, dY = (H - dH) / 2;
-        ctx.drawImage(offscreen, srcX, srcY, srcW, srcH, dX, dY, dW, dH);
-        ctx.fillStyle = "rgba(10,22,40,0.12)"; ctx.fillRect(0,0,W,H);
-        mapDX = dX; mapDY = dY; mapDW = dW; mapDH = dH;
+      if (refPoint) {
+        const el = document.createElement("div");
+        el.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 4px #dc2626, 0 1px 6px rgba(0,0,0,0.6);background:#dc2626;`;
+        const inner = document.createElement("div");
+        inner.style.cssText = `width:8px;height:8px;margin:5px;border-radius:50%;background:#dc2626;`;
+        new sdk.Marker({ element: el }).setLngLat([refPoint.lon, refPoint.lat]).addTo(map);
       }
-      // mapDW/mapDH already have the exact aspect ratio of the geographic
-      // bounds (that's what the tile-crop letterboxing computed above), so
-      // the track should be scaled to fill that rectangle directly — no
-      // additional re-centering step, which would (and did) shrink the
-      // track into the middle of its own letterboxed area along whichever
-      // axis had provided the aspect-matching constraint.
-      const scX = mapDW/(maxLon-minLon||0.001), scY = mapDH/(maxLat-minLat||0.001);
-      const tx=lon=>mapDX+(lon-minLon)*scX;
-      const ty=lat=>(mapDY+mapDH)-(lat-minLat)*scY;
-      drawTrackAndMarkers(tx, ty);
-    })();
-
-    return () => { cancelled = true; };
+      if (segment && segment.length > 1) fitToPoints(segment);
+      else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
+      else fitToPoints([sP, eP]);
+    });
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    let raf1, raf2, cleanup;
-    // Same reasoning as the fullscreen canvas: the small preview was fixed
-    // at a flat 340x140 intrinsic resolution regardless of the device's
-    // actual pixel ratio or how wide it's actually displayed, so on any
-    // modern (2x/3x) screen it was upscaled and blurry — individual
-    // thermal circles just merged into a soft blob instead of resolving
-    // as distinct loops. Sizing it like the fullscreen view fixes that.
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        if (canvas) {
-          const dpr = window.devicePixelRatio || 1;
-          canvas.width = canvas.clientWidth * dpr;
-          canvas.height = canvas.clientHeight * dpr;
-        }
-        cleanup = draw(canvas);
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-      if (cleanup) cleanup();
-    };
-  }, [flight, highlightRange]);
-
-  // Pinch-to-zoom / pan state for the fullscreen map. Implemented as a CSS
-  // transform on the canvas element itself (scale + translate) rather than
-  // re-drawing at a different resolution on every gesture frame — this is
-  // the standard, performant approach for interactive zoom/pan on an image/
-  // canvas, and matches how native map viewers feel (immediate, no redraw
-  // lag while pinching).
-  const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
-  const gestureRef = useRef(null); // tracks in-progress pinch/pan state between touch events
-
-  const resetMapTransform = () => setMapTransform({ scale: 1, x: 0, y: 0 });
-
-  const dist = (t0, t1) => Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-  const midpoint = (t0, t1) => ({ x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 });
-
-  const onMapTouchStart = (e) => {
-    if (e.touches.length === 2) {
-      gestureRef.current = {
-        mode: "pinch",
-        startDist: dist(e.touches[0], e.touches[1]),
-        startScale: mapTransform.scale,
-        startMid: midpoint(e.touches[0], e.touches[1]),
-        startX: mapTransform.x, startY: mapTransform.y,
-      };
-    } else if (e.touches.length === 1 && mapTransform.scale > 1) {
-      // Only pan with one finger once zoomed in — at scale 1 a single-finger
-      // drag should do nothing so it doesn't fight with the swipe-to-close
-      // or scroll gestures used elsewhere in the app.
-      gestureRef.current = {
-        mode: "pan",
-        startX: mapTransform.x, startY: mapTransform.y,
-        startTouchX: e.touches[0].clientX, startTouchY: e.touches[0].clientY,
-      };
-    }
-  };
-  const onMapTouchMove = (e) => {
-    const g = gestureRef.current;
-    if (!g) return;
-    if (g.mode === "pinch" && e.touches.length === 2) {
-      e.preventDefault();
-      const newDist = dist(e.touches[0], e.touches[1]);
-      const newScale = Math.min(6, Math.max(1, g.startScale * (newDist / g.startDist)));
-      const mid = midpoint(e.touches[0], e.touches[1]);
-      setMapTransform({
-        scale: newScale,
-        x: g.startX + (mid.x - g.startMid.x),
-        y: g.startY + (mid.y - g.startMid.y),
-      });
-    } else if (g.mode === "pan" && e.touches.length === 1) {
-      e.preventDefault();
-      setMapTransform(t => ({
-        ...t,
-        x: g.startX + (e.touches[0].clientX - g.startTouchX),
-        y: g.startY + (e.touches[0].clientY - g.startTouchY),
-      }));
-    }
-  };
-  const onMapTouchEnd = (e) => {
-    if (e.touches.length === 0) gestureRef.current = null;
-  };
+    buildMap(previewDivRef.current, previewMapRef);
+    return () => { if (previewMapRef.current) { previewMapRef.current.remove(); previewMapRef.current = null; } };
+  }, [flight?.id, highlightRange?.start, highlightRange?.end]);
 
   useEffect(() => {
     if (!isFullscreen) return;
-    // Fullscreen canvas needs its own draw pass at the larger pixel size,
-    // and needs to re-run whenever the overlay actually mounts. Wait a
-    // frame after resizing so the browser has finished laying out the
-    // canvas's CSS size (width:100%, height:70vh) before we read/draw at
-    // its actual pixel dimensions — otherwise the bounding box used to
-    // pick tiles can be computed against a stale (too-small) size, leaving
-    // gaps at the edges once the canvas settles to its real size.
-    resetMapTransform();
-    let raf1, raf2, cleanup;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const canvas = fullCanvasRef.current;
-        if (canvas) {
-          const dpr = window.devicePixelRatio || 1;
-          canvas.width = canvas.clientWidth * dpr;
-          canvas.height = canvas.clientHeight * dpr;
-        }
-        cleanup = draw(canvas, true);
-        setRetrying(false);
-      });
-    });
+    // A frame's delay so the fullscreen overlay's container has its real
+    // layout size before MapTiler reads it.
+    const raf = requestAnimationFrame(() => buildMap(fullDivRef.current, fullMapRef));
     return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-      if (cleanup) cleanup();
+      cancelAnimationFrame(raf);
+      if (fullMapRef.current) { fullMapRef.current.remove(); fullMapRef.current = null; }
     };
-  }, [isFullscreen, flight, tileRetryTick, highlightRange]);
-
-  const hasMap = (flight?.track?.length) || (flight?.startPt && flight?.endPt);
+  }, [isFullscreen, flight?.id, highlightRange?.start, highlightRange?.end]);
 
   // Opens the track in GPS Visualizer as an alternative map view — POSTs the
   // data directly (no file hosting needed, per gpsvisualizer.com/misc/
@@ -775,20 +450,9 @@ function FlightMap({ flight, highlightRange }) {
   // with colorization on) can make the browser struggle.
   const openInGpsVisualizer = (e) => {
     e.stopPropagation();
-    const track = flight?.track || [];
     if (!track.length) return;
     const maxPoints = 1500;
     const step = Math.max(1, Math.ceil(track.length / maxPoints));
-    // Climb rate (and speed, pace, etc.) are all *rates* — a change over
-    // time — so GPS Visualizer needs an actual time column to calculate
-    // them; without one, those colorize modes have nothing to compute from
-    // and the track just renders gray. Only the time *deltas* between
-    // points matter for that, not the real calendar date, so this is built
-    // purely from each point's own timeSec (always reliably parsed
-    // straight from the IGC) rather than the flight's stored date field —
-    // older flights can have that field in a slightly different shape
-    // depending on which import path originally created them, which was
-    // silently breaking this for exactly those flights.
     const rows = ["type,latitude,longitude,altitude,time"];
     for (let i = 0; i < track.length; i += step) {
       const p = track[i];
@@ -822,12 +486,7 @@ function FlightMap({ flight, highlightRange }) {
   return (
     <>
       <div style={{position:"relative"}} onClick={()=>{ if (hasMap) setIsFullscreen(true); }}>
-        <canvas ref={canvasRef} style={{width:"100%",aspectRatio:"3/2",background:"#040e20",borderRadius:10,display:"block",cursor:hasMap?"pointer":"default"}} />
-        {hasMap && (
-          <div style={{position:"absolute",bottom:2,right:6,fontSize:8,color:"rgba(255,255,255,0.4)",textShadow:"0 1px 2px rgba(0,0,0,0.8)"}}>
-            © OpenTopoMap (CC-BY-SA)
-          </div>
-        )}
+        <div ref={previewDivRef} style={{width:"100%",aspectRatio:"3/2",background:"#040e20",borderRadius:10,overflow:"hidden",cursor:hasMap?"pointer":"default"}} />
       </div>
       {hasMap && flight?.track?.length > 0 && (
         <div style={{marginTop:6,display:"flex",gap:6,alignItems:"center"}}>
@@ -849,34 +508,12 @@ function FlightMap({ flight, highlightRange }) {
       )}
       {isFullscreen && (
         <div
-          onTouchStart={(e)=>e.stopPropagation()}
-          onTouchMove={(e)=>e.stopPropagation()}
-          onTouchEnd={(e)=>e.stopPropagation()}
           style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}
         >
-          <canvas ref={fullCanvasRef}
-            onTouchStart={onMapTouchStart} onTouchMove={onMapTouchMove} onTouchEnd={onMapTouchEnd}
-            onDoubleClick={resetMapTransform}
-            style={{width:"100%",height:"70vh",display:"block",transform:`translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})`,transformOrigin:"center center",touchAction:"none"}} />
-          <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,fontSize:10,color:"rgba(255,255,255,0.5)",textShadow:"0 1px 2px rgba(0,0,0,0.8)"}}>
-            © OpenTopoMap (CC-BY-SA)
-          </div>
-          {mapTransform.scale > 1 && (
-            <button onClick={resetMapTransform}
-              style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              ↺ {Math.round(mapTransform.scale*100)}%
-            </button>
-          )}
-          {missingTileCount > 0 && (
-            <button onClick={()=>{ setRetrying(true); setTileRetryTick(t=>t+1); }} disabled={retrying}
-              title="Nur fehlende Kacheln neu laden"
-              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:retrying?"default":"pointer",opacity:retrying?0.6:1}}>
-              {retrying ? "⏳ Lädt…" : `🔄 ${missingTileCount} Kachel${missingTileCount!==1?"n":""}`}
-            </button>
-          )}
+          <div ref={fullDivRef} style={{width:"100%",height:"70vh"}} />
           {flight?.track?.length > 0 && (
             <button onClick={openInGpsVisualizer}
-              style={{position:"absolute",bottom:"calc(15vh + 54px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
               🗺️ GPS Visualizer
             </button>
           )}
