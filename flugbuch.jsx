@@ -341,6 +341,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
   const [playPickerOpen, setPlayPickerOpen] = useState(false);
   const [playElapsedSec, setPlayElapsedSec] = useState(0); // seconds into the flight (IGC time)
   const playMarkerRef = useRef(null);
+  const previewPlayMarkerRef = useRef(null);
   const playRafRef = useRef(null);
   const playLastTsRef = useRef(null);
   const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
@@ -510,13 +511,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
   }, [highlightRange?.start, highlightRange?.end, isFullscreen]);
 
   // Cine playback: moves a dedicated glider marker along the track over
-  // time, at playSpeed× real flight time. Only runs in fullscreen (that's
-  // where the controls live); stops automatically at the end of the track
-  // or if fullscreen is closed. Driven by requestAnimationFrame rather than
-  // setInterval so the speed stays smooth and accurate regardless of frame
-  // rate hiccups.
+  // time, at playSpeed× real flight time. Works on the preview map too now
+  // (not just fullscreen) — showing the map and the height profile at the
+  // same time was the whole point, and fullscreen hides the profile.
+  // Driven by requestAnimationFrame rather than setInterval so the speed
+  // stays smooth and accurate regardless of frame rate hiccups.
   useEffect(() => {
-    if (!isPlaying || !isFullscreen || track.length < 2) return;
+    if (!isPlaying || track.length < 2) return;
     playLastTsRef.current = null;
     const totalSec = track[track.length-1].timeSec - track[0].timeSec;
     const step = (ts) => {
@@ -532,14 +533,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
     };
     playRafRef.current = requestAnimationFrame(step);
     return () => { if (playRafRef.current) cancelAnimationFrame(playRafRef.current); };
-  }, [isPlaying, isFullscreen, playSpeed, track.length]);
+  }, [isPlaying, playSpeed, track.length]);
 
   // Moves the playback marker to match playElapsedSec whenever it changes
   // (during playback, or when scrubbing manually) — interpolates between
   // the two surrounding track points for smooth sub-sample positioning.
+  // Updates the preview map and, if open, the fullscreen map — the person
+  // specifically wants to watch the map and the height profile together,
+  // which only the (non-fullscreen) preview allows.
   useEffect(() => {
-    const map = fullMapRef.current;
-    if (!map || !fullReadyRef.current || !window.maptilersdk || track.length < 2) return;
+    if (track.length < 2 || !window.maptilersdk) return;
     const sdk = window.maptilersdk;
     const targetTime = track[0].timeSec + playElapsedSec;
     let i = 0;
@@ -551,19 +554,24 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
     const spanBack = track[Math.max(0,i-3)], spanFwd = track[Math.min(track.length-1,i+3)];
     const hdg = bearingDeg(spanBack, spanFwd);
 
-    if (!playMarkerRef.current) {
-      const el = document.createElement("div");
-      el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
-      const img = document.createElement("img");
-      img.src = GLIDER_ICON_DATA_URL;
-      img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
-      el.appendChild(img);
-      playMarkerRef.current = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" }).setLngLat([lon, lat]).addTo(map);
-      playMarkerRef.current._imgEl = img;
-    } else {
-      playMarkerRef.current.setLngLat([lon, lat]);
-    }
-    if (playMarkerRef.current._imgEl) playMarkerRef.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+    const placeOn = (map, ref) => {
+      if (!map) return;
+      if (!ref.current) {
+        const el = document.createElement("div");
+        el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
+        const img = document.createElement("img");
+        img.src = GLIDER_ICON_DATA_URL;
+        img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
+        el.appendChild(img);
+        ref.current = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" }).setLngLat([lon, lat]).addTo(map);
+        ref.current._imgEl = img;
+      } else {
+        ref.current.setLngLat([lon, lat]);
+      }
+      if (ref.current._imgEl) ref.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+    };
+    if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef);
+    if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef);
 
     if (onPlaybackPositionChange && cumDist.length) {
       const distKm = (cumDist[i]||0) + ((cumDist[i+1]||cumDist[i]||0) - (cumDist[i]||0)) * frac;
@@ -571,20 +579,18 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
     }
   }, [playElapsedSec, isFullscreen]);
 
-  // Cleans up the playback marker whenever fullscreen closes or the flight
-  // changes, so a stale marker doesn't linger into the next map instance.
+  // Cleans up the fullscreen-specific playback marker whenever fullscreen
+  // closes (playback itself keeps going — it's shared with the preview
+  // now, not fullscreen-only), and resets everything when the flight
+  // changes so a stale marker never lingers into the next map instance.
   useEffect(() => {
-    if (!isFullscreen) {
-      setIsPlaying(false);
-      setPlayElapsedSec(0);
-      if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
-      if (onPlaybackPositionChange) onPlaybackPositionChange(null);
-    }
+    if (!isFullscreen && playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
   }, [isFullscreen]);
   useEffect(() => {
     setIsPlaying(false);
     setPlayElapsedSec(0);
     if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+    if (previewPlayMarkerRef.current) { previewPlayMarkerRef.current.remove(); previewPlayMarkerRef.current = null; }
     if (onPlaybackPositionChange) onPlaybackPositionChange(null);
   }, [flight?.id]);
 
@@ -637,6 +643,39 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
       <div style={{position:"relative"}} onClick={()=>{ if (hasMap) setIsFullscreen(true); }}>
         <div ref={previewDivRef} style={{width:"100%",aspectRatio:"3/2",background:"#040e20",borderRadius:10,overflow:"hidden",cursor:hasMap?"pointer":"default"}} />
       </div>
+      {hasMap && flight?.track?.length > 1 && (
+        <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+          <button onClick={()=>setIsPlaying(p=>!p)}
+            title={isPlaying?"Pause":"Abspielen"}
+            style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:38,height:38,color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.4)",flexShrink:0}}>
+            {isPlaying ? "⏸" : "▶"}
+          </button>
+          <div style={{position:"relative"}}>
+            <button onClick={()=>setPlayPickerOpen(o=>!o)}
+              style={{background:"#1e40af",border:"none",borderRadius:20,padding:"9px 14px",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.4)"}}>
+              {playSpeed}× ▾
+            </button>
+            {playPickerOpen && (
+              <div onClick={e=>{e.stopPropagation();setPlayPickerOpen(false);}}
+                style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:64,zIndex:10}}>
+                {[1,2,5,10,20,50,100].map(sp=>(
+                  <button key={sp} onClick={()=>{setPlaySpeed(sp);setPlayPickerOpen(false);}}
+                    style={{background:sp===playSpeed?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:sp===playSpeed?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:sp===playSpeed?700:400,cursor:"pointer",textAlign:"left"}}>
+                    {sp}×
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {playElapsedSec > 0 && (
+            <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
+              title="Zurück zum Start"
+              style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,width:38,height:38,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.4)"}}>
+              ↺
+            </button>
+          )}
+        </div>
+      )}
       {hasMap && flight?.track?.length > 0 && (
         <div style={{marginTop:6,display:"flex",gap:6,alignItems:"center"}}>
           <button onClick={openInGpsVisualizer}
@@ -664,12 +703,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
             <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center"}}>
               <button onClick={()=>setIsPlaying(p=>!p)}
                 title={isPlaying?"Pause":"Abspielen"}
-                style={{background:isPlaying?"rgba(248,113,113,0.25)":"rgba(74,222,128,0.25)",border:`1px solid ${isPlaying?"rgba(248,113,113,0.5)":"rgba(74,222,128,0.5)"}`,borderRadius:20,width:36,height:36,color:isPlaying?"#f87171":"#4ade80",fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                 {isPlaying ? "⏸" : "▶"}
               </button>
               <div style={{position:"relative"}}>
                 <button onClick={()=>setPlayPickerOpen(o=>!o)}
-                  style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"8px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  style={{background:"#1e40af",border:"none",borderRadius:20,padding:"9px 14px",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                   {playSpeed}× ▾
                 </button>
                 {playPickerOpen && (
@@ -687,7 +726,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
               {playElapsedSec > 0 && (
                 <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
                   title="Zurück zum Start"
-                  style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,width:36,height:36,color:"#fff",fontSize:14,cursor:"pointer"}}>
+                  style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,width:40,height:40,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                   ↺
                 </button>
               )}
