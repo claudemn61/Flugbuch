@@ -460,7 +460,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
     // profile's segment (via fitBounds below), so nothing here needs to
     // touch the "track" source at all once it's been set on load.
     if (refMarkerRefObj.current) { refMarkerRefObj.current.remove(); refMarkerRefObj.current = null; }
-    if (refPoint) {
+    // Skip the static reference marker entirely while cine playback is
+    // running — the moving playback marker already shows the glider, and
+    // showing both at once looked like two overlapping icons.
+    if (refPoint && !isPlaying) {
       const el = document.createElement("div");
       el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
       const img = document.createElement("img");
@@ -508,7 +511,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
   useEffect(() => {
     if (previewReadyRef.current) applyHighlight(previewMapRef.current, previewRefMarkerRef);
     if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef);
-  }, [highlightRange?.start, highlightRange?.end, isFullscreen]);
+  }, [highlightRange?.start, highlightRange?.end, isFullscreen, isPlaying]);
 
   // Cine playback: moves a dedicated glider marker along the track over
   // time, at playSpeed× real flight time. Works on the preview map too now
@@ -569,6 +572,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
         ref.current.setLngLat([lon, lat]);
       }
       if (ref.current._imgEl) ref.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+      // Follow while zoomed to a segment: once the glider leaves the
+      // currently visible area, jump (same zoom level, so same-size view —
+      // not a smooth pan) to a fresh view recentred on it.
+      if (highlightRange && isPlaying && map.getBounds && !map.getBounds().contains([lon, lat])) {
+        map.jumpTo({ center: [lon, lat], zoom: map.getZoom() });
+      }
     };
     if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef);
     if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef);
@@ -803,6 +812,23 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
   const scale = (manualDist > 0 && rawTotalDist > 0) ? manualDist/rawTotalDist : 1;
   const distances = useMemo(() => rawDistances.map(d => d*scale), [rawDistances, scale]);
   const totalDist = distances[distances.length-1] || 0;
+
+  // Cine-playback follow: while zoomed in, once the glider's position
+  // (reported by FlightMap, same "raw km" basis distances[] uses) leaves
+  // the currently visible window, jump (not smooth-scroll) to a same-size
+  // window that starts right at the glider — "gleichgrosser Kartenausschnitt
+  // weiterspringend", matching the map's own jump-to-follow behaviour.
+  useEffect(() => {
+    if (playbackDistanceKm == null || zoomLevel <= 1 || !totalDist) return;
+    const scaledDist = playbackDistanceKm * scale;
+    const windowFrac = 1/zoomLevel;
+    const curStart = viewStart;
+    const curEnd = viewStart + windowFrac;
+    const posFrac = scaledDist / totalDist;
+    if (posFrac < curStart || posFrac > curEnd) {
+      setPanPos(Math.max(0, Math.min(1, posFrac + windowFrac/2)));
+    }
+  }, [playbackDistanceKm, zoomLevel, totalDist, scale]);
 
   useEffect(() => { setZoomLevel(1); setPanPos(0.5); }, [flight?.id]);
   useEffect(() => {
