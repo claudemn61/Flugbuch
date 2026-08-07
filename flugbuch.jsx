@@ -326,7 +326,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -337,6 +337,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
   const fullReadyRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => { if (onPlaybackActiveChange) onPlaybackActiveChange(isPlaying); }, [isPlaying]);
   const [playSpeed, setPlaySpeed] = useState(10);
   const [playPickerOpen, setPlayPickerOpen] = useState(false);
   const [playElapsedSec, setPlayElapsedSec] = useState(0); // seconds into the flight (IGC time)
@@ -767,7 +768,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange }) {
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
-function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -819,7 +820,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
   // window that starts right at the glider — "gleichgrosser Kartenausschnitt
   // weiterspringend", matching the map's own jump-to-follow behaviour.
   useEffect(() => {
-    if (playbackDistanceKm == null || zoomLevel <= 1 || !totalDist) return;
+    if (!isPlaybackActive || playbackDistanceKm == null || zoomLevel <= 1 || !totalDist) return;
     const scaledDist = playbackDistanceKm * scale;
     const windowFrac = 1/zoomLevel;
     const curStart = viewStart;
@@ -828,7 +829,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
     if (posFrac < curStart || posFrac > curEnd) {
       setPanPos(Math.max(0, Math.min(1, posFrac + windowFrac/2)));
     }
-  }, [playbackDistanceKm, zoomLevel, totalDist, scale]);
+  }, [playbackDistanceKm, isPlaybackActive, zoomLevel, totalDist, scale]);
 
   useEffect(() => { setZoomLevel(1); setPanPos(0.5); }, [flight?.id]);
   useEffect(() => {
@@ -1017,7 +1018,11 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
       // Altitude where the track crosses the dashed centre line — same
       // point the map's red reference marker sits at — shown on the
       // Y-axis alongside the min/max labels, positioned at its own height.
-      const centerDist = (visStart+visEnd)/2;
+      // While cine playback is actively running, this follows the moving
+      // glider's position instead (same distance basis FlightMap reports),
+      // so the red label always matches whichever marker is actually
+      // visible on the map right now.
+      const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm*scale : (visStart+visEnd)/2;
       let closestIdx = 0, closestDiff = Infinity;
       for (let i=0;i<distances.length;i++) {
         const diff = Math.abs(distances[i]-centerDist);
@@ -1115,7 +1120,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm }) {
       ctx.lineTo(xPos(distances[i]), yPos(track[i].gpsAlt));
       ctx.stroke();
     }
-  }, [track, distances, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm]);
+  }, [track, distances, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm, isPlaybackActive]);
 
   if (!track.length) return null;
 
@@ -2678,6 +2683,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
     const [notesEditing, setNotesEditing] = useState(false);
     const [profileRange, setProfileRange] = useState(null);
     const [playbackDistance, setPlaybackDistance] = useState(null);
+    const [isPlaybackActive, setIsPlaybackActive] = useState(false);
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
     useEffect(() => {
@@ -2842,8 +2848,8 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} />
+          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
