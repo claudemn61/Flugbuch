@@ -424,11 +424,9 @@ function FlightMap({ flight, highlightRange }) {
   const applyHighlight = (map, refMarkerRefObj) => {
     if (!map) return;
     const sdk = window.maptilersdk;
-    const src = map.getSource && map.getSource("track");
-    if (src) {
-      const traceTrack = segment || (cleanTrack.length ? cleanTrack : track);
-      if (traceTrack.length > 1) src.setData({ type: "Feature", geometry: { type: "LineString", coordinates: traceTrack.map(p=>[p.lon,p.lat]) } });
-    }
+    // Line always shows the whole track — only the camera zooms into the
+    // profile's segment (via fitBounds below), so nothing here needs to
+    // touch the "track" source at all once it's been set on load.
     if (refMarkerRefObj.current) { refMarkerRefObj.current.remove(); refMarkerRefObj.current = null; }
     if (refPoint) {
       const el = document.createElement("div");
