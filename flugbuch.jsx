@@ -295,29 +295,6 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   const [showSP, setShowSP] = useState(true);
   const [showLP, setShowLP] = useState(true);
   const [search, setSearch] = useState("");
-  // Third, freely-configurable filter (yellow) — its condition uses the
-  // exact same search syntax as the main search box (feld:wert, feld>wert,
-  // +wort, UND/ODER, etc.), so no separate field-picker UI is needed: the
-  // person just types a condition once (e.g. "passagier:*") and toggles it
-  // on/off from then on. Persisted so it's still set up next time.
-  const [thirdEnabled, setThirdEnabled] = useState(false);
-  const [thirdQuery, setThirdQuery] = useState("");
-  const [editingThird, setEditingThird] = useState(false);
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("worldMapThirdFilter");
-        if (r) {
-          const saved = JSON.parse(r.value);
-          if (saved.query) setThirdQuery(saved.query);
-          if (saved.enabled) setThirdEnabled(true);
-        }
-      } catch (e) { console.error("Load error (worldMapThirdFilter):", e); }
-    })();
-  }, []);
-  const saveThirdFilter = async (query, enabled) => {
-    try { await window.storage.set("worldMapThirdFilter", JSON.stringify({ query, enabled })); } catch (e) { console.error("Save error:", e); }
-  };
 
   const relevantFlights = (selectedIds && selectedIds.size > 0)
     ? flights.filter(f => selectedIds.has(f.id))
@@ -328,10 +305,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     // feld=wert, feld>wert, +wort/-wort, UND/ODER) — matchFlights is the
     // exact function that search uses, reused here instead of a separate,
     // more limited implementation.
-    let searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
-    if (thirdEnabled && thirdQuery.trim()) {
-      searched = matchFlights(searched, thirdQuery);
-    }
+    const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
     const seen = new Map();
     for (const f of searched) {
       if (showSP && f.startPt && f.startPt.lat != null) {
@@ -346,7 +320,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
       }
     }
     return [...seen.values()];
-  }, [relevantFlights, showSP, showLP, search, thirdEnabled, thirdQuery]);
+  }, [relevantFlights, showSP, showLP, search]);
 
   // Leaflet map lifecycle: created once when the container first has
   // points to show, then reused — only the markers layer gets cleared and
@@ -354,19 +328,24 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   // person did isn't reset by every filter tweak (except the very first
   // render, which fits bounds to show everything).
   useEffect(() => {
-    if (!mapDivRef.current || !points.length) return;
+    if (!mapDivRef.current) return;
     if (!leafletMapRef.current) {
       const map = L.map(mapDivRef.current, { zoomControl: true, attributionControl: true });
       L.tileLayer("https://tile.opentopomap.org/{z}/{x}/{y}.png", {
         maxZoom: 17,
         attribution: '© OpenTopoMap (CC-BY-SA)',
       }).addTo(map);
+      // Sensible default view (world) until the first real point set fits
+      // bounds — the container needs *some* view set before markers can
+      // be added, even if that first set turns out to be empty.
+      map.setView([20, 0], 2);
       leafletMapRef.current = map;
       markersLayerRef.current = L.layerGroup().addTo(map);
     }
     const map = leafletMapRef.current;
     const layer = markersLayerRef.current;
     layer.clearLayers();
+    if (!points.length) { setTimeout(() => map.invalidateSize(), 50); return; }
     const bounds = [];
     for (const p of points) {
       L.circleMarker([p.lat, p.lon], {
@@ -418,34 +397,19 @@ function WorldMapView({ flights, selectedIds, onBack }) {
           style={{background:showLP?"rgba(248,113,113,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showLP?"rgba(248,113,113,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showLP?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           🛬 Landeplätze
         </button>
-        {editingThird ? (
-          <input autoFocus value={thirdQuery}
-            onChange={e=>setThirdQuery(e.target.value)}
-            onBlur={()=>{ setEditingThird(false); const en=thirdQuery.trim()?thirdEnabled:false; setThirdEnabled(en); saveThirdFilter(thirdQuery, en); }}
-            onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-            placeholder="z.B. passagier:*"
-            style={{background:"rgba(252,211,77,0.12)",border:"1px solid rgba(252,211,77,0.4)",borderRadius:20,padding:"7px 14px",color:"#fcd34d",fontSize:13,fontWeight:700,outline:"none",minWidth:140}} />
-        ) : (
-          <button
-            onClick={()=>{ if(!thirdQuery.trim()){setEditingThird(true);return;} const en=!thirdEnabled; setThirdEnabled(en); saveThirdFilter(thirdQuery, en); }}
-            onDoubleClick={()=>setEditingThird(true)}
-            title={thirdQuery ? "Antippen: ein-/ausschalten · Doppel-Tipp: Bedingung ändern" : "Antippen: eigene Bedingung festlegen"}
-            style={{background:thirdEnabled?"rgba(252,211,77,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${thirdEnabled?"rgba(252,211,77,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:thirdEnabled?"#fcd34d":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            🟡 {thirdQuery ? thirdQuery : "Eigener Filter"}
-          </button>
-        )}
       </div>
       <div style={{padding:"0 16px 12px"}}>
         <SearchBar filterText={search} setFilterText={setSearch} />
       </div>
 
-      {points.length === 0 ? (
-        <div style={{padding:"0 16px",color:"rgba(232,244,253,0.35)",fontSize:14}}>Keine Orte gefunden.</div>
-      ) : (
-        <div style={{margin:"0 16px",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
-          <div ref={mapDivRef} style={{width:"100%",height:"60vh",background:"#040e20"}} />
-        </div>
-      )}
+      <div style={{margin:"0 16px",position:"relative",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
+        <div ref={mapDivRef} style={{width:"100%",height:"60vh",background:"#040e20"}} />
+        {points.length === 0 && (
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(4,14,32,0.85)",color:"rgba(232,244,253,0.5)",fontSize:14,pointerEvents:"none"}}>
+            Keine Orte gefunden.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
