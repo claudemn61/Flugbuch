@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.3";
+const APP_VERSION = "4.3.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.3.1", note: "Flugdetail-Karte: Referenzpunkt zeigt jetzt einen stilisierten Gleitschirm (eigenes Foto, freigestellt) statt eines roten Punkts — dreht sich beim Bewegen im Höhenprofil live in die tatsächliche Flugrichtung." },
   { v: "4.3", note: "Flugdetail-Karte läuft jetzt ebenfalls auf dem MapTiler SDK statt der eigenen Canvas-Lösung: native Pinch/Zoom im Vollbild, zuverlässigeres Laden, Geländestil mit deutscher Beschriftung. Höhenprofil-Synchronisierung (Referenzpunkt, Kartenausschnitt folgt dem Zoom-Fenster) vollständig erhalten." },
   { v: "4.2.9", note: "Weltkarte läuft jetzt auf dem MapTiler SDK (wie meintauchbuch) statt Leaflet/OpenTopoMap: Geländestil (Höhenlinien/Relief) mit deutscher Beschriftung, zuverlässigeres Kachel-Laden über MapTilers Infrastruktur." },
   { v: "4.2.8", note: "Weltkarte läuft jetzt auf Leaflet (echtes Pinch-/Doppeltipp-Zoom, träges Pan) statt eigenem Canvas-Renderer. Die Flugdetail-Karte (Höhenprofil-Synchronisierung) ist davon komplett unberührt, bleibt wie bisher." },
