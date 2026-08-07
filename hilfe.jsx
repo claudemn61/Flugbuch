@@ -80,7 +80,7 @@ const SECTIONS = [
       <p>Direkt nach dem Feld Gerät/Schirm steht ein optionales Feld "Typ" — erscheint nur bei Inhalt, sonst nur ein dezenter "+ Typ"-Link zum erstmaligen Eintragen. Wird auch beim CSV-Import erkannt (Spalten "Typ", "Type", "Schirmtyp", "Kategorie").</p>
       <p>Im Mehrfachauswahl-Modus lässt sich die Spaltenauswahl/-reihenfolge für "📋 Kopieren" über das ⚙️-Zahnrad daneben frei konfigurieren (an-/abwählen, per ↑/↓ neu anordnen) — praktisch, um die kopierte Tabelle an eine externe Tabellenkalkulation anzupassen.</p>
       <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
-      <p>Karte (MapTiler, Geländestil mit deutscher Beschriftung) zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen mit echtem Pinch-/Doppeltipp-Zoom, Link zu GPS Visualizer. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
+      <p>Karte (MapTiler, Geländestil mit deutscher Beschriftung) zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen mit echtem Pinch-/Doppeltipp-Zoom, Link zu GPS Visualizer. Der Referenzpunkt (bei aktivem Profil-Zoom) ist ein stilisierter Gleitschirm, der sich in die tatsächliche Flugrichtung dreht. Im Vollbild spielt ein ▶-Button den Flug mit wählbarer Geschwindigkeit (1×–100×) ab — der Gleitschirm-Marker folgt der Strecke und dreht sich live mit; ↺ springt zurück zum Start. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
         <li>🔍 Zoom-Button — Listenauswahl 1× bis 8×</li>
         <li>Bei Zoom: im Profil wischen, um den Ausschnitt zu verschieben</li>
@@ -135,6 +135,7 @@ function KurzContent() {
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
+        <li>Karte Vollbild: ▶ spielt den Flug 1×-100× ab, Gleitschirm-Marker dreht sich mit der Flugrichtung</li>
         <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>
       </ul>
       <h3>Statistik</h3>
