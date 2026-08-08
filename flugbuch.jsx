@@ -585,24 +585,35 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const span = (b.timeSec - a.timeSec) || 1;
     const frac = Math.max(0, Math.min(1, (targetTime - a.timeSec) / span));
     const lat = a.lat + (b.lat-a.lat)*frac, lon = a.lon + (b.lon-a.lon)*frac;
+    const alt = a.gpsAlt + ((b.gpsAlt||a.gpsAlt) - a.gpsAlt)*frac;
     const spanBack = track[Math.max(0,i-3)], spanFwd = track[Math.min(track.length-1,i+3)];
     const hdg = bearingDeg(spanBack, spanFwd);
 
-    const placeOn = (map, ref) => {
+    const placeOn = (map, ref, showAlt) => {
       if (!map) return;
       if (!ref.current) {
         const el = document.createElement("div");
-        el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
+        el.style.cssText = `display:flex;align-items:center;gap:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
         const img = document.createElement("img");
         img.src = GLIDER_ICON_DATA_URL;
-        img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
+        img.style.cssText = `width:34px;height:34px;object-fit:contain;flex-shrink:0;`;
         el.appendChild(img);
-        ref.current = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" }).setLngLat([lon, lat]).addTo(map);
+        if (showAlt) {
+          const altEl = document.createElement("span");
+          altEl.style.cssText = `color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
+          el.appendChild(altEl);
+          ref.current = null; // set below once marker exists
+          ref._altEl = altEl;
+        }
+        const marker = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport", anchor: "left" }).setLngLat([lon, lat]).addTo(map);
+        ref.current = marker;
         ref.current._imgEl = img;
+        ref.current._altEl = ref._altEl;
       } else {
         ref.current.setLngLat([lon, lat]);
       }
       if (ref.current._imgEl) ref.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+      if (ref.current._altEl) ref.current._altEl.textContent = Math.round(alt)+"m";
       // Follow while zoomed to a segment: once the glider leaves the
       // currently visible area, jump (same zoom level, so same-size view —
       // not a smooth pan) to a fresh view recentred on it.
@@ -610,8 +621,8 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         map.jumpTo({ center: [lon, lat], zoom: map.getZoom() });
       }
     };
-    if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef);
-    if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef);
+    if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef, false);
+    if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef, true);
 
     if (onPlaybackPositionChange && cumDist.length) {
       const distKm = (cumDist[i]||0) + ((cumDist[i+1]||cumDist[i]||0) - (cumDist[i]||0)) * frac;

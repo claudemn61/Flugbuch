@@ -210,12 +210,13 @@ function fmtMonthYear(date) {
 }
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "4.4";
+const APP_VERSION = "4.4.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.4.1", note: "Cine-Wiedergabe im Vollbild: aktuelle Höhe (nur Zahl, rot, ohne Rahmen/Badge — analog zur Y-Achse im Profil) jetzt direkt neben dem Gleitschirm-Marker." },
   { v: "4.4", note: "Flugdetail-Karte (Vollbild): neue Cine-Wiedergabe — ▶-Button spielt den Flug mit 1×/2×/5×/10×/20×/50×/100× Geschwindigkeit ab, der Gleitschirm-Marker folgt dabei der Strecke und dreht sich live in Flugrichtung. ↺-Button springt zurück zum Start." },
   { v: "4.3.1", note: "Flugdetail-Karte: Referenzpunkt zeigt jetzt einen stilisierten Gleitschirm (eigenes Foto, freigestellt) statt eines roten Punkts — dreht sich beim Bewegen im Höhenprofil live in die tatsächliche Flugrichtung." },
   { v: "4.3", note: "Flugdetail-Karte läuft jetzt ebenfalls auf dem MapTiler SDK statt der eigenen Canvas-Lösung: native Pinch/Zoom im Vollbild, zuverlässigeres Laden, Geländestil mit deutscher Beschriftung. Höhenprofil-Synchronisierung (Referenzpunkt, Kartenausschnitt folgt dem Zoom-Fenster) vollständig erhalten." },
