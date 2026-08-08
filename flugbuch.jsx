@@ -593,19 +593,18 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       if (!map) return;
       if (!ref.current) {
         const el = document.createElement("div");
-        el.style.cssText = `display:flex;align-items:center;gap:4px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
+        el.style.cssText = `position:relative;width:34px;height:34px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
         const img = document.createElement("img");
         img.src = GLIDER_ICON_DATA_URL;
-        img.style.cssText = `width:34px;height:34px;object-fit:contain;flex-shrink:0;`;
+        img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
         el.appendChild(img);
         if (showAlt) {
           const altEl = document.createElement("span");
-          altEl.style.cssText = `color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
+          altEl.style.cssText = `position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
           el.appendChild(altEl);
-          ref.current = null; // set below once marker exists
           ref._altEl = altEl;
         }
-        const marker = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport", anchor: "left" }).setLngLat([lon, lat]).addTo(map);
+        const marker = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" }).setLngLat([lon, lat]).addTo(map);
         ref.current = marker;
         ref.current._imgEl = img;
         ref.current._altEl = ref._altEl;
