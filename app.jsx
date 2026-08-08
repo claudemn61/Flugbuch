@@ -561,7 +561,7 @@ function SettingsOverlay({ onClose }) {
                 {GLIDER_VARIANTS.map(v => (
                   <button key={v.id} onClick={()=>chooseGlider(v.id)}
                     style={{background:v.id===gliderVariant?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",border:`2px solid ${v.id===gliderVariant?"#4ade80":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"8px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-                    <img src={v.dataUrl} alt={v.label} style={{width:"100%",height:32,objectFit:"contain"}} />
+                    <img src={v.dataUrl} alt={v.label} style={{width:"100%",height:56,objectFit:"contain"}} />
                     <span style={{fontSize:10,fontWeight:v.id===gliderVariant?800:500,color:v.id===gliderVariant?"#4ade80":"rgba(232,244,253,0.7)",textAlign:"center"}}>{v.label}</span>
                   </button>
                 ))}
