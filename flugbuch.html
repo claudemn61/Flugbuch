@@ -20,6 +20,9 @@
   * { -webkit-touch-callout: none; }
   input, textarea, button { -webkit-user-select: text; user-select: text; }
   #load-status { color:#fcd34d; font-family:monospace; font-size:11px; padding:14px; white-space:pre-wrap; }
+  /* MapTiler/MapLibre marker popup text was rendering low-contrast (light
+     grey on white) — make it clearly legible. */
+  .maplibregl-popup-content { color:#111827; font-weight:600; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
