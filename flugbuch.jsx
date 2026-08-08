@@ -258,29 +258,45 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   useEffect(() => {
     if (!mapDivRef.current || !window.maptilersdk || !points.length) return;
     const sdk = window.maptilersdk;
-    const map = new sdk.Map({
-      container: mapDivRef.current,
-      apiKey: MAPTILER_API_KEY,
-      style: sdk.MapStyle.OUTDOOR,
-      language: "de",
-      center: [points[0].lon, points[0].lat],
-      zoom: 8,
-    });
-    mapRef.current = map;
 
-    points.forEach(p => {
-      const el = document.createElement("div");
-      el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${p.type==="SP"?"#4ade80":"#f87171"};border:2px solid rgba(255,255,255,0.85);box-shadow:0 1px 4px rgba(0,0,0,0.5);`;
-      const marker = new sdk.Marker({ element: el }).setLngLat([p.lon, p.lat]);
-      marker.setPopup(new sdk.Popup({ offset: 14 }).setText(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")));
-      marker.addTo(map);
-    });
+    const initMap = () => {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      const map = new sdk.Map({
+        container: mapDivRef.current,
+        apiKey: MAPTILER_API_KEY,
+        style: sdk.MapStyle.OUTDOOR,
+        language: "de",
+        center: [points[0].lon, points[0].lat],
+        zoom: 8,
+      });
+      mapRef.current = map;
 
-    if (points.length > 1) {
-      const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
-      map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
-    }
-    return () => { map.remove(); mapRef.current = null; };
+      // Recovers automatically from "WebGL context was lost" (a platform-
+      // level thing, especially on iOS Safari under memory pressure or
+      // after long backgrounding) by rebuilding this same map right away.
+      const canvas = map.getCanvas && map.getCanvas();
+      if (canvas) {
+        canvas.addEventListener("webglcontextlost", (e) => {
+          e.preventDefault();
+          if (mapRef.current === map) initMap();
+        }, { once: true });
+      }
+
+      points.forEach(p => {
+        const el = document.createElement("div");
+        el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${p.type==="SP"?"#4ade80":"#f87171"};border:2px solid rgba(255,255,255,0.85);box-shadow:0 1px 4px rgba(0,0,0,0.5);`;
+        const marker = new sdk.Marker({ element: el }).setLngLat([p.lon, p.lat]);
+        marker.setPopup(new sdk.Popup({ offset: 14 }).setText(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")));
+        marker.addTo(map);
+      });
+
+      if (points.length > 1) {
+        const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
+        map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
+      }
+    };
+    initMap();
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
   }, [pointsKey]);
 
   return (
@@ -415,6 +431,20 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       language: "de", center: initialCenter, zoom: 11,
     });
     mapRefObj.current = map;
+
+    // "The WebGL context was lost" is a platform-level thing (iOS Safari in
+    // particular reclaims GPU contexts aggressively under memory pressure or
+    // after the tab's been backgrounded a while) — not something that can be
+    // fully prevented, only recovered from. The underlying canvas fires a
+    // real browser event for it, so rebuilding this same map right away
+    // (rather than leaving it visibly broken) is straightforward.
+    const canvas = map.getCanvas && map.getCanvas();
+    if (canvas) {
+      canvas.addEventListener("webglcontextlost", (e) => {
+        e.preventDefault();
+        if (mapRefObj.current === map) buildMap(container, mapRefObj, readyRef);
+      }, { once: true });
+    }
 
     const addMarker = (pt, color, label) => {
       const el = document.createElement("div");
