@@ -281,6 +281,9 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 
     const initMap = () => {
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      // Clears any leftover DOM MapTiler injected but didn't clean up on
+      // its own (e.g. its "WebGL context was lost" warning banner).
+      if (mapDivRef.current) mapDivRef.current.innerHTML = "";
       const map = new sdk.Map({
         container: mapDivRef.current,
         apiKey: MAPTILER_API_KEY,
@@ -463,6 +466,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     if (!container || !window.maptilersdk || !hasMap) return;
     const sdk = window.maptilersdk;
     if (mapRefObj.current) { mapRefObj.current.remove(); mapRefObj.current = null; }
+    // MapTiler's own .remove() doesn't reliably clear everything it
+    // injects into the container (its "WebGL context was lost" warning
+    // banner in particular stays put even through a full rebuild) —
+    // clearing the container directly guarantees a clean slate.
+    container.innerHTML = "";
     readyRef.current = false;
     const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
     const map = new sdk.Map({

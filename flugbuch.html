@@ -198,10 +198,17 @@
     el.textContent = "JS-FEHLER: " + (e.error ? (e.error.stack || e.error.message) : e.message) + " (Zeile " + e.lineno + ")";
   });
   window.addEventListener("unhandledrejection", function (e) {
+    const msg = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+    // MapTiler's own WebGL-context-loss handling triggers an internal
+    // promise rejection (via setPrimaryLanguage) that looks fatal but
+    // isn't — the app already listens for and recovers from context loss
+    // itself (rebuilding the map). Surfacing this as a stuck red banner
+    // was misleading once the map had already silently recovered.
+    if (/maptiler-sdk|setPrimaryLanguage/.test(msg)) { console.error(msg); return; }
     const el = document.getElementById("load-status");
     el.style.display = "block";
     el.style.color = "#f87171";
-    el.textContent = "PROMISE-FEHLER: " + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+    el.textContent = msg;
   });
 
   async function checkAndRender() {
