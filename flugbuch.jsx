@@ -235,6 +235,20 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
+// MapTiler's own "The WebGL context was lost." warning banner isn't
+// scoped inside the specific map's container (clearing that container
+// wasn't enough to remove it) — it stays visible until this sweeps the
+// whole document for it. Called right after a successful map rebuild.
+function removeStrayMapTilerWarnings() {
+  try {
+    document.querySelectorAll("body *").forEach(el => {
+      if (el.children.length === 0 && /WebGL context was lost/i.test(el.textContent || "")) {
+        el.remove();
+      }
+    });
+  } catch (e) { /* best-effort cleanup, never worth breaking anything over */ }
+}
+
 
 function WorldMapView({ flights, selectedIds, onBack }) {
   const mapDivRef = useRef(null);
@@ -301,6 +315,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
       if (canvas) {
         canvas.addEventListener("webglcontextlost", (e) => {
           e.preventDefault();
+          removeStrayMapTilerWarnings();
           if (mapRef.current === map) initMap();
         }, { once: true });
       }
@@ -317,6 +332,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
         map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
       }
+      map.on("load", () => removeStrayMapTilerWarnings());
     };
     initMap();
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
@@ -489,6 +505,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     if (canvas) {
       canvas.addEventListener("webglcontextlost", (e) => {
         e.preventDefault();
+        removeStrayMapTilerWarnings();
         if (mapRefObj.current === map) buildMap(container, mapRefObj, readyRef);
       }, { once: true });
     }
@@ -523,6 +540,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       }
       readyRef.current = true;
       applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef);
+      removeStrayMapTilerWarnings();
     });
   };
 
@@ -567,9 +585,18 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   };
 
   useEffect(() => {
+    if (isFullscreen) {
+      // Preview is hidden behind the fullscreen overlay anyway — tearing
+      // down its map here means only one WebGL context is ever alive at a
+      // time instead of two, which was adding to the GPU memory pressure
+      // that triggers "WebGL context was lost" in the first place.
+      if (previewMapRef.current) { previewMapRef.current.remove(); previewMapRef.current = null; }
+      previewReadyRef.current = false;
+      return;
+    }
     buildMap(previewDivRef.current, previewMapRef, previewReadyRef);
     return () => { if (previewMapRef.current) { previewMapRef.current.remove(); previewMapRef.current = null; } };
-  }, [flight?.id, gliderIconUrl]);
+  }, [flight?.id, gliderIconUrl, isFullscreen]);
 
   useEffect(() => {
     if (!isFullscreen) return;
