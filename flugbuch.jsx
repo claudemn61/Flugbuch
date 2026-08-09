@@ -1913,8 +1913,8 @@ function sortFieldValue(f, sortId) {
     case "date":     return parseDateToTs(f.date || f.rawDate, f.startTime);
     case "number":
     case "name":     return parseInt((f.name || "").match(/\d+/)?.[0] || "0", 10);
-    case "startTime": return f.startTime || "";
-    case "endTime":  return f.endTime || "";
+    case "startTime": return parseDurToSec(f.startTime);
+    case "endTime":  return parseDurToSec(f.endTime);
     case "duration": return f.durationSec || parseDurToSec(f.durationStr);
     case "dist":     return f.totalDist || parseFloat(cf.distKm || cf.dk || 0) || 0;
     case "alt":      return f.maxAlt || +(cf.hMax || cf.hm || 0) || 0;
