@@ -1976,9 +1976,29 @@ function formatSortValue(f, sortId) {
   }
 }
 
+// For each sort option, which value shows as the secondary (grey, under
+// the primary blue value) in the flight list — see Leer_3.csv. Falls back
+// to "duration" for anything not explicitly listed.
+const SECONDARY_VALUE_FOR_SORT = {
+  number: "dist", date: "dist",
+  startTime: "duration", endTime: "duration",
+  site: "startTime", landung: "endTime",
+  glider: "duration", pax: "duration", reise: "duration",
+  duration: "dist", dist: "duration",
+  alt: "duration",
+  startAlt: "startTime", endAlt: "endTime",
+  hDiff: "duration", speed: "duration",
+  maxSteigen: "duration", maxSinken: "duration", hGew: "duration",
+  entfernungSL: "duration", rangDauer: "duration", pctDauer: "duration",
+  rangStrecke: "dist", pctStrecke: "dist",
+  rating: "duration",
+};
+
 function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel, isWide }) {
   const pax = f.customFields?.passagier;
   const showSortValue = sortId && sortId !== "date" && sortId !== "number";
+  const secondaryId = SECONDARY_VALUE_FOR_SORT[sortId] || "duration";
+  const secondaryText = formatSortValue(f, secondaryId);
 
   // Wide (iPad/desktop): compact single line — Nr, Datum, Start, Schirm,
   // gap, IGC-badge, then far right Distanz/Dauer. iPhone below is
@@ -2040,8 +2060,8 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
           <span>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
-        {!showSortValue && (
-          <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist?f.totalDist+" km":""}</div>
+        {secondaryText !== "—" && (
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{secondaryText}</div>
         )}
       </div>
     </div>

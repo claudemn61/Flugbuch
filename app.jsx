@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.4.3";
+const APP_VERSION = "4.4.4";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.4.4", note: "Flugliste: grauer Sekundärwert unter dem blauen Primärwert ist jetzt für jede Sortierung individuell definiert (z.B. bei Sortierung nach Startplatz erscheint darunter die Startzeit statt immer der Distanz)." },
   { v: "4.4.3", note: "Schirm-Auswahl (Settings): alle 9 Bilder neu freigestellt (Flood-Fill vom Rand statt globalem Weiss-Schwellwert, damit weisse Chevron-Muster im Design erhalten bleiben statt fälschlich transparent zu werden), Fusssack durchgehend korrekt schwarz, Beschriftungen korrigiert." },
   { v: "4.4.2", note: "Settings > 🪂 Schirme: Auswahl aus 9 Farb-/Muster-Varianten für den Gleitschirm-Marker (Referenzpunkt auf der Karte, Cine-Wiedergabe) — wirkt sofort app-weit, gespeichert für künftige Aufrufe." },
   { v: "4.4.1", note: "Cine-Wiedergabe im Vollbild: aktuelle Höhe (nur Zahl, rot, ohne Rahmen/Badge — analog zur Y-Achse im Profil) jetzt direkt neben dem Gleitschirm-Marker." },
