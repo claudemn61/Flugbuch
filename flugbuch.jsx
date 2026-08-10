@@ -381,7 +381,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, controlsSlot }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, controlsSlot, isWide }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -770,7 +770,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       {controlsSlot && hasMap && ReactDOM.createPortal(
         <>
           {flight?.track?.length > 1 && (
-            <div style={{display:"flex",gap:5,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",gap:5,alignItems:"center",flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start"}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setIsPlaying(p=>!p)}
                 title={isPlaying?"Pause":"Abspielen"}
                 style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,width:28,height:28,color:"#fff",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -783,7 +783,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                 </button>
                 {playPickerOpen && (
                   <div onClick={e=>{e.stopPropagation();setPlayPickerOpen(false);}}
-                    style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:56,zIndex:10}}>
+                    style={{position:"absolute",bottom:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:56,zIndex:10}}>
                     {[1,2,5,10,20,50,100].map(sp=>(
                       <button key={sp} onClick={()=>{setPlaySpeed(sp);setPlayPickerOpen(false);}}
                         style={{background:sp===playSpeed?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"5px 8px",color:sp===playSpeed?"#7dd3fc":"#e8f4fd",fontSize:12,fontWeight:sp===playSpeed?700:400,cursor:"pointer",textAlign:"left"}}>
@@ -805,10 +805,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           {flight?.track?.length > 0 && (
             <>
               <button onClick={openInGpsVisualizer} title="In GPS Visualizer öffnen"
-                style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flexShrink:0}}>
+                style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:isWide?undefined:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flexShrink:0,flex:isWide?"1 1 0":"0 0 auto"}}>
                 🗺️
               </button>
-              <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:8,padding:2,flexShrink:0}}>
+              <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:8,padding:2,flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start"}}>
                 <button onClick={()=>setGpsvColorBy("altitude")} title="Höhe"
                   style={{background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"4px 7px",color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:11,cursor:"pointer"}}>
                   📈
@@ -887,7 +887,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
-function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive, controlsSlot }) {
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive, controlsSlot, isWide }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -1252,16 +1252,16 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
         <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:zoomLevel>1?"none":"auto"}} />
       </div>
       {controlsSlot && ReactDOM.createPortal(
-        <div style={{position:"relative",display:"flex",alignItems:"center",gap:5}}>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:5,flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start"}}>
           <button onClick={()=>setZoomPickerOpen(o=>!o)}
             style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
             🔍{zoomLevel}×▾
           </button>
           {zoomPickerOpen && (
-            <div onClick={()=>setZoomPickerOpen(false)}
-              style={{position:"fixed",inset:0,zIndex:250}}>
+            <>
+              <div onClick={()=>setZoomPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
               <div onClick={e=>e.stopPropagation()}
-                style={{position:"absolute",top:0,right:16,marginTop:4,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70}}>
+                style={{position:"absolute",bottom:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70,zIndex:250}}>
                 {[1,2,3,4,5,6,7,8].map(z=>(
                   <button key={z} onClick={()=>{setZoomLevel(z);setPanPos(0);setZoomPickerOpen(false);}}
                     style={{background:z===zoomLevel?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:z===zoomLevel?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:z===zoomLevel?700:400,cursor:"pointer",textAlign:"left"}}>
@@ -1269,7 +1269,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
                   </button>
                 ))}
               </div>
-            </div>
+            </>
           )}
           {zoomLevel > 1 && (
             <button onClick={()=>setZoomLevel(1)} title="Zoom zurücksetzen"
@@ -2998,8 +2998,8 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} controlsSlot={controlsSlotEl} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} controlsSlot={controlsSlotEl} />
+          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} controlsSlot={controlsSlotEl} isWide={isWide} />
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
               zurücksetzen) portals in here, compact enough for one line. */}
