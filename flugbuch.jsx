@@ -793,6 +793,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                   </div>
                 )}
               </div>
+              {/* Right next to Speed now (not at the row's end), and
+                  labelled "Play↺" so it's not confused with the Zoom↺
+                  tile — both used to just say "↺". */}
+              {playElapsedSec > 0 && (
+                <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
+                  title="Zurück zum Start"
+                  style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  Play↺
+                </button>
+              )}
             </>
           )}
           {flight?.track?.length > 0 && (
@@ -810,16 +820,6 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                 📊
               </button>
             </>
-          )}
-          {/* Only added (widening every other tile slightly) once playback
-              has actually started — the row's tile count is dynamic
-              (6-8), not a fixed set of slots with some left empty. */}
-          {playElapsedSec > 0 && (
-            <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
-              title="Zurück zum Start"
-              style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer"}}>
-              ↺
-            </button>
           )}
         </>,
         controlsSlot
@@ -1278,8 +1278,8 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
               zoomed in — dynamic tile count, not a fixed slot left empty. */}
           {zoomLevel > 1 && (
             <button onClick={()=>setZoomLevel(1)} title="Zoom zurücksetzen"
-              style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"rgba(232,244,253,0.7)",fontSize:14,cursor:"pointer"}}>
-              ↺
+              style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"rgba(232,244,253,0.7)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              Zoom↺
             </button>
           )}
         </>,
