@@ -793,14 +793,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                   </div>
                 )}
               </div>
-              {/* Right next to Speed now (not at the row's end), and
-                  labelled "Play↺" so it's not confused with the Zoom↺
-                  tile — both used to just say "↺". */}
+              {/* Right next to Speed now (not at the row's end).
+                  Colour-coded to match its own button (same green as
+                  Play) instead of text labels — same idea as Zoom↺
+                  matching the Zoom tile's colour below. */}
               {playElapsedSec > 0 && (
                 <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
                   title="Zurück zum Start"
-                  style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  Play↺
+                  style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(22,163,74,0.18)",border:"1px solid rgba(22,163,74,0.4)",borderRadius:8,color:"#4ade80",fontSize:16,cursor:"pointer"}}>
+                  ↺
                 </button>
               )}
             </>
@@ -1256,7 +1257,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
         <>
           <div style={{position:"relative",flex:"1 1 0",minWidth:0}}>
             <button onClick={()=>setZoomPickerOpen(o=>!o)}
-              style={{width:"100%",height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"rgba(232,244,253,0.8)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              style={{width:"100%",height:34,boxSizing:"border-box",background:"rgba(220,38,38,0.18)",border:"1px solid rgba(220,38,38,0.4)",borderRadius:8,color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer"}}>
               🔍{zoomLevel}×▾
             </button>
             {zoomPickerOpen && (
@@ -1275,11 +1276,12 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
             )}
           </div>
           {/* Only added (widening every other tile slightly) once actually
-              zoomed in — dynamic tile count, not a fixed slot left empty. */}
+              zoomed in — colour-coded to match the Zoom tile (both red)
+              instead of a text label, same idea as Play↺'s green match. */}
           {zoomLevel > 1 && (
             <button onClick={()=>setZoomLevel(1)} title="Zoom zurücksetzen"
-              style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"rgba(232,244,253,0.7)",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-              Zoom↺
+              style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(220,38,38,0.18)",border:"1px solid rgba(220,38,38,0.4)",borderRadius:8,color:"#f87171",fontSize:16,cursor:"pointer"}}>
+              ↺
             </button>
           )}
         </>,
