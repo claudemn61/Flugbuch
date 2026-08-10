@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.4.5";
+const APP_VERSION = "4.4.6";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.4.6", note: "Flugdetail-Bedienleiste: 6 fest gleich breite Spalten (CSS Grid, gilt jetzt auf allen Bildschirmgrössen) statt variabler Flexbox-Breiten. Play-Zurücksetzen und Zoom-Zurücksetzen haben je eine eigene, immer reservierte Spalte, die leer bleibt statt zu verschwinden, wenn nicht anwendbar." },
   { v: "4.4.5", note: "Flugdetail: Höhenprofil rückt direkt unter die Karte, alle Bedienelemente (Play/Speed/Zurücksetzen/GPS Visualizer/Höhe·Steigen-Sinken/Zoom/Zoom zurücksetzen) sitzen jetzt kompakt mit Icons in einer gemeinsamen Zeile darunter." },
   { v: "4.4.4", note: "Flugliste: grauer Sekundärwert unter dem blauen Primärwert ist jetzt für jede Sortierung individuell definiert (z.B. bei Sortierung nach Startplatz erscheint darunter die Startzeit statt immer der Distanz)." },
   { v: "4.4.3", note: "Schirm-Auswahl (Settings): alle 9 Bilder neu freigestellt (Flood-Fill vom Rand statt globalem Weiss-Schwellwert, damit weisse Chevron-Muster im Design erhalten bleiben statt fälschlich transparent zu werden), Fusssack durchgehend korrekt schwarz, Beschriftungen korrigiert." },

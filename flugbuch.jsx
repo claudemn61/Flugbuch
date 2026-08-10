@@ -769,7 +769,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       </div>
       {controlsSlot && hasMap && ReactDOM.createPortal(
         <>
-          {flight?.track?.length > 1 && (
+          {flight?.track?.length > 1 ? (
             <div style={{display:"flex",gap:5,alignItems:"center",flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start",minWidth:0}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setIsPlaying(p=>!p)}
                 title={isPlaying?"Pause":"Abspielen"}
@@ -793,16 +793,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                   </div>
                 )}
               </div>
-              {playElapsedSec > 0 && (
-                <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
-                  title="Zurück zum Start"
-                  style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:28,height:28,color:"#fff",fontSize:12,cursor:"pointer",flexShrink:0}}>
-                  ↺
-                </button>
-              )}
             </div>
-          )}
-          {flight?.track?.length > 0 && (
+          ) : <div />}
+          {flight?.track?.length > 0 ? (
             <>
               <button onClick={openInGpsVisualizer} title="In GPS Visualizer öffnen"
                 style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:isWide?undefined:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flex:isWide?"1 1 0":"0 0 auto",minWidth:0}}>
@@ -819,7 +812,18 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                 </button>
               </div>
             </>
-          )}
+          ) : <><div /><div /></>}
+          {/* Own reserved column for the playback-reset button — stays an
+              empty grid cell (not collapsed) when not applicable, same as
+              the sketch showed, so the row's column count/widths never
+              shift depending on what's currently active. */}
+          {playElapsedSec > 0 ? (
+            <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
+              title="Zurück zum Start"
+              style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:isWide?undefined:28,height:28,color:"#fff",fontSize:12,cursor:"pointer",flex:isWide?"1 1 0":"0 0 auto",minWidth:0}}>
+              ↺
+            </button>
+          ) : <div />}
         </>,
         controlsSlot
       )}
@@ -1252,32 +1256,37 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
         <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:zoomLevel>1?"none":"auto"}} />
       </div>
       {controlsSlot && ReactDOM.createPortal(
-        <div style={{position:"relative",display:"flex",alignItems:"center",gap:5,flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start",minWidth:0}}>
-          <button onClick={()=>setZoomPickerOpen(o=>!o)}
-            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-            🔍{zoomLevel}×▾
-          </button>
-          {zoomPickerOpen && (
-            <>
-              <div onClick={()=>setZoomPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
-              <div onClick={e=>e.stopPropagation()}
-                style={{position:"absolute",bottom:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70,zIndex:250}}>
-                {[1,2,3,4,5,6,7,8].map(z=>(
-                  <button key={z} onClick={()=>{setZoomLevel(z);setPanPos(0);setZoomPickerOpen(false);}}
-                    style={{background:z===zoomLevel?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:z===zoomLevel?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:z===zoomLevel?700:400,cursor:"pointer",textAlign:"left"}}>
-                    {z}×
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {zoomLevel > 1 && (
+        <>
+          <div style={{position:"relative",display:"flex",alignItems:"center",gap:5,flex:isWide?"1 1 0":"0 0 auto",justifyContent:isWide?"center":"flex-start",minWidth:0}}>
+            <button onClick={()=>setZoomPickerOpen(o=>!o)}
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+              🔍{zoomLevel}×▾
+            </button>
+            {zoomPickerOpen && (
+              <>
+                <div onClick={()=>setZoomPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
+                <div onClick={e=>e.stopPropagation()}
+                  style={{position:"absolute",bottom:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:70,zIndex:250}}>
+                  {[1,2,3,4,5,6,7,8].map(z=>(
+                    <button key={z} onClick={()=>{setZoomLevel(z);setPanPos(0);setZoomPickerOpen(false);}}
+                      style={{background:z===zoomLevel?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:z===zoomLevel?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:z===zoomLevel?700:400,cursor:"pointer",textAlign:"left"}}>
+                      {z}×
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {/* Own reserved column, stays an empty grid cell (not collapsed)
+              when zoom is at 1× — keeps the row's column widths stable
+              regardless of what's currently active, matching the sketch. */}
+          {zoomLevel > 1 ? (
             <button onClick={()=>setZoomLevel(1)} title="Zoom zurücksetzen"
-              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flexShrink:0}}>
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:isWide?undefined:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flex:isWide?"1 1 0":"0 0 auto",minWidth:0}}>
               ↺
             </button>
-          )}
-        </div>,
+          ) : <div />}
+        </>,
         controlsSlot
       )}
       {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Flugtrace wird trotzdem angezeigt.</div>}
@@ -3003,9 +3012,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
               zurücksetzen) portals in here, compact enough for one line. */}
-          <div ref={controlsSlotRef} style={isWide
-            ? {display:"grid",gridTemplateColumns:"repeat(4, 1fr)",alignItems:"center",gap:6,margin:"10px 0 14px"}
-            : {display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,margin:"10px 0 14px"}} />
+          <div ref={controlsSlotRef} style={{display:"grid",gridTemplateColumns:"repeat(6, 1fr)",alignItems:"center",gap:5,margin:"10px 0 14px"}} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
