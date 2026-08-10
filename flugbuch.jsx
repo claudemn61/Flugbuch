@@ -4124,7 +4124,7 @@ function FlugbuchApp() {
         </button>
         <button onClick={()=>setCollapsedYears(s=>s.size===0?new Set(years):new Set())} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:23,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
-          {collapsedYears.size===0?"⊟⊟":"⊞⊞"}
+          {collapsedYears.size===0?"➖":"➕"}
         </button>
         <button onClick={()=>{ setSearchRowOpen(o=>!o); setShowImportMenu(false); setShowBackupMenu(false); }} title="Suchen/Sortieren"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:searchRowOpen?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${searchRowOpen?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
