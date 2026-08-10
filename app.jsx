@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.4.8";
+const APP_VERSION = "4.4.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.4.9", note: "Flugbuch/Liste: Reihenfolge-Taste (↑/↓) öffnet jetzt ein Dropdown mit \"1° Jahr\", \"2° Sortierfeld\" und \"Beide\" — Jahresgruppen-Reihenfolge war bisher fest auf absteigend fixiert, jetzt separat umkehrbar. Als erweiterbare Liste angelegt für künftige weitere Kategorien." },
   { v: "4.4.8", note: "Flugbuch/Liste: Reise-Feld im Bearbeiten-Menü (Mehrfachauswahl) jetzt ein Aufklappmenü mit bereits definierten Reisen statt Freitext. Eigenständige Reise-Kachel entfernt (nicht mehr nötig), dafür neuer \"Alle\"-Button zur Auswahl aller Flüge. Import: Zellen-Kachel entfernt. Backup: Text \"In iCloud sichern\" → \"Backup sichern\", Wolken-Icon bleibt." },
   { v: "4.4.7", note: "Flugdetail-Bedienleiste: Play-Zurücksetzen und Zoom-Zurücksetzen sind jetzt farblich statt per Text unterschieden — Play-Reset grün wie der Play-Button, Zoom-Kachel und Zoom-Reset beide rot, beide nur noch mit \"↺\" beschriftet." },
   { v: "4.4.6", note: "Flugdetail-Bedienleiste: 6 fest gleich breite Spalten (CSS Grid, gilt jetzt auf allen Bildschirmgrössen) statt variabler Flexbox-Breiten. Play-Zurücksetzen und Zoom-Zurücksetzen haben je eine eigene, immer reservierte Spalte, die leer bleibt statt zu verschwinden, wenn nicht anwendbar." },
