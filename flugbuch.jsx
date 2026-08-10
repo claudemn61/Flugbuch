@@ -381,7 +381,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, controlsSlot }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -767,56 +767,61 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       <div style={{position:"relative"}} onClick={()=>{ if (hasMap) setIsFullscreen(true); }}>
         <div ref={previewDivRef} style={{width:"100%",aspectRatio:"3/2",background:"#040e20",borderRadius:10,overflow:"hidden",cursor:hasMap?"pointer":"default"}} />
       </div>
-      {hasMap && flight?.track?.length > 1 && (
-        <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
-          <button onClick={()=>setIsPlaying(p=>!p)}
-            title={isPlaying?"Pause":"Abspielen"}
-            style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:38,height:38,color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.4)",flexShrink:0}}>
-            {isPlaying ? "⏸" : "▶"}
-          </button>
-          <div style={{position:"relative"}}>
-            <button onClick={()=>setPlayPickerOpen(o=>!o)}
-              style={{background:"#1e40af",border:"none",borderRadius:20,padding:"9px 14px",color:"#fff",fontSize:13,fontWeight:800,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.4)"}}>
-              {playSpeed}× ▾
-            </button>
-            {playPickerOpen && (
-              <div onClick={e=>{e.stopPropagation();setPlayPickerOpen(false);}}
-                style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:64,zIndex:10}}>
-                {[1,2,5,10,20,50,100].map(sp=>(
-                  <button key={sp} onClick={()=>{setPlaySpeed(sp);setPlayPickerOpen(false);}}
-                    style={{background:sp===playSpeed?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"6px 10px",color:sp===playSpeed?"#7dd3fc":"#e8f4fd",fontSize:13,fontWeight:sp===playSpeed?700:400,cursor:"pointer",textAlign:"left"}}>
-                    {sp}×
-                  </button>
-                ))}
+      {controlsSlot && hasMap && ReactDOM.createPortal(
+        <>
+          {flight?.track?.length > 1 && (
+            <div style={{display:"flex",gap:5,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>setIsPlaying(p=>!p)}
+                title={isPlaying?"Pause":"Abspielen"}
+                style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,width:28,height:28,color:"#fff",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {isPlaying ? "⏸" : "▶"}
+              </button>
+              <div style={{position:"relative"}}>
+                <button onClick={()=>setPlayPickerOpen(o=>!o)}
+                  style={{background:"#1e40af",border:"none",borderRadius:8,padding:"5px 8px",color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+                  {playSpeed}×▾
+                </button>
+                {playPickerOpen && (
+                  <div onClick={e=>{e.stopPropagation();setPlayPickerOpen(false);}}
+                    style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:56,zIndex:10}}>
+                    {[1,2,5,10,20,50,100].map(sp=>(
+                      <button key={sp} onClick={()=>{setPlaySpeed(sp);setPlayPickerOpen(false);}}
+                        style={{background:sp===playSpeed?"rgba(125,211,252,0.2)":"transparent",border:"none",borderRadius:6,padding:"5px 8px",color:sp===playSpeed?"#7dd3fc":"#e8f4fd",fontSize:12,fontWeight:sp===playSpeed?700:400,cursor:"pointer",textAlign:"left"}}>
+                        {sp}×
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          {playElapsedSec > 0 && (
-            <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
-              title="Zurück zum Start"
-              style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,width:38,height:38,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.4)"}}>
-              ↺
-            </button>
+              {playElapsedSec > 0 && (
+                <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
+                  title="Zurück zum Start"
+                  style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:28,height:28,color:"#fff",fontSize:12,cursor:"pointer",flexShrink:0}}>
+                  ↺
+                </button>
+              )}
+            </div>
           )}
-        </div>
-      )}
-      {hasMap && flight?.track?.length > 0 && (
-        <div style={{marginTop:6,display:"flex",gap:6,alignItems:"center"}}>
-          <button onClick={openInGpsVisualizer}
-            style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"rgba(232,244,253,0.6)",fontSize:11,cursor:"pointer"}}>
-            🗺️ In GPS Visualizer öffnen
-          </button>
-          <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:8,padding:2}}>
-            <button onClick={()=>setGpsvColorBy("altitude")}
-              style={{background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"5px 8px",color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-              Höhe
-            </button>
-            <button onClick={()=>setGpsvColorBy("climb")}
-              style={{background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"5px 8px",color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-              Steigen/Sinken
-            </button>
-          </div>
-        </div>
+          {flight?.track?.length > 0 && (
+            <>
+              <button onClick={openInGpsVisualizer} title="In GPS Visualizer öffnen"
+                style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flexShrink:0}}>
+                🗺️
+              </button>
+              <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:8,padding:2,flexShrink:0}}>
+                <button onClick={()=>setGpsvColorBy("altitude")} title="Höhe"
+                  style={{background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"4px 7px",color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:11,cursor:"pointer"}}>
+                  📈
+                </button>
+                <button onClick={()=>setGpsvColorBy("climb")} title="Steigen/Sinken"
+                  style={{background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"4px 7px",color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:11,cursor:"pointer"}}>
+                  📊
+                </button>
+              </div>
+            </>
+          )}
+        </>,
+        controlsSlot
       )}
       {isFullscreen && (
         <div
@@ -882,7 +887,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
-function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive }) {
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive, controlsSlot }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -1240,12 +1245,17 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
 
   return (
     <div style={{marginBottom:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",flexShrink:0}}>Höhenprofil</div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,justifyContent:"flex-end",position:"relative"}}>
+      <div style={{marginBottom:6}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Höhenprofil</div>
+      </div>
+      <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
+        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:zoomLevel>1?"none":"auto"}} />
+      </div>
+      {controlsSlot && ReactDOM.createPortal(
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:5}}>
           <button onClick={()=>setZoomPickerOpen(o=>!o)}
-            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"4px 10px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-            🔍 Zoom {zoomLevel}× ▾
+            style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.8)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+            🔍{zoomLevel}×▾
           </button>
           {zoomPickerOpen && (
             <div onClick={()=>setZoomPickerOpen(false)}
@@ -1262,16 +1272,14 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
             </div>
           )}
           {zoomLevel > 1 && (
-            <button onClick={()=>setZoomLevel(1)}
-              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"3px 9px",color:"rgba(232,244,253,0.7)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-              ↺ Zoom zurücksetzen
+            <button onClick={()=>setZoomLevel(1)} title="Zoom zurücksetzen"
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,width:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer",flexShrink:0}}>
+              ↺
             </button>
           )}
-        </div>
-      </div>
-      <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
-        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:zoomLevel>1?"none":"auto"}} />
-      </div>
+        </div>,
+        controlsSlot
+      )}
       {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Flugtrace wird trotzdem angezeigt.</div>}
       {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert.</div>}
       {zoomLevel>1 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:2}}>Im Profil wischen, um den sichtbaren Ausschnitt zu verschieben.</div>}
@@ -2817,6 +2825,14 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
     const [notesEditing, setNotesEditing] = useState(false);
     const [profileRange, setProfileRange] = useState(null);
     const [playbackDistance, setPlaybackDistance] = useState(null);
+    // Map and profile each keep owning their own controls' state, but the
+    // actual buttons render into this shared slot below the profile
+    // (via portals) instead of their original positions between map and
+    // profile — the ref-callback + state dance is just to trigger a
+    // re-render once the slot DOM node actually exists, since a plain ref
+    // is still null on the very first render.
+    const [controlsSlotEl, setControlsSlotEl] = useState(null);
+    const controlsSlotRef = useCallback(node => { if (node) setControlsSlotEl(node); }, []);
     const [isPlaybackActive, setIsPlaybackActive] = useState(false);
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
@@ -2982,8 +2998,12 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} />
+          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} controlsSlot={controlsSlotEl} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} controlsSlot={controlsSlotEl} />
+          {/* Shared row: every control from both the map (play/speed/reset/
+              GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
+              zurücksetzen) portals in here, compact enough for one line. */}
+          <div ref={controlsSlotRef} style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,margin:"10px 0 14px"}} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
