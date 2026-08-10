@@ -1880,8 +1880,8 @@ function evalToken(f, tok){
 // future third grouping level (beyond Jahr/Sortierfeld) is just another
 // entry here, not a structural change to the picker UI itself.
 const SORT_DIRECTION_CATEGORIES = [
-  { id: "year", label: "1° Jahr" },
-  { id: "field", label: "2° Sortierfeld" },
+  { id: "year", shortLabel: "Jahr" },
+  { id: "field" },
 ];
 
 const SORT_OPTIONS = [
@@ -4133,37 +4133,55 @@ function FlugbuchApp() {
           🗺️
         </button>
         <div style={{position:"relative",flex:"1 1 0",minWidth:0}}>
-          <button onClick={()=>setSortDirPickerOpen(o=>!o)} title="Reihenfolge"
-            style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:sortDirPickerOpen?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${sortDirPickerOpen?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
-            {sortDir==="asc"?"↑":"↓"}
-          </button>
-          {sortDirPickerOpen && (
+          {years.length > 1 ? (
             <>
-              <div onClick={()=>setSortDirPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
-              <div onClick={e=>e.stopPropagation()}
-                style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:170,zIndex:250}}>
-                {SORT_DIRECTION_CATEGORIES.map(cat => {
-                  const dir = cat.id==="year" ? yearSortDir : sortDir;
-                  const setDir = cat.id==="year" ? setYearSortDir : setSortDir;
-                  return (
-                    <button key={cat.id} onClick={()=>setDir(d=>d==="asc"?"desc":"asc")}
-                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
-                      <span>{cat.label}</span>
-                      <span style={{color:"#7dd3fc",fontWeight:700}}>{dir==="asc"?"↑":"↓"}</span>
+              <button onClick={()=>setSortDirPickerOpen(o=>!o)} title="Reihenfolge"
+                style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:sortDirPickerOpen?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${sortDirPickerOpen?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
+                {sortDir==="asc"?"↑":"↓"}
+              </button>
+              {sortDirPickerOpen && (
+                <>
+                  <div onClick={()=>setSortDirPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
+                  <div onClick={e=>e.stopPropagation()}
+                    style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:170,zIndex:250}}>
+                    {SORT_DIRECTION_CATEGORIES.map((cat, i) => {
+                      const dir = cat.id==="year" ? yearSortDir : sortDir;
+                      const setDir = cat.id==="year" ? setYearSortDir : setSortDir;
+                      // "2°" shows the actual current sort field's own name
+                      // (e.g. "Nummer", "Datum") instead of a generic label.
+                      const label = cat.id==="field"
+                        ? `${i+1}° ${SORT_OPTIONS.find(o=>o.id===sortId)?.label||"Sortierfeld"}`
+                        : `${i+1}° ${cat.shortLabel}`;
+                      return (
+                        <button key={cat.id} onClick={()=>setDir(d=>d==="asc"?"desc":"asc")}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                          <span>{label}</span>
+                          <span style={{color:"#7dd3fc",fontWeight:700}}>{dir==="asc"?"↑":"↓"}</span>
+                        </button>
+                      );
+                    })}
+                    <div style={{height:1,background:"rgba(255,255,255,0.1)",margin:"2px 6px"}} />
+                    <button onClick={()=>{
+                        const newDir = sortDir==="asc" ? "desc" : "asc";
+                        setSortDir(newDir); setYearSortDir(newDir);
+                      }}
+                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"rgba(232,244,253,0.7)",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+                      <span>Beide</span>
+                      <span style={{color:"#7dd3fc"}}>{sortDir==="asc"?"↑":"↓"}</span>
                     </button>
-                  );
-                })}
-                <div style={{height:1,background:"rgba(255,255,255,0.1)",margin:"2px 6px"}} />
-                <button onClick={()=>{
-                    const newDir = sortDir==="asc" ? "desc" : "asc";
-                    setSortDir(newDir); setYearSortDir(newDir);
-                  }}
-                  style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"rgba(232,244,253,0.7)",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
-                  <span>Beide</span>
-                  <span style={{color:"#7dd3fc"}}>{sortDir==="asc"?"↑":"↓"}</span>
-                </button>
-              </div>
+                  </div>
+                </>
+              )}
             </>
+          ) : (
+            // Only one grouping level actually in play (0 or 1 years) —
+            // nothing ambiguous to choose between, so a plain direct
+            // toggle instead of a dropdown that would only ever offer one
+            // meaningful choice.
+            <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")} title={sortDir==="asc"?"Aufsteigend":"Absteigend"}
+              style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
+              {sortDir==="asc"?"↑":"↓"}
+            </button>
           )}
         </div>
         <button onClick={()=>setCollapsedYears(s=>s.size===0?new Set(years):new Set())} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
