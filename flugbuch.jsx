@@ -771,7 +771,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         <>
           {flight?.track?.length > 1 && (
             <>
-              <button onClick={()=>setIsPlaying(p=>!p)} onClickCapture={e=>e.stopPropagation()}
+              <button onClick={()=>setIsPlaying(p=>!p)}
                 title={isPlaying?"Pause":"Abspielen"}
                 style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 {isPlaying ? "⏸" : "▶"}
