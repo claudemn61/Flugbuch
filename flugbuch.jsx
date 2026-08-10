@@ -3397,6 +3397,7 @@ function FlugbuchApp() {
   const [sortId, setSortId] = useState("number");
   const [sortDir, setSortDir] = useState("desc");
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [searchRowOpen, setSearchRowOpen] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState(new Set());
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -4326,7 +4327,7 @@ function FlugbuchApp() {
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
             if (d.passagier) cfPatch.passagier = d.passagier;
-            if (d.reise) cfPatch.reise = d.reise;
+            if (d.reise) cfPatch.reise = d.reise==="__CLEAR__" ? "" : d.reise;
             return { ...f, ...patch, customFields: { ...(f.customFields||{}), ...cfPatch } };
           });
           // A date change can shift where these flights (and everyone
@@ -4368,6 +4369,7 @@ function FlugbuchApp() {
                 <select value={bulkEditData.reise||""} onChange={e=>setBulkEditData(d=>({...d,reise:e.target.value}))}
                   style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 13px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box",appearance:"none",WebkitAppearance:"none"}}>
                   <option value="" style={{background:"#14253a"}}>unverändert lassen</option>
+                  <option value="__CLEAR__" style={{background:"#14253a"}}>Leer (keine Reise)</option>
                   {reisenNames.map(n => <option key={n} value={n} style={{background:"#14253a"}}>{n}</option>)}
                 </select>
               </div>
@@ -4450,18 +4452,29 @@ function FlugbuchApp() {
         </div>
       )}
 
-      {/* Row 3: Suchen / Sortierung — je exakt halbe Zeilenbreite */}
+      {/* Row 3: Suchen / Sortierung — je exakt halbe Zeilenbreite, ein-/ausblendbar um Platz zu sparen */}
       <div style={{padding:"12px 16px 6px",position:"relative"}}>
-        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-          <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
-            <SearchBar filterText={filterText} setFilterText={setFilterText} />
+        {searchRowOpen ? (
+          <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+            <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
+              <SearchBar filterText={filterText} setFilterText={setFilterText} />
+            </div>
+            <button onClick={()=>setShowSortMenu(s=>!s)}
+              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
+              <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
+            </button>
+            <button onClick={()=>setSearchRowOpen(false)} title="Suchen/Sortieren ausblenden"
+              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer"}}>
+              ▴
+            </button>
           </div>
-          <button onClick={()=>setShowSortMenu(s=>!s)}
-            style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
-            <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
+        ) : (
+          <button onClick={()=>setSearchRowOpen(true)} title="Suchen/Sortieren einblenden"
+            style={{width:"100%",boxSizing:"border-box",display:"flex",justifyContent:"center",alignItems:"center",gap:6,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"6px 8px",color:"rgba(232,244,253,0.5)",fontSize:11,cursor:"pointer"}}>
+            🔍 Suchen/Sortieren ▾
           </button>
-        </div>
+        )}
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
             <div style={{fontWeight:700,color:"#7dd3fc",marginBottom:4}}>Filter-Syntax</div>
