@@ -46,7 +46,8 @@ const SECTIONS = [
     id: "flugbuch", title: "3. Flugbuch",
     body: () => (<>
       <h3>3.1 Flugliste</h3>
-      <p>Standardmässig nach Jahr gruppiert, absteigend nach Nummer sortiert. Über die Sortier-Auswahl lässt sich nach vielen anderen Feldern sortieren (Datum, Dauer, Distanz, Startplatz, Bewertung u.a.), die Richtung über den Pfeil-Button daneben.</p>
+      <p>Zwei unabhängig wählbare Sortierfelder: <b>Kat.1</b> bestimmt die Gruppierung (standardmässig Jahr), <b>Kat.2</b> die Sortierung innerhalb jeder Gruppe (standardmässig Nummer). Beide lassen sich auf jedes beliebige Feld setzen (Datum, Dauer, Distanz, Startplatz, Schirm, Bewertung u.a.) oder auf "Leer" — ist Kat.1 leer, erscheint eine flache Liste ohne Gruppierung, sortiert nach Kat.2. Über die Kat.1-/Kat.2-Auswahlfelder (unter "Suchen/Sortieren") einstellbar.</p>
+      <p>Die Reihenfolge-Taste (↑/↓) öffnet ein Dropdown mit "1° [Kat.1-Feld]", "2° [Kat.2-Feld]" und "Beide" — jede Zeile kehrt die jeweilige Richtung separat um. Sind Kat.1 oder Kat.2 leer, gibt es nichts zur Auswahl und die Taste schaltet direkt um, ohne Dropdown.</p>
       <h3>3.2 Suche</h3>
       <p>Durchsucht alle Felder eines Flugs gleichzeitig. Erweiterte Operatoren:</p>
       <table><tbody>
@@ -58,14 +59,15 @@ const SECTIONS = [
         <tr><td><code>passagier:*</code></td><td>beliebiger Passagier (Biplace-Filter)</td></tr>
       </tbody></table>
       <p className="hint">💡 Mehrere Bedingungen kombinierbar, z.B. <code>jahr=2026 dauer&gt;2h</code>.</p>
-      <h3>3.3 Icon-Reihe (6 Buttons)</h3>
+      <h3>3.3 Icon-Reihe (7 Buttons)</h3>
       <ul>
-        <li>📥 Import — IGC-Dateien, CSV oder eingefügte Tabellenzeilen (Copy/Paste aus Numbers/Excel). Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>
-        <li>💾 Backup — Datensicherung exportieren/wiederherstellen</li>
-        <li>☑ Auswahl — Mehrfachauswahl von Flügen (z.B. für die Weltkarte)</li>
+        <li>📥 Import — IGC-Dateien oder CSV. Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>
+        <li>☁️ Backup — Datensicherung exportieren/wiederherstellen</li>
+        <li>☑ Auswahl — Mehrfachauswahl von Flügen (z.B. für die Weltkarte, oder Sammel-Bearbeitung/Löschen)</li>
         <li>🗺️ Weltkarte — siehe 3.6</li>
-        <li>↕ Richtung — Sortierrichtung umkehren</li>
-        <li>Jahr — nach Jahr filtern</li>
+        <li>↑/↓ Reihenfolge — siehe 3.1</li>
+        <li>➖/➕ — alle Gruppen (Kat.1) auf einmal ein-/ausklappen</li>
+        <li>🔍 Suchen/Sortieren — blendet die Such- und Kat.1-/Kat.2-Auswahlzeile ein/aus, um Platz zu sparen</li>
       </ul>
       <h3>3.4 IGC-Import — was automatisch ausgefüllt wird</h3>
       <ul>
@@ -130,7 +132,8 @@ function KurzContent() {
       <h3>Flugbuch</h3>
       <ul>
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
-        <li>📥 Import (IGC/CSV/Copy-Paste) · 💾 Backup · ☑ Auswahl · 🗺️ Weltkarte · ↕ Richtung · Jahr</li>
+        <li>Kat.1 (Gruppierung) + Kat.2 (Sortierung) frei aus allen Feldern wählbar, auch "Leer"; Reihenfolge-Dropdown zeigt "1°"/"2°" mit echten Feldnamen</li>
+        <li>📥 Import (IGC/CSV) · ☁️ Backup · ☑ Auswahl · 🗺️ Weltkarte · ↑↓ Reihenfolge · ➖➕ alle Gruppen · 🔍 Suchen/Sortieren ein-/ausblenden</li>
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>

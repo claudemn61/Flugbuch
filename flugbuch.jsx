@@ -1876,15 +1876,8 @@ function evalToken(f, tok){
   return hay.includes(tok.toLowerCase());
 }
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
-// Categories the ↑/↓ direction control can apply to — data-driven so a
-// future third grouping level (beyond Jahr/Sortierfeld) is just another
-// entry here, not a structural change to the picker UI itself.
-const SORT_DIRECTION_CATEGORIES = [
-  { id: "year", shortLabel: "Jahr" },
-  { id: "field" },
-];
-
 const SORT_OPTIONS = [
+  { id: "year",     label: "Jahr" },
   { id: "number",   label: "Nummer" },
   { id: "date",     label: "Datum" },
   { id: "startTime", label: "Startzeit" },
@@ -1960,6 +1953,7 @@ function computeReiseLabels(flights, reiseOrder) {
 function sortFieldValue(f, sortId) {
   const cf = f.customFields || {};
   switch (sortId) {
+    case "year":     return f.year || 0;
     case "date":     return parseDateToTs(f.date || f.rawDate, f.startTime);
     case "number":
     case "name":     return parseInt((f.name || "").match(/\d+/)?.[0] || "0", 10);
@@ -2005,6 +1999,8 @@ function sortFlights(flights, sortId, dir) {
 function formatSortValue(f, sortId) {
   const cf = f.customFields || {};
   switch (sortId) {
+    case "year":     return f.year ? String(f.year) : "—";
+    case "date":     return f.date || f.rawDate || "—";
     case "name":     return f.name || "—";
     case "startTime": return f.startTime || "—";
     case "endTime":  return f.endTime || "—";
@@ -3402,12 +3398,16 @@ function FlugbuchApp() {
   const [showFieldEditor, setShowFieldEditor] = useState(false);
   const [inlinePassagier, setInlinePassagier] = useState("");
   const [filterText, setFilterText] = useState("");
+  // Kat. 1 (grouping/primary level) and Kat. 2 (sortId, secondary level
+  // within each Kat.1 group) — both freely selectable from the same field
+  // list, defaulting to the original Jahr/Nummer combination. Either can
+  // be set to "" (leer), which disables grouping (Kat.1 empty) or sorting
+  // (Kat.2 empty) respectively.
+  const [kat1Id, setKat1Id] = useState("year");
+  const [showKat1Menu, setShowKat1Menu] = useState(false);
   const [sortId, setSortId] = useState("number");
   const [sortDir, setSortDir] = useState("desc");
-  // Year-group ordering direction, separate from the sort-field direction
-  // above — was previously hardcoded to always-descending. Kept as a data-
-  // driven list (not hardcoded to exactly these two) so a future third
-  // grouping level (e.g. month) can be added just by extending this array.
+  // Kat.1's own ordering direction, separate from Kat.2's (sortDir) above.
   const [yearSortDir, setYearSortDir] = useState("desc");
   const [sortDirPickerOpen, setSortDirPickerOpen] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -3997,8 +3997,19 @@ function FlugbuchApp() {
 
   // Grouped flights
   const filteredFlights = matchFlights(flightsWithRanks, filterText);
-  const years = [...new Set(filteredFlights.map(f=>f.year).filter(Boolean))].sort((a,b)=>yearSortDir==="desc"?b-a:a-b);
-  const noYear = filteredFlights.filter(f=>!f.year);
+  // "years" (kept the name since Jahr is still the default Kat.1) now
+  // groups by whichever field Kat.1 is currently set to — reuses
+  // sortFieldValue, the same accessor the sort engine itself uses, so any
+  // field in SORT_OPTIONS works as a grouping key without special-casing.
+  const kat1Value = f => kat1Id ? sortFieldValue(f, kat1Id) : null;
+  const years = kat1Id
+    ? [...new Set(filteredFlights.map(kat1Value).filter(Boolean))]
+        .sort((a,b) => {
+          if (typeof a === "number" && typeof b === "number") return yearSortDir==="desc"?b-a:a-b;
+          return yearSortDir==="desc" ? String(b).localeCompare(String(a)) : String(a).localeCompare(String(b));
+        })
+    : [];
+  const noYear = kat1Id ? filteredFlights.filter(f=>!kat1Value(f)) : filteredFlights;
   const parseDurForList = s => { if(!s)return 0; const a=s.match(/(\d+):(\d{2}):(\d{2})/); if(a)return+a[1]*3600+ +a[2]*60+ +a[3]; const b=s.match(/(\d+):(\d{2})/); if(b)return+b[1]*60+ +b[2]; const c=s.match(/(\d+)h\s*(\d+)m/); if(c)return+c[1]*3600+ +c[2]*60; return 0; };
   const getDurFlight = f => f.durationSec || parseDurForList(f.durationStr);
   const longestId = flights.length ? flights.reduce((a,b)=>getDurFlight(a)>getDurFlight(b)?a:b).id : null;
@@ -4133,7 +4144,7 @@ function FlugbuchApp() {
           🗺️
         </button>
         <div style={{position:"relative",flex:"1 1 0",minWidth:0}}>
-          {years.length > 1 ? (
+          {(kat1Id && sortId) ? (
             <>
               <button onClick={()=>setSortDirPickerOpen(o=>!o)} title="Reihenfolge"
                 style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:sortDirPickerOpen?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${sortDirPickerOpen?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
@@ -4144,22 +4155,16 @@ function FlugbuchApp() {
                   <div onClick={()=>setSortDirPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:249}} />
                   <div onClick={e=>e.stopPropagation()}
                     style={{position:"absolute",top:"calc(100% + 4px)",left:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:170,zIndex:250}}>
-                    {SORT_DIRECTION_CATEGORIES.map((cat, i) => {
-                      const dir = cat.id==="year" ? yearSortDir : sortDir;
-                      const setDir = cat.id==="year" ? setYearSortDir : setSortDir;
-                      // "2°" shows the actual current sort field's own name
-                      // (e.g. "Nummer", "Datum") instead of a generic label.
-                      const label = cat.id==="field"
-                        ? `${i+1}° ${SORT_OPTIONS.find(o=>o.id===sortId)?.label||"Sortierfeld"}`
-                        : `${i+1}° ${cat.shortLabel}`;
-                      return (
-                        <button key={cat.id} onClick={()=>setDir(d=>d==="asc"?"desc":"asc")}
-                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
-                          <span>{label}</span>
-                          <span style={{color:"#7dd3fc",fontWeight:700}}>{dir==="asc"?"↑":"↓"}</span>
-                        </button>
-                      );
-                    })}
+                    <button onClick={()=>setYearSortDir(d=>d==="asc"?"desc":"asc")}
+                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                      <span>1° {SORT_OPTIONS.find(o=>o.id===kat1Id)?.label}</span>
+                      <span style={{color:"#7dd3fc",fontWeight:700}}>{yearSortDir==="asc"?"↑":"↓"}</span>
+                    </button>
+                    <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}
+                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                      <span>2° {SORT_OPTIONS.find(o=>o.id===sortId)?.label}</span>
+                      <span style={{color:"#7dd3fc",fontWeight:700}}>{sortDir==="asc"?"↑":"↓"}</span>
+                    </button>
                     <div style={{height:1,background:"rgba(255,255,255,0.1)",margin:"2px 6px"}} />
                     <button onClick={()=>{
                         const newDir = sortDir==="asc" ? "desc" : "asc";
@@ -4174,13 +4179,15 @@ function FlugbuchApp() {
               )}
             </>
           ) : (
-            // Only one grouping level actually in play (0 or 1 years) —
-            // nothing ambiguous to choose between, so a plain direct
-            // toggle instead of a dropdown that would only ever offer one
-            // meaningful choice.
-            <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")} title={sortDir==="asc"?"Aufsteigend":"Absteigend"}
-              style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
-              {sortDir==="asc"?"↑":"↓"}
+            // Kat.1 or Kat.2 (or both) is "Leer" — nothing ambiguous to
+            // choose between, so a plain direct toggle for whichever one
+            // (if either) is actually set, instead of a dropdown that
+            // would only ever offer one meaningful choice.
+            <button onClick={()=>{ if (kat1Id) setYearSortDir(d=>d==="asc"?"desc":"asc"); if (sortId) setSortDir(d=>d==="asc"?"desc":"asc"); }}
+              title={kat1Id ? "Kat.1-Reihenfolge" : sortId ? "Kat.2-Reihenfolge" : "Keine Sortierung aktiv"}
+              disabled={!kat1Id && !sortId}
+              style={{width:"100%",aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:(kat1Id||sortId)?"#fff":"rgba(255,255,255,0.25)",fontSize:30,cursor:(kat1Id||sortId)?"pointer":"default"}}>
+              {(kat1Id ? yearSortDir : sortDir)==="asc"?"↑":"↓"}
             </button>
           )}
         </div>
@@ -4518,7 +4525,7 @@ function FlugbuchApp() {
         </div>
       )}
 
-      {/* Row 3: Suchen / Sortierung — je exakt halbe Zeilenbreite, ein-/ausblendbar über die 🔍-Kachel oben */}
+      {/* Row 3: Suchen / Kat.1 (Gruppierung) / Kat.2 (Sortierfeld) — ein-/ausblendbar über die 🔍-Kachel oben */}
       {searchRowOpen && (
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
@@ -4527,9 +4534,17 @@ function FlugbuchApp() {
             </div>
             <button onClick={()=>setShowSortMenu(s=>!s)}
               style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
-              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Kat.2: {sortId ? (SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—") : "Leer"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"flex-start",marginTop:8}}>
+            <button onClick={()=>setShowKat1Menu(s=>!s)}
+              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Kat.1: {kat1Id ? (SORT_OPTIONS.find(o=>o.id===kat1Id)?.label||"—") : "Leer"}</span>
+              <span style={{flexShrink:0,marginLeft:4}}>{showKat1Menu?"▾":"▸"}</span>
+            </button>
+            <div style={{flex:"1 1 0",minWidth:0}} />
           </div>
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
@@ -4543,9 +4558,27 @@ function FlugbuchApp() {
         )}
         {showSortMenu && (
           <div style={{marginTop:6,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:280,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+            <div onClick={()=>{setSortId("");setShowSortMenu(false);}}
+              style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!sortId?"#7dd3fc":"rgba(232,244,253,0.5)",background:!sortId?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
+              Leer
+            </div>
             {SORT_OPTIONS.map(o=>(
               <div key={o.id} onClick={()=>{setSortId(o.id);setShowSortMenu(false);}}
                 style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===sortId?"#7dd3fc":"rgba(232,244,253,0.75)",background:o.id===sortId?"rgba(14,165,233,0.15)":"transparent"}}>
+                {o.label}
+              </div>
+            ))}
+          </div>
+        )}
+        {showKat1Menu && (
+          <div style={{marginTop:6,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:280,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+            <div onClick={()=>{setKat1Id("");setShowKat1Menu(false);}}
+              style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!kat1Id?"#7dd3fc":"rgba(232,244,253,0.5)",background:!kat1Id?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
+              Leer
+            </div>
+            {SORT_OPTIONS.map(o=>(
+              <div key={o.id} onClick={()=>{setKat1Id(o.id);setShowKat1Menu(false);}}
+                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===kat1Id?"#7dd3fc":"rgba(232,244,253,0.75)",background:o.id===kat1Id?"rgba(14,165,233,0.15)":"transparent"}}>
                 {o.label}
               </div>
             ))}
@@ -4640,8 +4673,8 @@ function FlugbuchApp() {
             <div style={{fontSize:13}}>CSV importieren oder IGC-Dateien ablegen</div>
           </div>
         )}
-        {(sortId !== "date" && sortId !== "number") ? (
-          // Flat, year-spanning sort
+        {!kat1Id ? (
+          // Kat.1 is "Leer" — flat, ungrouped sort by Kat.2 alone.
           <div>
             {(() => {
               const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
@@ -4655,18 +4688,23 @@ function FlugbuchApp() {
           </div>
         ) : (<>
         {years.map(yr => {
-          const yFlights = sortFlights(filteredFlights.filter(f=>f.year===yr), sortId, sortDir);
+          const yFlights = sortFlights(filteredFlights.filter(f=>kat1Value(f)===yr), sortId, sortDir);
           const collapsed = collapsedYears.has(yr);
           const parseDStr = s => { if(!s)return 0; const a=s.match(/(\d+):(\d{2}):(\d{2})/); if(a)return+a[1]*3600+ +a[2]*60+ +a[3]; const b=s.match(/(\d+):(\d{2})/); if(b)return+b[1]*60+ +b[2]; const c=s.match(/(\d+)h\s*(\d+)m/); if(c)return+c[1]*3600+ +c[2]*60; return 0; };
           const yrSec = yFlights.reduce((s,f)=>s+(f.durationSec||parseDStr(f.durationStr)),0);
           const yrH = Math.floor(yrSec/3600), yrM = String(Math.floor((yrSec%3600)/60)).padStart(2,"0");
           const yrBiplace = yFlights.filter(f=>(f.customFields?.passagier||"").trim()).length;
+          // Group-key values are lowercased/normalised for comparison
+          // (matching sortFieldValue's own convention) — read the actual
+          // display text back off a real flight in the group instead of
+          // showing the raw comparison key.
+          const yrLabel = yFlights.length ? formatSortValue(yFlights[0], kat1Id) : String(yr);
           return (
             <div key={yr}>
               <div onClick={()=>{
                   if (selectMode) {
-                    // In selection mode, tapping the year header toggles
-                    // selection of every flight in that year instead of
+                    // In selection mode, tapping the group header toggles
+                    // selection of every flight in that group instead of
                     // collapsing it — collapsing and bulk-selecting both
                     // wanting the same tap target would be confusing.
                     const yearIds = yFlights.map(f=>f.id);
@@ -4691,7 +4729,7 @@ function FlugbuchApp() {
                       </div>
                     );
                   })()}
-                  <span style={{fontWeight:700,color:"#7dd3fc",fontSize:14}}>{yr} · {yFlights.length} Flüge{yrBiplace>0&&<span style={{color:"#fcd34d",fontSize:11,fontWeight:600}}> · {yrBiplace} Biplace</span>}</span>
+                  <span style={{fontWeight:700,color:"#7dd3fc",fontSize:14}}>{yrLabel} · {yFlights.length} Flüge{yrBiplace>0&&<span style={{color:"#fcd34d",fontSize:11,fontWeight:600}}> · {yrBiplace} Biplace</span>}</span>
                 </div>
                 <span style={{fontSize:12,color:"rgba(232,244,253,0.35)"}}>{yrH}h{yrM}m {collapsed?"▸":"▾"}</span>
               </div>
