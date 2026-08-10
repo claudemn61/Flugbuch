@@ -4127,7 +4127,7 @@ function FlugbuchApp() {
         </button>
       </div>
 
-      {/* Import menu: CSV/PDF, IGC, Zellen */}
+      {/* Import menu: CSV/PDF, IGC */}
       {showImportMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
           <div onDragOver={e=>{e.preventDefault();setPdfDragOver(true)}} onDragLeave={()=>setPdfDragOver(false)}
@@ -4145,11 +4145,6 @@ function FlugbuchApp() {
             <div style={{color:dragOver?"#fcd34d":"rgba(252,211,77,0.5)",fontSize:10}}>
               {importProgress ? `⏳ ${importProgress.done}/${importProgress.total}` : importing?"⏳ Importiere…":"IGC"}
             </div>
-          </div>
-          <div onClick={()=>setShowRowImport(s=>!s)}
-            style={{flex:1,border:`2px dashed ${showRowImport?"#4ade80":"rgba(74,222,128,0.25)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:showRowImport?"rgba(74,222,128,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
-            <div style={{fontSize:15}}>📝</div>
-            <div style={{color:showRowImport?"#4ade80":"rgba(134,239,172,0.5)",fontSize:10}}>Zellen</div>
           </div>
         </div>
       )}
@@ -4197,7 +4192,7 @@ function FlugbuchApp() {
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
           <button onClick={exportBackup}
             style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-            ☁️ In iCloud sichern
+            ☁️ Backup sichern
           </button>
           <button onClick={()=>backupFileRef.current?.click()}
             style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
@@ -4266,27 +4261,11 @@ function FlugbuchApp() {
             style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:10,padding:"9px 4px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
             🗑 {selectedIds.size}
           </button>
-          <select
-            value=""
-            onChange={async e=>{
-              const reiseName = e.target.value;
-              if (!reiseName) return;
-              if (!selectedIds.size) { setCopyMsg("Keine Flüge ausgewählt."); return; }
-              const chosen = flights.filter(f=>selectedIds.has(f.id));
-              for (const f of chosen) {
-                const updated = { ...f, customFields: { ...(f.customFields||{}), reise: reiseName } };
-                await saveFlight(updated);
-              }
-              setFlights(prev => prev.map(f => selectedIds.has(f.id)
-                ? { ...f, customFields: { ...(f.customFields||{}), reise: reiseName } } : f));
-              setCopyMsg(`✓ ${chosen.length} Flug${chosen.length!==1?"e":""} → "${reiseName}" zugeordnet.`);
-              e.target.value = "";
-            }}
-            title="Auswahl einer Reise zuordnen"
-            style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(245,166,35,0.15)",border:"1px solid rgba(245,166,35,0.3)",borderRadius:10,padding:"9px 4px",color:"#f5a623",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center",appearance:"none",WebkitAppearance:"none"}}>
-            <option value="" style={{background:"#040e20"}}>🧭 {selectedIds.size}</option>
-            {reisenNames.map(n => <option key={n} value={n} style={{background:"#040e20"}}>{n}</option>)}
-          </select>
+          <button onClick={()=>setSelectedIds(new Set(flights.map(f=>f.id)))}
+            title="Alle Flüge auswählen"
+            style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(232,244,253,0.08)",border:"1px solid rgba(232,244,253,0.15)",borderRadius:10,padding:"9px 4px",color:"#e8f4fd",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+            Alle
+          </button>
         </div>
       )}
       {confirmBulkDelete && (
@@ -4384,7 +4363,14 @@ function FlugbuchApp() {
               {field("Landeplatz", "landung")}
               {field("Schirm", "glider")}
               {field("Passagier", "passagier")}
-              {field("Reise", "reise", { placeholder: reisenNames.length ? reisenNames.join(", ") : "unverändert lassen" })}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4}}>Reise</div>
+                <select value={bulkEditData.reise||""} onChange={e=>setBulkEditData(d=>({...d,reise:e.target.value}))}
+                  style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 13px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box",appearance:"none",WebkitAppearance:"none"}}>
+                  <option value="" style={{background:"#14253a"}}>unverändert lassen</option>
+                  {reisenNames.map(n => <option key={n} value={n} style={{background:"#14253a"}}>{n}</option>)}
+                </select>
+              </div>
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:6}}>Bewertung</div>
                 <div style={{display:"flex",gap:6}}>
