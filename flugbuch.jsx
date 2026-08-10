@@ -3003,7 +3003,9 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
               zurücksetzen) portals in here, compact enough for one line. */}
-          <div ref={controlsSlotRef} style={{display:"flex",flexWrap:isWide?"nowrap":"wrap",alignItems:"center",gap:6,margin:"10px 0 14px"}} />
+          <div ref={controlsSlotRef} style={isWide
+            ? {display:"grid",gridTemplateColumns:"repeat(4, 1fr)",alignItems:"center",gap:6,margin:"10px 0 14px"}
+            : {display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,margin:"10px 0 14px"}} />
 
           {/* Stats grid — each of the 9 tiles shows a user-chosen field
               (persisted globally, not per-flight). Tapping a tile opens a
