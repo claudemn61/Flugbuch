@@ -4126,6 +4126,10 @@ function FlugbuchApp() {
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:23,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
           {collapsedYears.size===0?"⊟⊟":"⊞⊞"}
         </button>
+        <button onClick={()=>{ setSearchRowOpen(o=>!o); setShowImportMenu(false); setShowBackupMenu(false); }} title="Suchen/Sortieren"
+          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:searchRowOpen?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${searchRowOpen?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          🔍
+        </button>
       </div>
 
       {/* Import menu: CSV/PDF, IGC */}
@@ -4452,9 +4456,9 @@ function FlugbuchApp() {
         </div>
       )}
 
-      {/* Row 3: Suchen / Sortierung — je exakt halbe Zeilenbreite, ein-/ausblendbar um Platz zu sparen */}
-      <div style={{padding:"12px 16px 6px",position:"relative"}}>
-        {searchRowOpen ? (
+      {/* Row 3: Suchen / Sortierung — je exakt halbe Zeilenbreite, ein-/ausblendbar über die 🔍-Kachel oben */}
+      {searchRowOpen && (
+        <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
             <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} />
@@ -4464,17 +4468,7 @@ function FlugbuchApp() {
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
-            <button onClick={()=>setSearchRowOpen(false)} title="Suchen/Sortieren ausblenden"
-              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer"}}>
-              ▴
-            </button>
           </div>
-        ) : (
-          <button onClick={()=>setSearchRowOpen(true)} title="Suchen/Sortieren einblenden"
-            style={{width:"100%",boxSizing:"border-box",display:"flex",justifyContent:"center",alignItems:"center",gap:6,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"6px 8px",color:"rgba(232,244,253,0.5)",fontSize:11,cursor:"pointer"}}>
-            🔍 Suchen/Sortieren ▾
-          </button>
-        )}
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
             <div style={{fontWeight:700,color:"#7dd3fc",marginBottom:4}}>Filter-Syntax</div>
@@ -4496,6 +4490,7 @@ function FlugbuchApp() {
           </div>
         )}
       </div>
+      )}
 
       {/* Multi row import */}
       <div style={{margin:"0 16px 10px"}}>
