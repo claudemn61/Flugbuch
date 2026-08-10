@@ -4532,19 +4532,16 @@ function FlugbuchApp() {
             <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} />
             </div>
-            <button onClick={()=>setShowSortMenu(s=>!s)}
-              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
-              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Kat.2: {sortId ? (SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—") : "Leer"}</span>
-              <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
-            </button>
-          </div>
-          <div style={{display:"flex",gap:8,alignItems:"flex-start",marginTop:8}}>
             <button onClick={()=>setShowKat1Menu(s=>!s)}
               style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Kat.1: {kat1Id ? (SORT_OPTIONS.find(o=>o.id===kat1Id)?.label||"—") : "Leer"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showKat1Menu?"▾":"▸"}</span>
             </button>
-            <div style={{flex:"1 1 0",minWidth:0}} />
+            <button onClick={()=>setShowSortMenu(s=>!s)}
+              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Kat.2: {sortId ? (SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—") : "Leer"}</span>
+              <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
+            </button>
           </div>
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
