@@ -2738,11 +2738,16 @@ function SchirmSelect({ value, onSave, extra }) {
 
 
 
-function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, setView, setInlinePassagier, setEditData, saveFlight, showFieldEditor, setShowFieldEditor, handleSaveFields, confirmDelete, setConfirmDelete, hideBackButton, isWide, returnTo }) {
+function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, setSelected, setView, setInlinePassagier, setEditData, saveFlight, showFieldEditor, setShowFieldEditor, handleSaveFields, confirmDelete, setConfirmDelete, hideBackButton, isWide, returnTo }) {
 
     const autoFields = customFieldDefs.filter(d=>d.formula).map(d=>({...d, value:evalFormula(d.formula,fl,flights)}));
     const manualFields = customFieldDefs.filter(d=>!d.formula);
-    const flIdx = flights.findIndex(f=>f.id===fl.id);
+    // Swipe navigation walks navFlights (the active search's results, when
+    // a search is active) rather than the full flights list — so swiping
+    // through a filtered result stays within those results instead of
+    // jumping out to the whole flugbuch.
+    const navList = navFlights || flights;
+    const flIdx = navList.findIndex(f=>f.id===fl.id);
 
     // "Typ" is only shown when it has content; this tracks a manual reveal
     // via the discreet "+ Typ" link for entering it the first time, reset
@@ -2758,7 +2763,7 @@ function DetailContent({ fl, flights, customFieldDefs, setFlights, setSelected, 
     // normal vertical scroll of the page is never mistaken for a swipe.
     const touchStart = useRef(null);
     const goToFlight = (delta) => {
-      const next = flights[flIdx + delta];
+      const next = navList[flIdx + delta];
       if (!next) return;
       setSelected(next);
       setInlinePassagier(next.customFields?.passagier || "");
@@ -4004,7 +4009,7 @@ function FlugbuchApp() {
         <SidebarList flights={flights} selectedId={selected.id} longestId={longestId}
           onSelect={f=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");}} />
         <div style={{flex:1,minWidth:0,height:"100vh",overflowY:"auto"}}>
-          <DetailContent fl={enrichedSelected} flights={flightsWithRanks} customFieldDefs={customFieldDefs}
+          <DetailContent fl={enrichedSelected} flights={flightsWithRanks} navFlights={filterText.trim() ? filteredFlights : flightsWithRanks} customFieldDefs={customFieldDefs}
             setFlights={setFlights} setSelected={setSelected} setView={setView}
             setInlinePassagier={setInlinePassagier} setEditData={setEditData}
             saveFlight={saveFlight} showFieldEditor={showFieldEditor} setShowFieldEditor={setShowFieldEditor}
@@ -4016,7 +4021,7 @@ function FlugbuchApp() {
     );
   }
   if (view==="detail" && selected) {
-    return <DetailContent fl={enrichedSelected} flights={flightsWithRanks} customFieldDefs={customFieldDefs}
+    return <DetailContent fl={enrichedSelected} flights={flightsWithRanks} navFlights={filterText.trim() ? filteredFlights : flightsWithRanks} customFieldDefs={customFieldDefs}
       setFlights={setFlights} setSelected={setSelected} setView={setView}
       setInlinePassagier={setInlinePassagier} setEditData={setEditData}
       saveFlight={saveFlight} showFieldEditor={showFieldEditor} setShowFieldEditor={setShowFieldEditor}
