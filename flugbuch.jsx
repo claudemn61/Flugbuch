@@ -4339,6 +4339,7 @@ function FlugbuchApp() {
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
             if (d.passagier) cfPatch.passagier = d.passagier;
+            if (d.typ) cfPatch.typ = d.typ;
             if (d.reise) cfPatch.reise = d.reise==="__CLEAR__" ? "" : d.reise;
             return { ...f, ...patch, customFields: { ...(f.customFields||{}), ...cfPatch } };
           });
@@ -4375,6 +4376,7 @@ function FlugbuchApp() {
               {field("Startplatz", "site")}
               {field("Landeplatz", "landung")}
               {field("Schirm", "glider")}
+              {field("Typ", "typ")}
               {field("Passagier", "passagier")}
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4}}>Reise</div>
