@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.5.1";
+const APP_VERSION = "4.5.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.5.2", note: "Flugbuch/Liste: \"Alle\"-Button (Mehrfachauswahl) markiert bei aktiver Suche jetzt nur noch die aktuell angezeigten Suchergebnisse, nicht mehr das ganze Flugbuch." },
   { v: "4.5.1", note: "Flugbuch/Liste: Das Kat.1/Kat.2-Sortiersystem aus v4.5 war zu kompliziert und wurde vollständig zurückgenommen — wieder wie v4.4.8: feste Jahres-Gruppierung, ein Sortierfeld, einfacher ↑/↓-Umschalter ohne Dropdown." },
   { v: "4.5", note: "Flugbuch/Liste: grundlegend neues Gruppierungs-/Sortiersystem — \"Kat.1\" (Gruppierung, bisher fest Jahr) und \"Kat.2\" (Sortierfeld, bisher Nummer) sind jetzt beide unabhängig aus allen Feldern frei wählbar (inkl. \"Leer\"). Reihenfolge-Dropdown zeigt \"1°\"/\"2°\" mit den tatsächlich gewählten Feldnamen, nur verfügbar wenn beide gesetzt sind." },
   { v: "4.4.9", note: "Flugbuch/Liste: Reihenfolge-Taste (↑/↓) öffnet jetzt ein Dropdown mit \"1° Jahr\", \"2° Sortierfeld\" und \"Beide\" — Jahresgruppen-Reihenfolge war bisher fest auf absteigend fixiert, jetzt separat umkehrbar. Als erweiterbare Liste angelegt für künftige weitere Kategorien." },

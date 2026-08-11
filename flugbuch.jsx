@@ -4269,7 +4269,7 @@ function FlugbuchApp() {
             style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:10,padding:"9px 4px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
             🗑 {selectedIds.size}
           </button>
-          <button onClick={()=>setSelectedIds(new Set(flights.map(f=>f.id)))}
+          <button onClick={()=>setSelectedIds(new Set(filteredFlights.map(f=>f.id)))}
             title="Alle Flüge auswählen"
             style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",background:"rgba(232,244,253,0.08)",border:"1px solid rgba(232,244,253,0.15)",borderRadius:10,padding:"9px 4px",color:"#e8f4fd",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
             Alle
