@@ -439,7 +439,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, controlsSlot, isWide }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -487,6 +487,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // behaviour at all.
   const hasHike = (flight?.hikeTrack?.length || 0) > 1;
   const [playPhase, setPlayPhase] = useState("flight"); // "hike" | "flight"
+  useEffect(() => { if (onPlaybackPhaseChange) onPlaybackPhaseChange(playPhase); }, [playPhase]);
   // Hike points assigned a synthetic, evenly-paced timeline (average
   // walking speed ~4.5 km/h) when the GPX carries no real timestamps —
   // common for route exports — so the hike phase still has a sensible,
@@ -495,15 +496,19 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const pts = flight?.hikeTrack || [];
     if (pts.length < 2) return [];
     const hasRealTimes = pts.every(p => p.timeSec != null);
+    let cumDistKm = 0;
     if (hasRealTimes) {
       const base = pts[0].timeSec;
-      return pts.map(p => ({ ...p, _t: p.timeSec - base }));
+      return pts.map((p, i) => {
+        if (i > 0) cumDistKm += haversineDistKm(pts[i-1], p);
+        return { ...p, _t: p.timeSec - base, _distKm: cumDistKm };
+      });
     }
     const WALK_MPS = 1.25; // ~4.5 km/h
     let cum = 0;
     return pts.map((p, i) => {
-      if (i > 0) cum += haversineDistKm(pts[i-1], p) * 1000;
-      return { ...p, _t: cum / WALK_MPS };
+      if (i > 0) { const dKm = haversineDistKm(pts[i-1], p); cum += dKm*1000; cumDistKm += dKm; }
+      return { ...p, _t: cum / WALK_MPS, _distKm: cumDistKm };
     });
   }, [flight?.hikeTrack]);
 
@@ -776,6 +781,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       const frac = Math.max(0, Math.min(1, (targetT - a._t) / span));
       lat = a.lat + (b.lat-a.lat)*frac; lon = a.lon + (b.lon-a.lon)*frac;
       showBoot = true;
+      if (onPlaybackPositionChange) {
+        const distKm = (a._distKm||0) + ((b._distKm||a._distKm||0) - (a._distKm||0)) * frac;
+        onPlaybackPositionChange(distKm);
+      }
     } else {
       const targetTime = track[0].timeSec + playElapsedSec;
       let i = 0;
@@ -1035,7 +1044,87 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
 // are sent (one batched request) rather than the whole track, since terrain
 // doesn't need 1-second resolution to look right and Open-Meteo caps
 // batches at 100 coordinates anyway.
-function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybackActive, controlsSlot, isWide }) {
+// Compact standalone elevation profile for the Hike-GPX portion (if any) —
+// deliberately simple (no zoom/pan, unlike the main flight profile below)
+// since it's a secondary/supplementary chart. Green line matching the
+// map's own Hike-route colour; syncs its own marker to the cine playback's
+// hike phase.
+function HikeProfile({ flight, playbackDistanceKm, isPlaybackActive, playbackPhase }) {
+  const canvasRef = useRef(null);
+  const pts = flight?.hikeTrack || [];
+  const showPlayback = isPlaybackActive && playbackPhase === "hike" && playbackDistanceKm != null;
+
+  const { distances, elevations, totalDist } = useMemo(() => {
+    if (pts.length < 2) return { distances: [], elevations: [], totalDist: 0 };
+    const d = [0], e = [pts[0].ele ?? 0];
+    for (let i = 1; i < pts.length; i++) {
+      d.push(d[i-1] + (haversineDistKm(pts[i-1], pts[i]) || 0));
+      e.push(pts[i].ele ?? e[i-1]);
+    }
+    return { distances: d, elevations: e, totalDist: d[d.length-1] || 0 };
+  }, [pts]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || distances.length < 2) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width, H = 70;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.height = H+"px";
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const padL = 34*dpr, padR = 8*dpr, padT = 8*dpr, padB = 16*dpr;
+    const plotW = canvas.width-padL-padR, plotH = canvas.height-padT-padB;
+    const minE = Math.min(...elevations), maxE = Math.max(...elevations, minE+1);
+    const eRange = maxE-minE || 1;
+    const xPos = d => padL + (d/totalDist)*plotW;
+    const yPos = e => padT + plotH - ((e-minE)/eRange)*plotH;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1*dpr;
+    ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+plotH); ctx.lineTo(padL+plotW,padT+plotH); ctx.stroke();
+
+    ctx.strokeStyle = "#16a34a"; ctx.lineWidth = 2*dpr;
+    ctx.beginPath();
+    distances.forEach((d,i) => { const x=xPos(d), y=yPos(elevations[i]); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(232,244,253,0.5)"; ctx.font = `${9*dpr}px -apple-system,sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText(Math.round(maxE)+"m", padL-4*dpr, padT+8*dpr);
+    ctx.fillText(Math.round(minE)+"m", padL-4*dpr, padT+plotH);
+    ctx.textAlign = "left"; ctx.fillText("0.0 km", padL, padT+plotH+13*dpr);
+    ctx.textAlign = "right"; ctx.fillText(totalDist.toFixed(1)+" km", padL+plotW, padT+plotH+13*dpr);
+
+    if (showPlayback) {
+      let i = 0;
+      while (i < distances.length-2 && distances[i+1] < playbackDistanceKm) i++;
+      const a = distances[i], b = distances[i+1] ?? a;
+      const frac = Math.max(0, Math.min(1, (playbackDistanceKm-a)/((b-a)||1)));
+      const ex = elevations[i] + ((elevations[i+1]??elevations[i]) - elevations[i])*frac;
+      const px = xPos(playbackDistanceKm), py = yPos(ex);
+      ctx.save();
+      ctx.setLineDash([3*dpr,3*dpr]);
+      ctx.strokeStyle = "rgba(74,222,128,0.7)"; ctx.lineWidth = 1*dpr;
+      ctx.beginPath(); ctx.moveTo(px,padT); ctx.lineTo(px,padT+plotH); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = "#4ade80";
+      ctx.beginPath(); ctx.arc(px,py,4*dpr,0,Math.PI*2); ctx.fill();
+    }
+  }, [distances, elevations, totalDist, playbackDistanceKm, showPlayback]);
+
+  if (pts.length < 2) return null;
+  return (
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:10,fontWeight:700,color:"#4ade80",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>🥾 Hike-Höhenprofil</div>
+      <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(74,222,128,0.15)",background:"#040e20"}}>
+        <canvas ref={canvasRef} style={{width:"100%",display:"block"}} />
+      </div>
+    </div>
+  );
+}
+
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlaybackDistanceKm, isPlaybackActive, playbackPhase, controlsSlot, isWide }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -1060,6 +1149,20 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
   const viewStart = panPos - (1/viewScale)/2;
   const track = flight?.track || [];
 
+  // Hike-GPX portion (if any) — prepended onto the same distance axis as
+  // the flight, in its own (unscaled) real km. Zoom/pan below applies to
+  // the combined range, not just the flight.
+  const hikePts = flight?.hikeTrack || [];
+  const { hikeDist, hikeElev, hikeOffsetKm } = useMemo(() => {
+    if (hikePts.length < 2) return { hikeDist: [], hikeElev: [], hikeOffsetKm: 0 };
+    const d = [0], e = [hikePts[0].ele ?? 0];
+    for (let i = 1; i < hikePts.length; i++) {
+      d.push(d[i-1] + (haversineDistKm(hikePts[i-1], hikePts[i]) || 0));
+      e.push(hikePts[i].ele ?? e[i-1]);
+    }
+    return { hikeDist: d, hikeElev: e, hikeOffsetKm: d[d.length-1] || 0 };
+  }, [hikePts]);
+
   const rawDistances = useMemo(() => {
     if (!track.length) return [];
     const d = [0];
@@ -1078,8 +1181,17 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
   // manual value has been entered for this flight.
   const manualDist = parseFloat(getDisplayDistance(flight)) || 0;
   const scale = (manualDist > 0 && rawTotalDist > 0) ? manualDist/rawTotalDist : 1;
-  const distances = useMemo(() => rawDistances.map(d => d*scale), [rawDistances, scale]);
-  const totalDist = distances[distances.length-1] || 0;
+  // Flight distances offset by the hike's own length, so both sit on one
+  // continuous axis: [0, hikeOffsetKm] is the hike, [hikeOffsetKm,
+  // totalDist] is the flight.
+  const distances = useMemo(() => rawDistances.map(d => d*scale + hikeOffsetKm), [rawDistances, scale, hikeOffsetKm]);
+  const totalDist = distances[distances.length-1] || hikeOffsetKm || 0;
+
+  // Converts a playback position (reported as hike-relative km during the
+  // hike phase, or flight-relative km during the flight phase — see
+  // FlightMap) into this chart's combined-axis km.
+  const playbackDistanceKm = rawPlaybackDistanceKm == null ? null
+    : (playbackPhase === "hike" ? rawPlaybackDistanceKm : rawPlaybackDistanceKm*scale + hikeOffsetKm);
 
   // Cine-playback follow: while zoomed in, once the glider's position
   // (reported by FlightMap, same "raw km" basis distances[] uses) leaves
@@ -1088,15 +1200,14 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
   // weiterspringend", matching the map's own jump-to-follow behaviour.
   useEffect(() => {
     if (!isPlaybackActive || playbackDistanceKm == null || zoomLevel <= 1 || !totalDist) return;
-    const scaledDist = playbackDistanceKm * scale;
     const windowFrac = 1/zoomLevel;
     const curStart = viewStart;
     const curEnd = viewStart + windowFrac;
-    const posFrac = scaledDist / totalDist;
+    const posFrac = playbackDistanceKm / totalDist;
     if (posFrac < curStart || posFrac > curEnd) {
       setPanPos(Math.max(0, Math.min(1, posFrac + windowFrac/2)));
     }
-  }, [playbackDistanceKm, isPlaybackActive, zoomLevel, totalDist, scale]);
+  }, [playbackDistanceKm, isPlaybackActive, zoomLevel, totalDist]);
 
   useEffect(() => { setZoomLevel(1); setPanPos(0.5); }, [flight?.id]);
   useEffect(() => {
@@ -1115,8 +1226,11 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
     if (zoomLevel <= 1 || !totalDist) { onPositionChange(null); return; }
     const visStart = viewStart * totalDist;
     const visEnd = visStart + totalDist/viewScale;
-    const toRaw = d => scale > 0 ? d / scale : d;
-    onPositionChange({ start: toRaw(Math.max(0,visStart)), end: toRaw(Math.min(totalDist,visEnd)), center: toRaw((visStart+visEnd)/2) });
+    // Window entirely within the hike segment (before hikeOffsetKm) has no
+    // corresponding flight-track position for the map to zoom to.
+    if (visEnd <= hikeOffsetKm) { onPositionChange(null); return; }
+    const toRaw = d => scale > 0 ? Math.max(0, d-hikeOffsetKm) / scale : Math.max(0, d-hikeOffsetKm);
+    onPositionChange({ start: toRaw(Math.max(hikeOffsetKm,visStart)), end: toRaw(Math.min(totalDist,visEnd)), center: toRaw((Math.max(hikeOffsetKm,visStart)+Math.min(totalDist,visEnd))/2) });
   }, [zoomLevel, viewStart, viewScale, totalDist, scale]);
 
   // Swipe-to-pan directly on the chart, active only while zoomed (>1×) —
@@ -1190,31 +1304,44 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
   useEffect(() => {
     setGroundProfile(null);
     setGroundError(false);
-    if (!track.length || totalDist <= 0) return;
+    if ((!track.length && hikePts.length < 2) || totalDist <= 0) return;
     let cancelled = false;
     (async () => {
       try {
+        // Sample points proportionally across the combined hike+flight
+        // range — roughly 80 points total, split by how much of the
+        // combined distance each portion actually covers.
         const N = 80;
+        const nHike = hikeOffsetKm > 0 ? Math.max(4, Math.round(N * hikeOffsetKm/totalDist)) : 0;
+        const nFlight = N - nHike;
         const samplePts = [];
-        let idx = 0;
-        for (let i = 0; i <= N; i++) {
-          const targetDist = (totalDist / N) * i;
-          while (idx < distances.length-1 && distances[idx] < targetDist) idx++;
-          samplePts.push({ pt: track[idx], distKm: distances[idx] });
+        for (let i = 0; i <= nHike && hikePts.length > 1; i++) {
+          const targetDist = (hikeOffsetKm / nHike) * i;
+          let idx = 0;
+          while (idx < hikeDist.length-1 && hikeDist[idx] < targetDist) idx++;
+          samplePts.push({ lat: hikePts[idx].lat, lon: hikePts[idx].lon, distKm: hikeDist[idx], ownElev: hikePts[idx].ele });
         }
-        const lats = samplePts.map(s=>s.pt.lat.toFixed(5)).join(",");
-        const lons = samplePts.map(s=>s.pt.lon.toFixed(5)).join(",");
+        let idx = 0;
+        for (let i = 0; i <= nFlight && track.length > 1; i++) {
+          const targetDist = (rawTotalDist / nFlight) * i;
+          while (idx < rawDistances.length-1 && rawDistances[idx] < targetDist) idx++;
+          samplePts.push({ lat: track[idx].lat, lon: track[idx].lon, distKm: distances[idx], ownElev: track[idx].gpsAlt });
+        }
+        if (!samplePts.length) return;
+        const lats = samplePts.map(s=>s.lat.toFixed(5)).join(",");
+        const lons = samplePts.map(s=>s.lon.toFixed(5)).join(",");
         const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`);
         const data = await res.json();
         if (cancelled) return;
         if (Array.isArray(data.elevation)) {
-          // Never let the ground appear above the flight trace: a 90m-
-          // resolution terrain model can occasionally overshoot near a
-          // ridge or narrow valley the aircraft actually cleared, which
-          // would otherwise draw as physically flying through the ground.
+          // Never let the ground appear above the flight/hike trace: a
+          // 90m-resolution terrain model can occasionally overshoot near a
+          // ridge or narrow valley the actual GPS track cleared, which
+          // would otherwise draw as physically walking/flying through the
+          // ground.
           setGroundProfile(samplePts.map((s,i) => ({
             distKm: s.distKm,
-            elev: data.elevation[i] != null ? Math.min(data.elevation[i], s.pt.gpsAlt - 5) : null,
+            elev: data.elevation[i] != null ? Math.min(data.elevation[i], s.ownElev - 5) : null,
           })));
         } else {
           setGroundError(true);
@@ -1222,11 +1349,11 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
       } catch { if (!cancelled) setGroundError(true); }
     })();
     return () => { cancelled = true; };
-  }, [flight?.id, totalDist]);
+  }, [flight?.id, totalDist, hikeOffsetKm]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !track.length) return;
+    if (!canvas || (!track.length && hikePts.length < 2)) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = canvas.clientWidth * dpr;
     canvas.height = canvas.clientHeight * dpr;
@@ -1245,12 +1372,17 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
     const visStartLabel = Math.max(0, visStart);
     const visEndLabel = Math.min(totalDist, visEnd);
 
-    // Altitude range comes only from the points actually inside the visible
-    // window — zooming into a segment re-scales the legend to that
-    // segment's own min/max instead of staying pinned to the whole flight.
+    // Altitude range comes from every point (hike + flight) actually
+    // inside the visible window — zooming into a segment re-scales the
+    // legend to that segment's own min/max instead of staying pinned to
+    // the whole combined range.
     const visibleAlts = [];
     for (let i=0;i<track.length;i++) if (distances[i]>=visStart && distances[i]<=visEnd) visibleAlts.push(track[i].gpsAlt);
-    if (!visibleAlts.length) visibleAlts.push(track[0].gpsAlt, track[track.length-1].gpsAlt);
+    for (let i=0;i<hikeElev.length;i++) if (hikeDist[i]>=visStart && hikeDist[i]<=visEnd) visibleAlts.push(hikeElev[i]);
+    if (!visibleAlts.length) {
+      if (track.length) visibleAlts.push(track[0].gpsAlt, track[track.length-1].gpsAlt);
+      else visibleAlts.push(hikeElev[0], hikeElev[hikeElev.length-1]);
+    }
     let minA = Math.min(...visibleAlts), maxA = Math.max(...visibleAlts);
     if (groundProfile) {
       const gv = groundProfile.filter(g=>g.distKm>=visStart && g.distKm<=visEnd).map(g=>g.elev).filter(v=>v!=null);
@@ -1264,6 +1396,17 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
 
     ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1*dpr;
     ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+plotH); ctx.lineTo(padL+plotW,padT+plotH); ctx.stroke();
+
+    // Marks where the hike ends and the flight begins, if both are shown
+    // in the current window — a thin, permanent divider (distinct from
+    // the dashed red zoom-centre line below).
+    if (hikeOffsetKm > 0 && hikeOffsetKm > visStart && hikeOffsetKm < visEnd) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(74,222,128,0.4)"; ctx.lineWidth = 1*dpr;
+      ctx.setLineDash([2*dpr, 2*dpr]);
+      ctx.beginPath(); ctx.moveTo(xPos(hikeOffsetKm), padT); ctx.lineTo(xPos(hikeOffsetKm), padT+plotH); ctx.stroke();
+      ctx.restore();
+    }
 
     ctx.fillStyle = "rgba(232,244,253,0.5)"; ctx.font = `${10*dpr}px -apple-system,sans-serif`;
     ctx.textAlign = "right";
@@ -1287,44 +1430,48 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
     // same point the map's red reference marker sits at — shown on the
     // Y-axis alongside the min/max labels, positioned at its own height.
     // While cine playback is actively running, this follows the moving
-    // glider's position instead (same distance basis FlightMap reports),
+    // marker instead (same combined-axis basis as everything else here),
     // so the red label always matches whichever marker is actually
     // visible on the map right now. Shown at every zoom level, including
-    // the overview (1×) — not just once actually zoomed in.
-    const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm*scale : (visStart+visEnd)/2;
-    let closestIdx = 0, closestDiff = Infinity;
-    for (let i=0;i<distances.length;i++) {
-      const diff = Math.abs(distances[i]-centerDist);
-      if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+    // the overview (1×) — not just once actually zoomed in. Reads from
+    // whichever segment (hike or flight) the centre point actually falls
+    // into.
+    const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm : (visStart+visEnd)/2;
+    const inHike = centerDist <= hikeOffsetKm && hikeDist.length > 0;
+    let centerAlt = null, centerLabel = "";
+    if (inHike) {
+      let ci = 0, cd = Infinity;
+      for (let i=0;i<hikeDist.length;i++) { const diff = Math.abs(hikeDist[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
+      centerAlt = hikeElev[ci];
+      centerLabel = `🥾 ${centerDist.toFixed(1)}km`;
+    } else if (distances.length) {
+      let ci = 0, cd = Infinity;
+      for (let i=0;i<distances.length;i++) { const diff = Math.abs(distances[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
+      centerAlt = track[ci]?.gpsAlt;
+      const utcStartSec = track[0]?.timeSec, rawTime = track[ci]?.timeSec;
+      if (rawTime != null && utcStartSec != null) {
+        const elapsedSec = Math.max(0, rawTime - utcStartSec);
+        const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
+        const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
+        const flightKm = (centerDist-hikeOffsetKm)/(scale||1);
+        centerLabel = `${hh}:${mm}/${flightKm.toFixed(1)}km`;
+      }
     }
-    const centerAlt = track[closestIdx]?.gpsAlt;
     if (centerAlt != null) {
       const cy = Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt)));
       ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
       ctx.textAlign = "right";
       ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
     }
-
-    // Elapsed flight duration + distance at that same point, shown under
-    // the X-axis at the centre position (not absolute clock time —
-    // duration since takeoff is what's actually useful when scrubbing
-    // through a flight's profile). Same "always shown" treatment as the
-    // altitude label above.
-    const utcStartSec = track[0]?.timeSec;
-    const rawTime = track[closestIdx]?.timeSec;
-    if (rawTime != null && utcStartSec != null) {
-      const elapsedSec = Math.max(0, rawTime - utcStartSec);
-      const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
-      const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
+    if (centerLabel) {
       ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
       ctx.textAlign = "center";
-      ctx.fillText(`${hh}:${mm}/${centerDist.toFixed(1)}km`, padL+plotW/2, padT+plotH+29*dpr);
+      ctx.fillText(centerLabel, padL+plotW/2, padT+plotH+29*dpr);
     }
 
     if (playbackDistanceKm != null) {
-      const scaledDist = playbackDistanceKm * scale;
-      if (scaledDist >= visStart && scaledDist <= visEnd) {
-        const px = xPos(scaledDist);
+      if (playbackDistanceKm >= visStart && playbackDistanceKm <= visEnd) {
+        const px = xPos(playbackDistanceKm);
         ctx.save();
         ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2*dpr;
         ctx.beginPath();
@@ -1343,9 +1490,9 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
       // Only the points inside (plus one just outside on each side, so the
       // fill/line doesn't visibly stop short at the window edge) the
       // current zoom window — including every sample across the whole
-      // flight here, even ones far outside what's visible, was mapping
-      // those to wildly off-canvas x-coordinates and back, which is what
-      // produced the zigzag distortion when zoomed in.
+      // combined range here, even ones far outside what's visible, was
+      // mapping those to wildly off-canvas x-coordinates and back, which
+      // is what produced the zigzag distortion when zoomed in.
       const visibleGround = [];
       for (let i=0;i<groundProfile.length;i++) {
         const g = groundProfile[i];
@@ -1379,6 +1526,20 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
       ctx.stroke();
     }
 
+    // Hike segment — solid green, matching the map's own Hike-route
+    // colour, no height-gradient (that's reserved for the flight below).
+    for (let i=1;i<hikeDist.length;i++) {
+      if (hikeDist[i] < visStart && hikeDist[i-1] < visStart) continue;
+      if (hikeDist[i-1] > visEnd && hikeDist[i] > visEnd) continue;
+      ctx.strokeStyle = "#16a34a"; ctx.lineWidth = 2.5*dpr;
+      ctx.beginPath();
+      ctx.moveTo(xPos(hikeDist[i-1]), yPos(hikeElev[i-1]));
+      ctx.lineTo(xPos(hikeDist[i]), yPos(hikeElev[i]));
+      ctx.stroke();
+    }
+
+    // Flight segment — existing height-colour-coded line (red=low,
+    // blue=high), offset onto the combined axis via `distances`.
     for (let i=1;i<track.length;i++) {
       if (distances[i] < visStart && distances[i-1] < visStart) continue;
       if (distances[i-1] > visEnd && distances[i] > visEnd) continue;
@@ -1389,9 +1550,9 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
       ctx.lineTo(xPos(distances[i]), yPos(track[i].gpsAlt));
       ctx.stroke();
     }
-  }, [track, distances, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm, isPlaybackActive]);
+  }, [track, distances, hikeDist, hikeElev, hikeOffsetKm, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm, isPlaybackActive]);
 
-  if (!track.length) return null;
+  if (!track.length && hikePts.length < 2) return null;
 
   return (
     <div style={{marginBottom:14}}>
@@ -2236,8 +2397,9 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
         {f.glider && <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flexShrink:2}}>· {f.glider}</span>}
-        <span style={{flexShrink:0,marginLeft:6}}>
+        <span style={{flexShrink:0,marginLeft:6,display:"flex",alignItems:"center",gap:4}}>
           {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
+          {f.hikeTrack?.length>1&&<span style={{background:"rgba(239,68,68,0.22)",color:"#f87171",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(248,113,113,0.5)"}}>GPX</span>}
         </span>
         <span style={{flex:1}} />
         <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
@@ -2267,6 +2429,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           <span style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
             {f.pdfOnly&&<span style={{background:"rgba(139,92,246,0.18)",color:"#c4b5fd",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700}}>CSV</span>}
             {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
+            {f.hikeTrack?.length>1&&<span style={{background:"rgba(239,68,68,0.22)",color:"#f87171",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(248,113,113,0.5)"}}>GPX</span>}
             {pax&&<span style={{border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤 {pax}</span>}
           </span>
         </div>
@@ -3025,6 +3188,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const [controlsSlotEl, setControlsSlotEl] = useState(null);
     const controlsSlotRef = useCallback(node => { if (node) setControlsSlotEl(node); }, []);
     const [isPlaybackActive, setIsPlaybackActive] = useState(false);
+    const [playbackPhase, setPlaybackPhase] = useState("flight");
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
     useEffect(() => {
@@ -3238,8 +3402,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} controlsSlot={controlsSlotEl} isWide={isWide} />
+          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
+          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
               zurücksetzen) portals in here, compact enough for one line. */}
