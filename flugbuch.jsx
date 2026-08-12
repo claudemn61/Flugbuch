@@ -199,6 +199,64 @@ function buildGpxFromFlight(flight) {
 </gpx>`;
 }
 
+// Parses a GPX file's <trkpt> elements into a simple {lat, lon, ele, timeSec}
+// track — used for imported "Hike"-Strecken (the hike up to launch, kept as
+// its own separate track from the flight's own IGC-derived track). Basic
+// regex extraction rather than full XML parsing, matching the style already
+// used elsewhere in this file (parseIGC etc.) and keeping this dependency-
+// free for a browser-only environment.
+function parseGpxTrack(text) {
+  const points = [];
+  const trkptRe = /<trkpt\b[^>]*\blat="(-?[\d.]+)"[^>]*\blon="(-?[\d.]+)"[^>]*>([\s\S]*?)<\/trkpt>/gi;
+  let m;
+  while ((m = trkptRe.exec(text))) {
+    const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+    if (isNaN(lat) || isNaN(lon)) continue;
+    const inner = m[3];
+    const eleMatch = inner.match(/<ele>([\d.-]+)<\/ele>/i);
+    const timeMatch = inner.match(/<time>([^<]+)<\/time>/i);
+    let timeSec = null;
+    if (timeMatch) {
+      const d = new Date(timeMatch[1]);
+      if (!isNaN(d.getTime())) timeSec = d.getUTCHours()*3600 + d.getUTCMinutes()*60 + d.getUTCSeconds();
+    }
+    points.push({ lat, lon, ele: eleMatch ? parseFloat(eleMatch[1]) : null, timeSec });
+  }
+  // Fallback for GPX route files (<rtept> instead of <trkpt>) — hiking apps
+  // sometimes export a planned route rather than a recorded track.
+  if (!points.length) {
+    const rteptRe = /<rtept\b[^>]*\blat="(-?[\d.]+)"[^>]*\blon="(-?[\d.]+)"[^>]*>([\s\S]*?)<\/rtept>/gi;
+    while ((m = rteptRe.exec(text))) {
+      const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+      if (isNaN(lat) || isNaN(lon)) continue;
+      const eleMatch = m[3].match(/<ele>([\d.-]+)<\/ele>/i);
+      points.push({ lat, lon, ele: eleMatch ? parseFloat(eleMatch[1]) : null, timeSec: null });
+    }
+  }
+  const nameMatch = text.match(/<(?:trk|rte)>\s*<name>([^<]*)<\/name>/i);
+  return { points, name: nameMatch ? nameMatch[1].trim() : "" };
+}
+
+// Exports a flight's stored Hike-GPX track (separate from the flight's own
+// track — see parseGpxTrack above) back out as a .gpx file, mirroring
+// buildGpxFromFlight's structure.
+function buildHikeGpxFromFlight(flight) {
+  const track = flight?.hikeTrack || [];
+  if (!track.length) return null;
+  const points = track.map(p => {
+    let timeTag = "";
+    if (p.timeSec != null) {
+      const h = Math.floor(p.timeSec/3600)%24, m = Math.floor((p.timeSec%3600)/60), s = p.timeSec%60;
+      timeTag = `<time>1970-01-01T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}Z</time>`;
+    }
+    return `<trkpt lat="${p.lat}" lon="${p.lon}">${p.ele!=null?`<ele>${p.ele}</ele>`:""}${timeTag}</trkpt>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="meinflugApp" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>${flight?.name || "Hike"} (Hike)</name><trkseg>${points}</trkseg></trk>
+</gpx>`;
+}
+
 // ── WorldMapView ───────────────────────────────────────────────────────────
 // Shows Startplatz/Landeplatz markers across all (or just the currently
 // multi-selected) flights, rendered with the MapTiler SDK (loaded via CDN
@@ -2921,13 +2979,24 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       const newSelected = renumbered.find(f => f.id === fl.id);
       if (newSelected) setSelected(newSelected);
     };
-    const [confirmDeleteTrack, setConfirmDeleteTrack] = useState(false);
+    // Consolidated delete: one 🗑 tile opens a small menu choosing what to
+    // remove (IGC track / Hike-GPX / whole flight) instead of separate
+    // buttons for each.
+    const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+    const [confirmDeleteKind, setConfirmDeleteKind] = useState(null); // null | "igc" | "gpxhike" | "all"
     const deleteTrack = async () => {
       const upd = { ...fl, track: [] };
       await saveFlight(upd);
       setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
       setSelected(upd);
-      setConfirmDeleteTrack(false);
+      setConfirmDeleteKind(null);
+    };
+    const deleteHikeTrack = async () => {
+      const upd = { ...fl, hikeTrack: [] };
+      await saveFlight(upd);
+      setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
+      setSelected(upd);
+      setConfirmDeleteKind(null);
     };
 
     return (
@@ -2982,13 +3051,51 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 }}
                 style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"5px 10px",color:"#4ade80",fontSize:12,cursor:"pointer"}}>⬇ GPX</button>
             )}
-            {fl.track?.length>1 && (
-              <button onClick={()=>setConfirmDeleteTrack(true)}
-                title="IGC-Track löschen (Start/Landung bleiben erhalten)"
-                style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:20,padding:"5px 10px",color:"rgba(248,113,113,0.85)",fontSize:12,cursor:"pointer"}}>🗑 IGC</button>
+            {fl.hikeTrack?.length>1 && (
+              <button onClick={()=>{
+                  const gpx = buildHikeGpxFromFlight(fl);
+                  if (gpx) {
+                    const blob = new Blob([gpx], { type: "application/gpx+xml" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${fl?.name || "flug"}_hike.gpx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                  }
+                }}
+                style={{background:"rgba(134,239,172,0.15)",border:"1px solid rgba(134,239,172,0.3)",borderRadius:20,padding:"5px 10px",color:"#86efac",fontSize:12,cursor:"pointer"}}>⬇ GPX Hike</button>
             )}
-            <button onClick={()=>setConfirmDelete(fl.id)}
-              style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,padding:"5px 10px",color:"#f87171",fontSize:12,cursor:"pointer"}}>🗑</button>
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setShowDeleteMenu(s=>!s)}
+                style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,padding:"5px 10px",color:"#f87171",fontSize:12,cursor:"pointer"}}>🗑 ▾</button>
+              {showDeleteMenu && (
+                <>
+                  <div onClick={()=>setShowDeleteMenu(false)} style={{position:"fixed",inset:0,zIndex:99}} />
+                  <div onClick={e=>e.stopPropagation()}
+                    style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:150,zIndex:100}}>
+                    {fl.track?.length>1 && (
+                      <button onClick={()=>{setShowDeleteMenu(false);setConfirmDeleteKind("igc");}}
+                        style={{background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                        IGC-Track
+                      </button>
+                    )}
+                    {fl.hikeTrack?.length>1 && (
+                      <button onClick={()=>{setShowDeleteMenu(false);setConfirmDeleteKind("gpxhike");}}
+                        style={{background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                        GPX Hike
+                      </button>
+                    )}
+                    <button onClick={()=>{setShowDeleteMenu(false);setConfirmDelete(fl.id);}}
+                      style={{background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+                      Alles (ganzer Flug)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
               style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
               ?
@@ -3223,17 +3330,21 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           </div>
         )}
 
-        {confirmDeleteTrack && (
-          <div onClick={()=>setConfirmDeleteTrack(false)}
+        {confirmDeleteKind && (
+          <div onClick={()=>setConfirmDeleteKind(null)}
             style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:24}}>
             <div onClick={e=>e.stopPropagation()}
               style={{background:"#14253a",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
-              <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>IGC-Track löschen?</div>
-              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>Der GPS-Track von {fl.name} wird entfernt. Start- und Landepunkt bleiben erhalten. Diese Aktion kann nicht rückgängig gemacht werden.</div>
+              <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>{confirmDeleteKind==="igc" ? "IGC-Track löschen?" : "GPX Hike löschen?"}</div>
+              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+                {confirmDeleteKind==="igc"
+                  ? `Der GPS-Track von ${fl.name} wird entfernt. Start- und Landepunkt bleiben erhalten. Diese Aktion kann nicht rückgängig gemacht werden.`
+                  : `Die Hike-Route von ${fl.name} wird entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`}
+              </div>
               <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>setConfirmDeleteTrack(false)}
+                <button onClick={()=>setConfirmDeleteKind(null)}
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
-                <button onClick={deleteTrack}
+                <button onClick={confirmDeleteKind==="igc" ? deleteTrack : deleteHikeTrack}
                   style={{flex:1,background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:10,padding:"10px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer"}}>Löschen</button>
               </div>
             </div>
@@ -3376,14 +3487,14 @@ function CsvColumnConfigModal({ columns, onSave, onClose }) {
   );
 }
 
-function DateAmbiguousResolver({ item, onAssign, onCreateNew, onClose }) {
+function DateAmbiguousResolver({ item, onAssign, onCreateNew, onClose, description }) {
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div onClick={e=>e.stopPropagation()}
         style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:380,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
         <div style={{fontSize:15,fontWeight:800,marginBottom:6}}>Welchem Flug zuordnen?</div>
         <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>
-          "{item.file.name}" ({item.date}) passt zu keiner Flug-Nr., aber es gibt mehrere Flüge an diesem Datum ohne GPS-Track.
+          {description || `"${item.file.name}" (${item.date}) passt zu keiner Flug-Nr., aber es gibt mehrere Flüge an diesem Datum ohne GPS-Track.`}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12,maxHeight:"40vh",overflowY:"auto"}}>
           {item.candidates.map(c => (
@@ -3393,10 +3504,43 @@ function DateAmbiguousResolver({ item, onAssign, onCreateNew, onClose }) {
             </button>
           ))}
         </div>
-        <button onClick={onCreateNew}
-          style={{width:"100%",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"9px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-          + Stattdessen neuen Flug anlegen
-        </button>
+        {onCreateNew && (
+          <button onClick={onCreateNew}
+            style={{width:"100%",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:10,padding:"9px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            + Stattdessen neuen Flug anlegen
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Shown when a Hike-GPX file has no readable timestamp, so date-matching
+// isn't possible — lets the person type the flight's own number instead.
+function GpxManualMatchResolver({ item, flights, onAssign, onSkip }) {
+  const [nr, setNr] = useState("");
+  const match = flights.find(f => (f.name||"").replace(/\D/g,"") === nr.trim());
+  return (
+    <div onClick={onSkip} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:340,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:6}}>Welche Flugnummer?</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>
+          "{item.file.name}" enthält keinen lesbaren Zeitstempel — automatische Zuordnung per Datum nicht möglich. Bitte Flugnummer eingeben.
+        </div>
+        <input value={nr} onChange={e=>setNr(e.target.value)} placeholder="z.B. 1013" inputMode="numeric" autoFocus
+          style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 13px",color:"#e8f4fd",fontSize:16,marginBottom:8}} />
+        {nr.trim() && (
+          <div style={{fontSize:12,marginBottom:12,color:match?"#4ade80":"#f87171"}}>
+            {match ? `✓ ${match.name}${match.site?" · "+match.site:""}` : "Kein Flug mit dieser Nummer gefunden."}
+          </div>
+        )}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onSkip}
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Überspringen</button>
+          <button onClick={()=>match && onAssign(match)} disabled={!match}
+            style={{flex:1,background:match?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.05)",border:`1px solid ${match?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"10px",color:match?"#4ade80":"rgba(232,244,253,0.3)",fontSize:14,fontWeight:700,cursor:match?"pointer":"default"}}>Zuordnen</button>
+        </div>
       </div>
     </div>
   );
@@ -3427,6 +3571,16 @@ function FlugbuchApp() {
   // MULTIPLE existing (track-less) flights by date — resolved one at a
   // time via a picker rather than guessing which flight each belongs to.
   const [pendingDateAmbiguous, setPendingDateAmbiguous] = useState([]); // [{file, date, candidates}]
+  // Hike-GPX import (separate from the flight's own IGC track) — matched
+  // to an existing flight by date only, never creates a new flight on its
+  // own (a hike route with no flight data attached wouldn't make sense as
+  // a flugbuch entry).
+  const [importingGpx, setImportingGpx] = useState(false);
+  const [gpxResult, setGpxResult] = useState(null);
+  const [pendingGpxAmbiguous, setPendingGpxAmbiguous] = useState([]); // [{file, date, points, name, candidates}]
+  const [pendingGpxManual, setPendingGpxManual] = useState([]); // [{file, points}] — no timestamp found, needs a flight number
+  const [gpxDragOver, setGpxDragOver] = useState(false);
+  const gpxFileRef = useRef(null);
   const [editData, setEditData] = useState({});
   const [customFieldDefs, setCustomFieldDefs] = useState([{id:"passagier",name:"Passagier",type:"text",formula:""}]);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
@@ -4020,6 +4174,83 @@ function FlugbuchApp() {
     await doImport(igc);
   }, [doImport]);
 
+  // Attaches a parsed Hike-GPX track onto an existing flight — additive
+  // only (never overwrites an existing hikeTrack, matching how IGC import
+  // never overwrites an existing real track without explicit confirmation).
+  const attachGpxToFlight = useCallback(async (existing, points) => {
+    const updated = { ...existing, hikeTrack: points };
+    await saveFlight(updated);
+    setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
+    if (selected?.id===updated.id) setSelected(updated);
+  }, [selected, saveFlight]);
+
+  const processGpxFiles = useCallback(async (gpxFiles) => {
+    setImportingGpx(true);
+    let attached = 0;
+    const dateAmbiguous = [];
+    const pendingManual = [];
+    const noMatch = [];
+    for (const file of gpxFiles) {
+      const text = await file.text();
+      const { points, name } = parseGpxTrack(text);
+      if (!points.length) { noMatch.push(file.name); continue; }
+      // Date comes from the first trackpoint's own timestamp if present;
+      // GPX time is UTC same as IGC, but a Hike-GPX rarely has an exact
+      // matching Startzeit anyway, so only the date is used for matching.
+      const firstWithDate = points.find(p => p.timeSec != null);
+      let dateStr = null;
+      const rawFirstTime = text.match(/<trkpt[^>]*>[\s\S]*?<time>([^<]+)<\/time>/i);
+      if (rawFirstTime) {
+        const d = new Date(rawFirstTime[1]);
+        if (!isNaN(d.getTime())) {
+          dateStr = `${String(d.getUTCDate()).padStart(2,"0")}.${String(d.getUTCMonth()+1).padStart(2,"0")}.${d.getUTCFullYear()}`;
+        }
+      }
+      if (!dateStr) { pendingManual.push({ file, points }); continue; }
+      const candidates = flights.filter(f => f.date === dateStr);
+      if (candidates.length === 1) {
+        await attachGpxToFlight(candidates[0], points);
+        attached++;
+      } else if (candidates.length > 1) {
+        dateAmbiguous.push({ file, date: dateStr, points, name, candidates });
+      } else {
+        noMatch.push(file.name + ` (${dateStr}, kein Flug an diesem Datum)`);
+      }
+    }
+    if (dateAmbiguous.length) setPendingGpxAmbiguous(dateAmbiguous);
+    if (pendingManual.length) setPendingGpxManual(pendingManual);
+    setGpxResult({ attached, total: gpxFiles.length, deferred: dateAmbiguous.length+pendingManual.length, noMatch });
+    setTimeout(() => setGpxResult(null), 6000);
+    setImportingGpx(false);
+  }, [flights, attachGpxToFlight]);
+
+  const importGpxFiles = useCallback(async (files) => {
+    const gpx = files.filter(f=>f.name.toLowerCase().endsWith(".gpx"));
+    if (!gpx.length) return;
+    // If exactly one flight is currently marked (Auswahl), attach directly
+    // to it instead of trying to auto-match by date — sidesteps the whole
+    // "GPX has no timestamp" problem entirely, since the target flight is
+    // already explicit. Also useful any time the date-guess would be wrong.
+    if (selectMode && selectedIds.size === 1) {
+      const targetId = [...selectedIds][0];
+      const target = flights.find(f => f.id === targetId);
+      if (target) {
+        setImportingGpx(true);
+        let attached = 0;
+        for (const file of gpx) {
+          const text = await file.text();
+          const { points } = parseGpxTrack(text);
+          if (points.length) { await attachGpxToFlight(target, points); attached++; }
+        }
+        setGpxResult({ attached, total: gpx.length, deferred: 0, noMatch: attached<gpx.length ? [`${gpx.length-attached} Datei(en) ohne lesbare Trackpunkte`] : [] });
+        setTimeout(() => setGpxResult(null), 6000);
+        setImportingGpx(false);
+        return;
+      }
+    }
+    await processGpxFiles(gpx);
+  }, [processGpxFiles, selectMode, selectedIds, flights, attachGpxToFlight]);
+
 
   const saveEdit = useCallback(async () => {
     if (!selected) return;
@@ -4195,7 +4426,7 @@ function FlugbuchApp() {
         </button>
       </div>
 
-      {/* Import menu: CSV/PDF, IGC */}
+      {/* Import menu: CSV/PDF, IGC, GPX (Hike) */}
       {showImportMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
           <div onDragOver={e=>{e.preventDefault();setPdfDragOver(true)}} onDragLeave={()=>setPdfDragOver(false)}
@@ -4214,6 +4445,25 @@ function FlugbuchApp() {
               {importProgress ? `⏳ ${importProgress.done}/${importProgress.total}` : importing?"⏳ Importiere…":"IGC"}
             </div>
           </div>
+          <div onDragOver={e=>{e.preventDefault();setGpxDragOver(true)}} onDragLeave={()=>setGpxDragOver(false)}
+            onDrop={e=>{e.preventDefault();setGpxDragOver(false);importGpxFiles(Array.from(e.dataTransfer.files));}}
+            onClick={()=>gpxFileRef.current?.click()}
+            title={selectMode && selectedIds.size===1 ? "Hike-GPX-Route direkt dem markierten Flug zuordnen" : "Hike-GPX-Route importieren (wird per Datum dem passenden Flug zugeordnet)"}
+            style={{flex:1,border:`2px dashed ${gpxDragOver?"#4ade80":"rgba(74,222,128,0.25)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:gpxDragOver?"rgba(74,222,128,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
+            <div style={{fontSize:15}}>🥾</div>
+            <div style={{color:gpxDragOver?"#4ade80":"rgba(134,239,172,0.5)",fontSize:10}}>
+              {importingGpx?"⏳ Importiere…":(selectMode && selectedIds.size===1 ? "GPX → markiert" : "GPX")}
+            </div>
+          </div>
+        </div>
+      )}
+      <input ref={gpxFileRef} type="file" accept=".gpx" multiple style={{display:"none"}}
+        onChange={e=>{ if (e.target.files.length) importGpxFiles(Array.from(e.target.files)); e.target.value=""; }} />
+      {gpxResult && (
+        <div style={{margin:"8px 16px 0",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#4ade80"}}>
+          {gpxResult.attached} von {gpxResult.total} Hike-GPX zugeordnet.
+          {gpxResult.deferred>0 && ` ${gpxResult.deferred} mit mehreren Kandidaten (Nachfrage folgt).`}
+          {gpxResult.noMatch.length>0 && ` Nicht zugeordnet: ${gpxResult.noMatch.join(", ")}.`}
         </div>
       )}
 
@@ -4252,6 +4502,32 @@ function FlugbuchApp() {
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
             setPendingDateAmbiguous(q=>q.slice(1));
+          }}
+        />
+      )}
+
+      {pendingGpxAmbiguous.length > 0 && (
+        <DateAmbiguousResolver
+          item={pendingGpxAmbiguous[0]}
+          description={`"${pendingGpxAmbiguous[0].file.name}" (${pendingGpxAmbiguous[0].date}) — mehrere Flüge an diesem Datum. Welchem soll die Hike-Route zugeordnet werden?`}
+          onClose={()=>setPendingGpxAmbiguous(q=>q.slice(1))}
+          onAssign={async (chosen) => {
+            const item = pendingGpxAmbiguous[0];
+            await attachGpxToFlight(chosen, item.points);
+            setPendingGpxAmbiguous(q=>q.slice(1));
+          }}
+        />
+      )}
+
+      {pendingGpxManual.length > 0 && (
+        <GpxManualMatchResolver
+          item={pendingGpxManual[0]}
+          flights={flights}
+          onSkip={()=>setPendingGpxManual(q=>q.slice(1))}
+          onAssign={async (chosen) => {
+            const item = pendingGpxManual[0];
+            await attachGpxToFlight(chosen, item.points);
+            setPendingGpxManual(q=>q.slice(1));
           }}
         />
       )}
