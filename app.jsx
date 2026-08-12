@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.7";
+const APP_VERSION = "4.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.8", note: "Hike-GPX wird jetzt auch auf der Karte angezeigt (grün, gestrichelt). Cine-Wiedergabe kombiniert Hike + Flug bei vorhandenem Hike-Track: Hike-Phase (🥾, fixes Icon, keine Drehung) spielt zuerst, pausiert automatisch am Übergang, dann Flug-Phase (🪂) wie bisher. Export-/Löschen-Kacheln im Flugdetail verkleinert (mehr Platz auf iOS)." },
   { v: "4.7", note: "Neu: Import von Hike-GPX-Routen (🥾-Kachel, 3. Import-Option neben CSV/IGC), per Datum dem passenden Flug zugeordnet, bei mehreren Kandidaten Nachfrage. Flugdetail: Export als \"⬇ GPX Hike\" analog zu IGC/GPX. Löschen-Kacheln konsolidiert zu einer einzigen (🗑 ▾) mit Auswahl: IGC-Track, GPX Hike, oder ganzer Flug." },
   { v: "4.6", note: "Flugbuch/Liste: optionale Untergruppierung innerhalb jedes Jahres — \"📁 Gruppieren\" (unter Suchen/Sortieren) wählt aus Schirm, Typ, Startplatz, Landeplatz oder Reise, standardmässig \"Keine\" (unverändertes Verhalten). Jahr bleibt weiterhin die fixe Hauptgruppierung." },
   { v: "4.5.4", note: "Echter Suchfehler behoben: mehrwortige Werte wie \"Advance Pi 23\" wurden nie korrekt gefunden, weil sie beim Aufbau der Suchanfrage nicht in Anführungszeichen gesetzt und der Such-Tokenizer solche Anführungszeichen direkt nach einem Feldnamen ohnehin falsch gelesen hätte — beides jetzt behoben. Erweiterte Suche zeigt bei \"Schirm\" zusätzlich eine Liste der vorhandenen Schirme zur Auswahl." },

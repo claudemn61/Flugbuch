@@ -479,6 +479,34 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const playLastTsRef = useRef(null);
   const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
 
+  // Combined Hike+Flug playback: if a Hike-GPX exists, cine playback runs
+  // the hike first, auto-pauses at the transition to the flight (so the
+  // person can resume deliberately rather than the flight starting mid-
+  // gesture), then the flight plays exactly as it always did. Without a
+  // hikeTrack, playPhase just stays "flight" and nothing here changes
+  // behaviour at all.
+  const hasHike = (flight?.hikeTrack?.length || 0) > 1;
+  const [playPhase, setPlayPhase] = useState("flight"); // "hike" | "flight"
+  // Hike points assigned a synthetic, evenly-paced timeline (average
+  // walking speed ~4.5 km/h) when the GPX carries no real timestamps —
+  // common for route exports — so the hike phase still has a sensible,
+  // proportional duration instead of collapsing to zero or being skipped.
+  const hikeTimed = useMemo(() => {
+    const pts = flight?.hikeTrack || [];
+    if (pts.length < 2) return [];
+    const hasRealTimes = pts.every(p => p.timeSec != null);
+    if (hasRealTimes) {
+      const base = pts[0].timeSec;
+      return pts.map(p => ({ ...p, _t: p.timeSec - base }));
+    }
+    const WALK_MPS = 1.25; // ~4.5 km/h
+    let cum = 0;
+    return pts.map((p, i) => {
+      if (i > 0) cum += haversineDistKm(pts[i-1], p) * 1000;
+      return { ...p, _t: cum / WALK_MPS };
+    });
+  }, [flight?.hikeTrack]);
+
   const track = flight?.track || [];
   const sP = flight?.startPt, eP = flight?.endPt;
   const hasMap = track.length > 0 || (sP && eP);
@@ -589,6 +617,21 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           layout: { "line-join": "round", "line-cap": "round" },
           paint: { "line-color": "#1e40af", "line-width": 3.5 } });
       }
+      // Hike-GPX (the walk up to launch, if imported) shown as a green
+      // line — visually distinct from the flight's own blue track, same
+      // white casing treatment for consistency.
+      if (flight?.hikeTrack?.length > 1) {
+        map.addSource("hiketrack", {
+          type: "geojson",
+          data: { type: "Feature", geometry: { type: "LineString", coordinates: flight.hikeTrack.map(p=>[p.lon,p.lat]) } },
+        });
+        map.addLayer({ id: "hiketrack-casing", type: "line", source: "hiketrack",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "rgba(255,255,255,0.55)", "line-width": 5.5 } });
+        map.addLayer({ id: "hiketrack-line", type: "line", source: "hiketrack",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#16a34a", "line-width": 3, "line-dasharray": [2, 1.4] } });
+      }
       if (track.length) {
         addMarker(track[0], "#22c55e", "S");
         addMarker(track[track.length-1], "#ef4444", "L");
@@ -683,23 +726,34 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // Driven by requestAnimationFrame rather than setInterval so the speed
   // stays smooth and accurate regardless of frame rate hiccups.
   useEffect(() => {
-    if (!isPlaying || track.length < 2) return;
+    if (!isPlaying) return;
+    if (playPhase === "hike" ? hikeTimed.length < 2 : track.length < 2) return;
     playLastTsRef.current = null;
-    const totalSec = track[track.length-1].timeSec - track[0].timeSec;
+    const totalSec = playPhase === "hike" ? hikeTimed[hikeTimed.length-1]._t : (track[track.length-1].timeSec - track[0].timeSec);
     const step = (ts) => {
       if (playLastTsRef.current == null) playLastTsRef.current = ts;
       const dtReal = (ts - playLastTsRef.current) / 1000;
       playLastTsRef.current = ts;
       setPlayElapsedSec(prev => {
         const next = prev + dtReal * playSpeed;
-        if (next >= totalSec) { setIsPlaying(false); return totalSec; }
+        if (next >= totalSec) {
+          setIsPlaying(false);
+          if (playPhase === "hike") {
+            // Auto-pause right at the hike→flight transition, ready for a
+            // deliberate second ▶ press rather than sliding straight into
+            // the flight.
+            setPlayPhase("flight");
+            return 0;
+          }
+          return totalSec;
+        }
         return next;
       });
       playRafRef.current = requestAnimationFrame(step);
     };
     playRafRef.current = requestAnimationFrame(step);
     return () => { if (playRafRef.current) cancelAnimationFrame(playRafRef.current); };
-  }, [isPlaying, playSpeed, track.length]);
+  }, [isPlaying, playSpeed, playPhase, track.length, hikeTimed.length]);
 
   // Moves the playback marker to match playElapsedSec whenever it changes
   // (during playback, or when scrubbing manually) — interpolates between
@@ -708,44 +762,82 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // specifically wants to watch the map and the height profile together,
   // which only the (non-fullscreen) preview allows.
   useEffect(() => {
-    if (track.length < 2 || !window.maptilersdk) return;
+    if (!window.maptilersdk) return;
+    if (playPhase === "hike" ? hikeTimed.length < 2 : track.length < 2) return;
     const sdk = window.maptilersdk;
-    const targetTime = track[0].timeSec + playElapsedSec;
-    let i = 0;
-    while (i < track.length-2 && track[i+1].timeSec < targetTime) i++;
-    const a = track[i], b = track[i+1] || a;
-    const span = (b.timeSec - a.timeSec) || 1;
-    const frac = Math.max(0, Math.min(1, (targetTime - a.timeSec) / span));
-    const lat = a.lat + (b.lat-a.lat)*frac, lon = a.lon + (b.lon-a.lon)*frac;
-    const alt = a.gpsAlt + ((b.gpsAlt||a.gpsAlt) - a.gpsAlt)*frac;
-    const spanBack = track[Math.max(0,i-3)], spanFwd = track[Math.min(track.length-1,i+3)];
-    const hdg = bearingDeg(spanBack, spanFwd);
+
+    let lat, lon, hdg = null, alt = null, showBoot = false;
+    if (playPhase === "hike") {
+      const targetT = playElapsedSec;
+      let i = 0;
+      while (i < hikeTimed.length-2 && hikeTimed[i+1]._t < targetT) i++;
+      const a = hikeTimed[i], b = hikeTimed[i+1] || a;
+      const span = (b._t - a._t) || 1;
+      const frac = Math.max(0, Math.min(1, (targetT - a._t) / span));
+      lat = a.lat + (b.lat-a.lat)*frac; lon = a.lon + (b.lon-a.lon)*frac;
+      showBoot = true;
+    } else {
+      const targetTime = track[0].timeSec + playElapsedSec;
+      let i = 0;
+      while (i < track.length-2 && track[i+1].timeSec < targetTime) i++;
+      const a = track[i], b = track[i+1] || a;
+      const span = (b.timeSec - a.timeSec) || 1;
+      const frac = Math.max(0, Math.min(1, (targetTime - a.timeSec) / span));
+      lat = a.lat + (b.lat-a.lat)*frac; lon = a.lon + (b.lon-a.lon)*frac;
+      alt = a.gpsAlt + ((b.gpsAlt||a.gpsAlt) - a.gpsAlt)*frac;
+      const spanBack = track[Math.max(0,i-3)], spanFwd = track[Math.min(track.length-1,i+3)];
+      hdg = bearingDeg(spanBack, spanFwd);
+
+      if (onPlaybackPositionChange && cumDist.length) {
+        const distKm = (cumDist[i]||0) + ((cumDist[i+1]||cumDist[i]||0) - (cumDist[i]||0)) * frac;
+        onPlaybackPositionChange(distKm);
+      }
+    }
 
     const placeOn = (map, ref, showAlt) => {
       if (!map) return;
+      // Rebuild (not just move) the marker element whenever its icon kind
+      // needs to change — a hiking-boot emoji vs. the glider photo aren't
+      // interchangeable via a simple src swap the way two glider colour
+      // variants are.
+      if (ref.current && ref.current._kind !== (showBoot ? "boot" : "glider")) {
+        ref.current.remove();
+        ref.current = null;
+      }
       if (!ref.current) {
         const el = document.createElement("div");
-        el.style.cssText = `position:relative;width:34px;height:34px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
-        const img = document.createElement("img");
-        img.src = gliderIconUrl;
-        img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
-        el.appendChild(img);
+        el.style.cssText = `position:relative;width:34px;height:34px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;`;
+        let img = null;
+        if (showBoot) {
+          el.style.fontSize = "26px";
+          el.textContent = "🥾";
+        } else {
+          img = document.createElement("img");
+          img.src = gliderIconUrl;
+          img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
+          el.appendChild(img);
+        }
         if (showAlt) {
           const altEl = document.createElement("span");
           altEl.style.cssText = `position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
           el.appendChild(altEl);
           ref._altEl = altEl;
+        } else {
+          ref._altEl = null;
         }
-        const marker = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" }).setLngLat([lon, lat]).addTo(map);
+        const marker = new sdk.Marker({ element: el, rotationAlignment: showBoot?"map":"viewport", pitchAlignment: showBoot?"map":"viewport" }).setLngLat([lon, lat]).addTo(map);
         ref.current = marker;
         ref.current._imgEl = img;
         ref.current._altEl = ref._altEl;
+        ref.current._kind = showBoot ? "boot" : "glider";
       } else {
         ref.current.setLngLat([lon, lat]);
       }
-      if (ref.current._imgEl) ref.current._imgEl.style.transform = `rotate(${hdg}deg)`;
-      if (ref.current._altEl) ref.current._altEl.textContent = Math.round(alt)+"m";
-      // Follow while zoomed to a segment: once the glider leaves the
+      // Fixed (non-rotating) during the hike phase, as requested — only
+      // the flight's own glider marker turns to face the actual heading.
+      if (!showBoot && ref.current._imgEl) ref.current._imgEl.style.transform = `rotate(${hdg}deg)`;
+      if (ref.current._altEl) ref.current._altEl.textContent = (alt!=null ? Math.round(alt) : "")+"m";
+      // Follow while zoomed to a segment: once the marker leaves the
       // currently visible area, jump (same zoom level, so same-size view —
       // not a smooth pan) to a fresh view recentred on it.
       if (highlightRange && isPlaying && map.getBounds && !map.getBounds().contains([lon, lat])) {
@@ -754,12 +846,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     };
     if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef, false);
     if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef, true);
-
-    if (onPlaybackPositionChange && cumDist.length) {
-      const distKm = (cumDist[i]||0) + ((cumDist[i+1]||cumDist[i]||0) - (cumDist[i]||0)) * frac;
-      onPlaybackPositionChange(distKm);
-    }
-  }, [playElapsedSec, isFullscreen]);
+  }, [playElapsedSec, isFullscreen, playPhase]);
 
   // Cleans up the fullscreen-specific playback marker whenever fullscreen
   // closes (playback itself keeps going — it's shared with the preview
@@ -771,6 +858,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   useEffect(() => {
     setIsPlaying(false);
     setPlayElapsedSec(0);
+    setPlayPhase((flight?.hikeTrack?.length || 0) > 1 ? "hike" : "flight");
     if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
     if (previewPlayMarkerRef.current) { previewPlayMarkerRef.current.remove(); previewPlayMarkerRef.current = null; }
     if (onPlaybackPositionChange) onPlaybackPositionChange(null);
@@ -830,9 +918,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           {flight?.track?.length > 1 && (
             <>
               <button onClick={()=>setIsPlaying(p=>!p)}
-                title={isPlaying?"Pause":"Abspielen"}
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                {isPlaying ? "⏸" : "▶"}
+                title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
+                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
+                {isPlaying ? "⏸" : "▶"}{hasHike && <span style={{fontSize:11}}>{playPhase==="hike"?"🥾":"🪂"}</span>}
               </button>
               <div style={{position:"relative",flex:"1 1 0",minWidth:0}} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>setPlayPickerOpen(o=>!o)}
@@ -891,9 +979,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           {flight?.track?.length > 1 && (
             <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center"}}>
               <button onClick={()=>setIsPlaying(p=>!p)}
-                title={isPlaying?"Pause":"Abspielen"}
-                style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
-                {isPlaying ? "⏸" : "▶"}
+                title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
+                style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0,boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
+                {isPlaying ? "⏸" : "▶"}{hasHike && <span style={{fontSize:9,lineHeight:1}}>{playPhase==="hike"?"🥾":"🪂"}</span>}
               </button>
               <div style={{position:"relative"}}>
                 <button onClick={()=>setPlayPickerOpen(o=>!o)}
@@ -3005,7 +3093,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(16px + env(safe-area-inset-top, 0px)) 16px 10px"}}>
           {!hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer"}}>←</button>}
           {hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 14px",color:"rgba(232,244,253,0.6)",fontSize:13,cursor:"pointer"}}>✕ Liste</button>}
-          <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
             {fl.track?.length > 1 && (
               <button onClick={()=>{
                 const t = fl.track;
@@ -3032,7 +3120,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}
-              style={{background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:20,padding:"5px 10px",color:"#fcd34d",fontSize:12,cursor:"pointer"}}>⬇ IGC</button>
+              style={{background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:16,padding:"4px 8px",color:"#fcd34d",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ IGC</button>
             )}
             {fl.track?.length>1 && (
               <button onClick={()=>{
@@ -3049,7 +3137,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }
                 }}
-                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"5px 10px",color:"#4ade80",fontSize:12,cursor:"pointer"}}>⬇ GPX</button>
+                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:16,padding:"4px 8px",color:"#4ade80",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ GPX</button>
             )}
             {fl.hikeTrack?.length>1 && (
               <button onClick={()=>{
@@ -3066,11 +3154,11 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }
                 }}
-                style={{background:"rgba(134,239,172,0.15)",border:"1px solid rgba(134,239,172,0.3)",borderRadius:20,padding:"5px 10px",color:"#86efac",fontSize:12,cursor:"pointer"}}>⬇ GPX Hike</button>
+                style={{background:"rgba(134,239,172,0.15)",border:"1px solid rgba(134,239,172,0.3)",borderRadius:16,padding:"4px 8px",color:"#86efac",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ Hike</button>
             )}
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowDeleteMenu(s=>!s)}
-                style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,padding:"5px 10px",color:"#f87171",fontSize:12,cursor:"pointer"}}>🗑 ▾</button>
+                style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:16,padding:"4px 8px",color:"#f87171",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>🗑 ▾</button>
               {showDeleteMenu && (
                 <>
                   <div onClick={()=>setShowDeleteMenu(false)} style={{position:"fixed",inset:0,zIndex:99}} />
