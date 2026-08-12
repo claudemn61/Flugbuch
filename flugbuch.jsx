@@ -4544,20 +4544,23 @@ function FlugbuchApp() {
   const importGpxFiles = useCallback(async (files) => {
     const gpx = files.filter(f=>f.name.toLowerCase().endsWith(".gpx"));
     if (!gpx.length) return;
-    // If exactly one flight is currently marked (Auswahl), attach directly
-    // to it instead of trying to auto-match by date — sidesteps the whole
-    // "GPX has no timestamp" problem entirely, since the target flight is
-    // already explicit. Also useful any time the date-guess would be wrong.
-    if (selectMode && selectedIds.size === 1) {
-      const targetId = [...selectedIds][0];
-      const target = flights.find(f => f.id === targetId);
-      if (target) {
+    // If one or more flights are currently marked (Auswahl), attach
+    // directly to all of them instead of trying to auto-match by date —
+    // sidesteps the whole "GPX has no timestamp" problem entirely, since
+    // the target flight(s) are already explicit. Also covers several
+    // flights sharing the exact same hike route (e.g. a group hike).
+    if (selectMode && selectedIds.size >= 1) {
+      const targets = flights.filter(f => selectedIds.has(f.id));
+      if (targets.length) {
         setImportingGpx(true);
         let attached = 0;
         for (const file of gpx) {
           const text = await file.text();
           const { points } = parseGpxTrack(text);
-          if (points.length) { await attachGpxToFlight(target, points); attached++; }
+          if (points.length) {
+            for (const target of targets) await attachGpxToFlight(target, points);
+            attached++;
+          }
         }
         setGpxResult({ attached, total: gpx.length, deferred: 0, noMatch: attached<gpx.length ? [`${gpx.length-attached} Datei(en) ohne lesbare Trackpunkte`] : [] });
         setTimeout(() => setGpxResult(null), 6000);
@@ -4765,11 +4768,11 @@ function FlugbuchApp() {
           <div onDragOver={e=>{e.preventDefault();setGpxDragOver(true)}} onDragLeave={()=>setGpxDragOver(false)}
             onDrop={e=>{e.preventDefault();setGpxDragOver(false);importGpxFiles(Array.from(e.dataTransfer.files));}}
             onClick={()=>gpxFileRef.current?.click()}
-            title={selectMode && selectedIds.size===1 ? "Hike-GPX-Route direkt dem markierten Flug zuordnen" : "Hike-GPX-Route importieren (wird per Datum dem passenden Flug zugeordnet)"}
+            title={selectMode && selectedIds.size>=1 ? `Hike-GPX-Route direkt ${selectedIds.size===1?"dem markierten Flug":"den "+selectedIds.size+" markierten Flügen"} zuordnen` : "Hike-GPX-Route importieren (wird per Datum dem passenden Flug zugeordnet)"}
             style={{flex:1,border:`2px dashed ${gpxDragOver?"#4ade80":"rgba(74,222,128,0.25)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:gpxDragOver?"rgba(74,222,128,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
             <div style={{fontSize:15}}>🥾</div>
             <div style={{color:gpxDragOver?"#4ade80":"rgba(134,239,172,0.5)",fontSize:10}}>
-              {importingGpx?"⏳ Importiere…":(selectMode && selectedIds.size===1 ? "GPX → markiert" : "GPX")}
+              {importingGpx?"⏳ Importiere…":(selectMode && selectedIds.size>=1 ? `GPX → ${selectedIds.size===1?"markiert":selectedIds.size+"×"}` : "GPX")}
             </div>
           </div>
         </div>
