@@ -47,6 +47,7 @@ const SECTIONS = [
     body: () => (<>
       <h3>3.1 Flugliste</h3>
       <p>Standardmässig nach Jahr gruppiert, absteigend nach Nummer sortiert. Über die Sortier-Auswahl lässt sich nach vielen anderen Feldern sortieren (Datum, Dauer, Distanz, Startplatz, Bewertung u.a.), die Richtung über den Pfeil-Button daneben.</p>
+      <p>Optional lässt sich innerhalb jedes Jahres zusätzlich gruppieren ("📁 Gruppieren" unter Suchen/Sortieren): Schirm, Typ, Startplatz, Landeplatz oder Reise, standardmässig "Keine" (aus). Die Jahres-Gruppierung selbst bleibt dabei immer bestehen.</p>
       <h3>3.2 Suche</h3>
       <p>Durchsucht alle Felder eines Flugs gleichzeitig. Erweiterte Operatoren:</p>
       <table><tbody>
@@ -135,6 +136,7 @@ function KurzContent() {
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
+        <li>Optionale Untergruppierung je Jahr (📁 Gruppieren): Schirm/Typ/Startplatz/Landeplatz/Reise, standardmässig aus</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
         <li>Cine-Wiedergabe (▶, Vorschau + Vollbild): 1×-100×, Gleitschirm dreht sich mit; Vollbild zeigt zusätzlich rote Höhenangabe daneben; Karte/Profil springen bei Zoom automatisch mit</li>
         <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>

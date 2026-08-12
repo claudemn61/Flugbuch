@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.5.4";
+const APP_VERSION = "4.6";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.6", note: "Flugbuch/Liste: optionale Untergruppierung innerhalb jedes Jahres — \"📁 Gruppieren\" (unter Suchen/Sortieren) wählt aus Schirm, Typ, Startplatz, Landeplatz oder Reise, standardmässig \"Keine\" (unverändertes Verhalten). Jahr bleibt weiterhin die fixe Hauptgruppierung." },
   { v: "4.5.4", note: "Echter Suchfehler behoben: mehrwortige Werte wie \"Advance Pi 23\" wurden nie korrekt gefunden, weil sie beim Aufbau der Suchanfrage nicht in Anführungszeichen gesetzt und der Such-Tokenizer solche Anführungszeichen direkt nach einem Feldnamen ohnehin falsch gelesen hätte — beides jetzt behoben. Erweiterte Suche zeigt bei \"Schirm\" zusätzlich eine Liste der vorhandenen Schirme zur Auswahl." },
   { v: "4.5.3", note: "Höhenprofil: die rote Höhenangabe (Y-Achse) und Flugzeit/Distanz-Angabe (unter X-Achse) am Referenzpunkt sind jetzt auch in der unvergrösserten Übersicht sichtbar, nicht mehr nur bei aktivem Zoom — gleiche Formatierung wie bisher." },
   { v: "4.5.2", note: "Flugbuch/Liste: \"Alle\"-Button (Mehrfachauswahl) markiert bei aktiver Suche jetzt nur noch die aktuell angezeigten Suchergebnisse, nicht mehr das ganze Flugbuch." },

@@ -1879,6 +1879,18 @@ function evalToken(f, tok){
   return hay.includes(tok.toLowerCase());
 }
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
+// Categorical fields offered for the optional second grouping level
+// (nested inside each year) — deliberately narrower than the full
+// SORT_OPTIONS list, since grouping by a continuous numeric field (e.g.
+// Distanz, Dauer) would just create one tiny group per flight.
+const SUBGROUP_FIELDS = [
+  { id: "glider",  label: "Schirm" },
+  { id: "typ",     label: "Typ" },
+  { id: "site",    label: "Startplatz" },
+  { id: "landung", label: "Landeplatz" },
+  { id: "reise",   label: "Reise" },
+];
+
 const SORT_OPTIONS = [
   { id: "number",   label: "Nummer" },
   { id: "date",     label: "Datum" },
@@ -3425,6 +3437,12 @@ function FlugbuchApp() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchRowOpen, setSearchRowOpen] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState(new Set());
+  // Optional second grouping level, nested inside each year (Jahr stays
+  // fixed as the primary level — only this inner level is configurable).
+  // "" means off — flights just list directly under the year as before.
+  const [subGroupId, setSubGroupId] = useState("");
+  const [showSubGroupMenu, setShowSubGroupMenu] = useState(false);
+  const [collapsedSubGroups, setCollapsedSubGroups] = useState(new Set());
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
@@ -4497,6 +4515,27 @@ function FlugbuchApp() {
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
           </div>
+          <div style={{marginTop:6,position:"relative"}}>
+            <button onClick={()=>setShowSubGroupMenu(s=>!s)}
+              style={{width:"100%",boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:subGroupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
+              <span>📁 Gruppieren: {subGroupId ? (SUBGROUP_FIELDS.find(o=>o.id===subGroupId)?.label||"—") : "Keine"}</span>
+              <span style={{flexShrink:0,marginLeft:4}}>{showSubGroupMenu?"▾":"▸"}</span>
+            </button>
+            {showSubGroupMenu && (
+              <div style={{marginTop:4,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+                <div onClick={()=>{setSubGroupId("");setShowSubGroupMenu(false);}}
+                  style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!subGroupId?"#7dd3fc":"rgba(232,244,253,0.5)",background:!subGroupId?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
+                  Keine
+                </div>
+                {SUBGROUP_FIELDS.map(o=>(
+                  <div key={o.id} onClick={()=>{setSubGroupId(o.id);setShowSubGroupMenu(false);}}
+                    style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===subGroupId?"#7dd3fc":"rgba(232,244,253,0.75)",background:o.id===subGroupId?"rgba(14,165,233,0.15)":"transparent"}}>
+                    {o.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
             <div style={{fontWeight:700,color:"#7dd3fc",marginBottom:4}}>Filter-Syntax</div>
@@ -4662,12 +4701,55 @@ function FlugbuchApp() {
                 <span style={{fontSize:12,color:"rgba(232,244,253,0.35)"}}>{yrH}h{yrM}m {collapsed?"▸":"▾"}</span>
               </div>
               {!collapsed && (
-                yFlights.map(f=>(
-                  <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                    selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                    onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                    onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                ))
+                subGroupId ? (() => {
+                  // Sub-groups computed from this year's own flights, in
+                  // the same order sortFlights would produce, then
+                  // clustered by consecutive equal sub-group value —
+                  // avoids a second independent sort pass fighting the
+                  // chosen Kat.2 order.
+                  const subKeyOf = f => sortFieldValue(f, subGroupId) || "—";
+                  const subKeys = [...new Set(yFlights.map(subKeyOf))];
+                  return subKeys.map(subKey => {
+                    const subFlights = yFlights.filter(f => subKeyOf(f) === subKey);
+                    const subCollapseKey = yr + "|" + subKey;
+                    const subCollapsed = collapsedSubGroups.has(subCollapseKey);
+                    const subLabel = subFlights.length ? formatSortValue(subFlights[0], subGroupId) : subKey;
+                    return (
+                      <div key={subKey}>
+                        <div onClick={()=>{
+                            if (selectMode) {
+                              const subIds = subFlights.map(f=>f.id);
+                              const allSelected = subIds.every(id=>selectedIds.has(id));
+                              setSelectedIds(prev=>{
+                                const n = new Set(prev);
+                                subIds.forEach(id => allSelected ? n.delete(id) : n.add(id));
+                                return n;
+                              });
+                            } else {
+                              setCollapsedSubGroups(s=>{const n=new Set(s);n.has(subCollapseKey)?n.delete(subCollapseKey):n.add(subCollapseKey);return n;});
+                            }
+                          }}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+                          <span style={{fontWeight:600,color:"rgba(125,211,252,0.75)",fontSize:12}}>{subLabel} · {subFlights.length}</span>
+                          <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{subCollapsed?"▸":"▾"}</span>
+                        </div>
+                        {!subCollapsed && subFlights.map(f=>(
+                          <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
+                            selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+                            onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+                            onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
+                        ))}
+                      </div>
+                    );
+                  });
+                })() : (
+                  yFlights.map(f=>(
+                    <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
+                      selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+                      onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+                      onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
+                  ))
+                )
               )}
             </div>
           );
