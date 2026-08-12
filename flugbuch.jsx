@@ -3440,6 +3440,11 @@ function FlugbuchApp() {
   // Optional second grouping level, nested inside each year (Jahr stays
   // fixed as the primary level — only this inner level is configurable).
   // "" means off — flights just list directly under the year as before.
+  // Whether the fixed Jahr grouping is applied at all — default on
+  // (existing behaviour). Turning it off shows a flat, ungrouped list
+  // (sub-grouping is nested under Jahr conceptually, so it's ignored too
+  // while this is off).
+  const [yearGroupingOn, setYearGroupingOn] = useState(true);
   const [subGroupId, setSubGroupId] = useState("");
   const [showSubGroupMenu, setShowSubGroupMenu] = useState(false);
   const [collapsedSubGroups, setCollapsedSubGroups] = useState(new Set());
@@ -4520,6 +4525,10 @@ function FlugbuchApp() {
       {searchRowOpen && (
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+            <button onClick={()=>setYearGroupingOn(v=>!v)} title={yearGroupingOn ? "Jahres-Gruppierung ausschalten" : "Jahres-Gruppierung einschalten"}
+              style={{flexShrink:0,boxSizing:"border-box",background:yearGroupingOn?"rgba(125,211,252,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${yearGroupingOn?"rgba(125,211,252,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"8px 10px",color:yearGroupingOn?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+              Jahr {yearGroupingOn?"−":"+"}
+            </button>
             <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
@@ -4676,8 +4685,10 @@ function FlugbuchApp() {
             <div style={{fontSize:13}}>CSV importieren oder IGC-Dateien ablegen</div>
           </div>
         )}
-        {(sortId !== "date" && sortId !== "number") ? (
-          // Flat, year-spanning sort
+        {(!yearGroupingOn || (sortId !== "date" && sortId !== "number")) ? (
+          // Flat, year-spanning sort — either explicitly toggled off via
+          // "Jahr −", or (existing behaviour) implied by the chosen sort
+          // field.
           <div>
             {(() => {
               const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
