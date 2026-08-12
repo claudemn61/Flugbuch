@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.8";
+const APP_VERSION = "4.8.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.8.1", note: "Hike/Flug-Profil-Fixes: Wanderschuh-Marker auf Karte erscheint jetzt auch beim manuellen Verschieben im Hike-Bereich; Karte und Profil zeigen immer denselben einen Referenzpunkt statt möglicherweise zwei Marker gleichzeitig; grüner Hike-Track liegt jetzt am braunen Bodenprofil an (kein künstlicher Abstand mehr); Cine-Übergang Hike→Flug bleibt beim Pausieren am echten Hike-Ende stehen statt sofort zum Flug-Start zu springen." },
   { v: "4.8", note: "Hike-GPX wird jetzt auch auf der Karte angezeigt (grün, gestrichelt). Cine-Wiedergabe kombiniert Hike + Flug bei vorhandenem Hike-Track: Hike-Phase (🥾, fixes Icon, keine Drehung) spielt zuerst, pausiert automatisch am Übergang, dann Flug-Phase (🪂) wie bisher. Export-/Löschen-Kacheln im Flugdetail verkleinert (mehr Platz auf iOS)." },
   { v: "4.7", note: "Neu: Import von Hike-GPX-Routen (🥾-Kachel, 3. Import-Option neben CSV/IGC), per Datum dem passenden Flug zugeordnet, bei mehreren Kandidaten Nachfrage. Flugdetail: Export als \"⬇ GPX Hike\" analog zu IGC/GPX. Löschen-Kacheln konsolidiert zu einer einzigen (🗑 ▾) mit Auswahl: IGC-Track, GPX Hike, oder ganzer Flug." },
   { v: "4.6", note: "Flugbuch/Liste: optionale Untergruppierung innerhalb jedes Jahres — \"📁 Gruppieren\" (unter Suchen/Sortieren) wählt aus Schirm, Typ, Startplatz, Landeplatz oder Reise, standardmässig \"Keine\" (unverändertes Verhalten). Jahr bleibt weiterhin die fixe Hauptgruppierung." },

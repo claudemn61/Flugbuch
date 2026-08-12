@@ -443,10 +443,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
+  const previewHikeRefMarkerRef = useRef(null);
   const previewReadyRef = useRef(false);
   const fullDivRef = useRef(null);
   const fullMapRef = useRef(null);
   const fullRefMarkerRef = useRef(null);
+  const fullHikeRefMarkerRef = useRef(null);
   const fullReadyRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Which glider marker image to use — chosen in Settings > Schirme,
@@ -512,6 +514,21 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     });
   }, [flight?.hikeTrack]);
 
+  // The only place playPhase/playElapsedSec actually transition from hike
+  // to flight — deliberately on the next ▶ press, not automatically at
+  // the pause moment (see the playback-loop effect below), so the marker
+  // stays visibly frozen at the hike's real end point while paused
+  // instead of jumping to the flight's start in the same frame.
+  const togglePlay = () => {
+    setIsPlaying(p => {
+      if (!p && playPhase === "hike" && hikeTimed.length > 1 && playElapsedSec >= hikeTimed[hikeTimed.length-1]._t - 0.01) {
+        setPlayPhase("flight");
+        setPlayElapsedSec(0);
+      }
+      return !p;
+    });
+  };
+
   const track = flight?.track || [];
   const sP = flight?.startPt, eP = flight?.endPt;
   const hasMap = track.length > 0 || (sP && eP);
@@ -539,9 +556,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
 
   // The segment highlightRange refers to (by cumulative flown distance
   // along the *raw* track, same basis FlightProfile itself uses), plus the
-  // single nearest point to use for the red reference marker.
+  // single nearest point to use for the red reference marker. Guarded
+  // against a highlightRange that's purely a hike-window (no start/end at
+  // all) — see the hike-specific computation right after this one.
   const { segment, refPoint, heading } = useMemo(() => {
-    if (!highlightRange || track.length < 2) return { segment: null, refPoint: null, heading: 0 };
+    if (!highlightRange || highlightRange.start == null || track.length < 2) return { segment: null, refPoint: null, heading: 0 };
     let acc = 0;
     const seg = [];
     if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(track[0]);
@@ -560,6 +579,22 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const heading = bearingDeg(spanBack, spanFwd);
     return { segment: seg.length > 1 ? seg : null, refPoint: track[bestIdx], heading };
   }, [track, highlightRange]);
+
+  // Same idea as above, but for the hike-relative portion of the zoomed
+  // window (if any) — used to show a static boot-icon reference marker
+  // when the profile is scrolled/zoomed into the hike segment, the same
+  // way refPoint does for the flight.
+  const hikeRefPoint = useMemo(() => {
+    const pts = flight?.hikeTrack || [];
+    if (!highlightRange || highlightRange.hikeCenter == null || pts.length < 2) return null;
+    let acc = 0, bestIdx = 0, bestDiff = Math.abs(0 - highlightRange.hikeCenter);
+    for (let i=1;i<pts.length;i++) {
+      acc += haversineDistKm(pts[i-1], pts[i]) || 0;
+      const diff = Math.abs(acc - highlightRange.hikeCenter);
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    }
+    return pts[bestIdx];
+  }, [flight?.hikeTrack, highlightRange]);
 
   // Creates ONE MapTiler map instance (and its one WebGL context) per
   // flight: track line (white casing + blue line) and S/L markers, added
@@ -645,7 +680,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         addMarker(eP, "#ef4444", "L");
       }
       readyRef.current = true;
-      applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef);
+      applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef, mapRefObj===previewMapRef ? previewHikeRefMarkerRef : fullHikeRefMarkerRef);
       removeStrayMapTilerWarnings();
     });
   };
@@ -655,16 +690,19 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // and swaps the track source's data between the full track and just the
   // zoomed-in segment. Safe to call repeatedly — does nothing until the
   // map's initial "load" has actually finished.
-  const applyHighlight = (map, refMarkerRefObj) => {
+  const applyHighlight = (map, refMarkerRefObj, hikeRefMarkerRefObj) => {
     if (!map) return;
     const sdk = window.maptilersdk;
     // Line always shows the whole track — only the camera zooms into the
     // profile's segment (via fitBounds below), so nothing here needs to
     // touch the "track" source at all once it's been set on load.
     if (refMarkerRefObj.current) { refMarkerRefObj.current.remove(); refMarkerRefObj.current = null; }
-    // Skip the static reference marker entirely while cine playback is
-    // running — the moving playback marker already shows the glider, and
-    // showing both at once looked like two overlapping icons.
+    if (hikeRefMarkerRefObj.current) { hikeRefMarkerRefObj.current.remove(); hikeRefMarkerRefObj.current = null; }
+    // Skip the static reference markers entirely while cine playback is
+    // running — the moving playback marker already shows the current
+    // position, and showing both at once looked like two overlapping
+    // icons. Both a flight (glider) and hike (boot) marker can be shown
+    // together when the zoomed window spans the hike→flight transition.
     if (refPoint && !isPlaying) {
       const el = document.createElement("div");
       el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
@@ -679,6 +717,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       refMarkerRefObj.current = new sdk.Marker({ element: el, rotationAlignment: "viewport", pitchAlignment: "viewport" })
         .setLngLat([refPoint.lon, refPoint.lat]).addTo(map);
     }
+    if (hikeRefPoint && !isPlaying) {
+      const el = document.createElement("div");
+      el.style.cssText = `width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:26px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
+      el.textContent = "🥾";
+      hikeRefMarkerRefObj.current = new sdk.Marker({ element: el, rotationAlignment: "map", pitchAlignment: "map" })
+        .setLngLat([hikeRefPoint.lon, hikeRefPoint.lat]).addTo(map);
+    }
     const fitToPoints = (pts) => {
       if (!pts.length) return;
       const lons = pts.map(p=>p.lon), lats = pts.map(p=>p.lat);
@@ -686,6 +731,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 36, animate: false });
     };
     if (segment && segment.length > 1) fitToPoints(segment);
+    else if (hikeRefPoint && highlightRange?.hikeStart != null) {
+      // Zoomed purely into the hike portion — fit the camera to that
+      // segment of the hike track, same idea as the flight's own segment.
+      const pts = flight?.hikeTrack || [];
+      let acc = 0; const seg = [];
+      for (let i=0;i<pts.length;i++) {
+        if (i>0) acc += haversineDistKm(pts[i-1], pts[i]) || 0;
+        if (acc >= highlightRange.hikeStart-0.02 && acc <= highlightRange.hikeEnd+0.02) seg.push(pts[i]);
+      }
+      if (seg.length > 1) fitToPoints(seg); else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
+    }
     else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
     else if (sP && eP) fitToPoints([sP, eP]);
   };
@@ -720,9 +776,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // them, which is what previously exhausted the browser's WebGL context
   // budget during a drag gesture.
   useEffect(() => {
-    if (previewReadyRef.current) applyHighlight(previewMapRef.current, previewRefMarkerRef);
-    if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef);
-  }, [highlightRange?.start, highlightRange?.end, isFullscreen, isPlaying]);
+    if (previewReadyRef.current) applyHighlight(previewMapRef.current, previewRefMarkerRef, previewHikeRefMarkerRef);
+    if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef, fullHikeRefMarkerRef);
+  }, [highlightRange?.start, highlightRange?.end, highlightRange?.hikeStart, highlightRange?.hikeEnd, isFullscreen, isPlaying]);
 
   // Cine playback: moves a dedicated glider marker along the track over
   // time, at playSpeed× real flight time. Works on the preview map too now
@@ -743,13 +799,6 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         const next = prev + dtReal * playSpeed;
         if (next >= totalSec) {
           setIsPlaying(false);
-          if (playPhase === "hike") {
-            // Auto-pause right at the hike→flight transition, ready for a
-            // deliberate second ▶ press rather than sliding straight into
-            // the flight.
-            setPlayPhase("flight");
-            return 0;
-          }
           return totalSec;
         }
         return next;
@@ -926,7 +975,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         <>
           {flight?.track?.length > 1 && (
             <>
-              <button onClick={()=>setIsPlaying(p=>!p)}
+              <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
                 style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
                 {isPlaying ? "⏸" : "▶"}{hasHike && <span style={{fontSize:11}}>{playPhase==="hike"?"🥾":"🪂"}</span>}
@@ -987,7 +1036,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           <div ref={fullDivRef} style={{width:"100%",height:"70vh"}} />
           {flight?.track?.length > 1 && (
             <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={()=>setIsPlaying(p=>!p)}
+              <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
                 style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0,boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                 {isPlaying ? "⏸" : "▶"}{hasHike && <span style={{fontSize:9,lineHeight:1}}>{playPhase==="hike"?"🥾":"🪂"}</span>}
@@ -1226,12 +1275,25 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
     if (zoomLevel <= 1 || !totalDist) { onPositionChange(null); return; }
     const visStart = viewStart * totalDist;
     const visEnd = visStart + totalDist/viewScale;
-    // Window entirely within the hike segment (before hikeOffsetKm) has no
-    // corresponding flight-track position for the map to zoom to.
-    if (visEnd <= hikeOffsetKm) { onPositionChange(null); return; }
-    const toRaw = d => scale > 0 ? Math.max(0, d-hikeOffsetKm) / scale : Math.max(0, d-hikeOffsetKm);
-    onPositionChange({ start: toRaw(Math.max(hikeOffsetKm,visStart)), end: toRaw(Math.min(totalDist,visEnd)), center: toRaw((Math.max(hikeOffsetKm,visStart)+Math.min(totalDist,visEnd))/2) });
-  }, [zoomLevel, viewStart, viewScale, totalDist, scale]);
+    const overallCenter = (visStart+visEnd)/2;
+    const result = {};
+    // Only ONE reference marker/segment is reported — matching whichever
+    // segment the *overall* window centre falls into, the exact same
+    // point the red altitude/time label above reads from. Previously both
+    // a hike and a flight marker could show at once when the window
+    // spanned the boundary, while the label only ever showed one of them
+    // — map and profile disagreeing about "the" reference point even
+    // outside of cine playback (pure manual pan/zoom).
+    if (overallCenter <= hikeOffsetKm && hikeOffsetKm > 0) {
+      const hs = Math.max(0, visStart), he = Math.min(hikeOffsetKm, visEnd);
+      result.hikeStart = hs; result.hikeEnd = he; result.hikeCenter = overallCenter;
+    } else {
+      const toRaw = d => scale > 0 ? Math.max(0, d-hikeOffsetKm) / scale : Math.max(0, d-hikeOffsetKm);
+      const fs = Math.max(hikeOffsetKm, visStart), fe = Math.min(totalDist, visEnd);
+      result.start = toRaw(fs); result.end = toRaw(fe); result.center = toRaw(overallCenter);
+    }
+    onPositionChange(result);
+  }, [zoomLevel, viewStart, viewScale, totalDist, scale, hikeOffsetKm]);
 
   // Swipe-to-pan directly on the chart, active only while zoomed (>1×) —
   // the page-level swipe-between-flights gesture is already fully disabled
@@ -1319,13 +1381,13 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
           const targetDist = (hikeOffsetKm / nHike) * i;
           let idx = 0;
           while (idx < hikeDist.length-1 && hikeDist[idx] < targetDist) idx++;
-          samplePts.push({ lat: hikePts[idx].lat, lon: hikePts[idx].lon, distKm: hikeDist[idx], ownElev: hikePts[idx].ele });
+          samplePts.push({ lat: hikePts[idx].lat, lon: hikePts[idx].lon, distKm: hikeDist[idx], ownElev: hikePts[idx].ele, isHike: true });
         }
         let idx = 0;
         for (let i = 0; i <= nFlight && track.length > 1; i++) {
           const targetDist = (rawTotalDist / nFlight) * i;
           while (idx < rawDistances.length-1 && rawDistances[idx] < targetDist) idx++;
-          samplePts.push({ lat: track[idx].lat, lon: track[idx].lon, distKm: distances[idx], ownElev: track[idx].gpsAlt });
+          samplePts.push({ lat: track[idx].lat, lon: track[idx].lon, distKm: distances[idx], ownElev: track[idx].gpsAlt, isHike: false });
         }
         if (!samplePts.length) return;
         const lats = samplePts.map(s=>s.lat.toFixed(5)).join(",");
@@ -1338,10 +1400,13 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
           // 90m-resolution terrain model can occasionally overshoot near a
           // ridge or narrow valley the actual GPS track cleared, which
           // would otherwise draw as physically walking/flying through the
-          // ground.
+          // ground. Only the flight gets the -5m safety clamp — a hiker is
+          // essentially walking at ground level, so the hike's green line
+          // should visually touch the brown ground fill, not float above
+          // it with the same gap the paraglider (genuinely airborne) has.
           setGroundProfile(samplePts.map((s,i) => ({
             distKm: s.distKm,
-            elev: data.elevation[i] != null ? Math.min(data.elevation[i], s.ownElev - 5) : null,
+            elev: data.elevation[i] != null ? Math.min(data.elevation[i], s.ownElev - (s.isHike?0:5)) : null,
           })));
         } else {
           setGroundError(true);
