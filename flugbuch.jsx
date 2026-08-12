@@ -4529,14 +4529,31 @@ function FlugbuchApp() {
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
           </div>
-          <div style={{marginTop:6,position:"relative"}}>
+          <div style={{marginTop:6,position:"relative",display:"flex",gap:6}}>
             <button onClick={()=>setShowSubGroupMenu(s=>!s)}
-              style={{width:"100%",boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:subGroupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
+              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:subGroupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
               <span>📁 Gruppieren: {subGroupId ? (SUBGROUP_FIELDS.find(o=>o.id===subGroupId)?.label||"—") : "Keine"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showSubGroupMenu?"▾":"▸"}</span>
             </button>
+            {subGroupId && (
+              <button onClick={()=>{
+                  if (collapsedSubGroups.size===0) {
+                    const allSubKeys = new Set();
+                    filteredFlights.forEach(f => {
+                      if (f.year) allSubKeys.add(f.year + "|" + (sortFieldValue(f, subGroupId) || "—"));
+                    });
+                    setCollapsedSubGroups(allSubKeys);
+                  } else {
+                    setCollapsedSubGroups(new Set());
+                  }
+                }}
+                title={collapsedSubGroups.size===0 ? "Alle Untergruppen reduzieren" : "Alle Untergruppen erweitern"}
+                style={{flexShrink:0,width:36,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                {collapsedSubGroups.size===0?"➖":"➕"}
+              </button>
+            )}
             {showSubGroupMenu && (
-              <div style={{marginTop:4,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
                 <div onClick={()=>{setSubGroupId("");setShowSubGroupMenu(false);}}
                   style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!subGroupId?"#7dd3fc":"rgba(232,244,253,0.5)",background:!subGroupId?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
                   Keine
