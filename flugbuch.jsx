@@ -1771,6 +1771,7 @@ function flightFieldValue(f, field){
     case "site": case "start": case "startplatz": return f.site||"";
     case "landung": case "landeplatz": return cf.landung||"";
     case "schirm": case "glider": case "gerät": case "geraet": return f.glider||"";
+    case "typ": case "type": return cf.typ||"";
     case "pilot": return f.pilot||"";
     case "passagier": case "pax": return cf.passagier||"";
     case "reise": return cf.reise||"";
@@ -1886,6 +1887,7 @@ const SORT_OPTIONS = [
   { id: "site",     label: "Startplatz" },
   { id: "landung",  label: "Landeplatz" },
   { id: "glider",   label: "Schirm" },
+  { id: "typ",      label: "Typ" },
   { id: "pax",      label: "Passagier" },
   { id: "reise",    label: "Reise" },
   { id: "duration", label: "Dauer" },
@@ -1977,6 +1979,7 @@ function sortFieldValue(f, sortId) {
     case "site":     return (f.site || "").toLowerCase();
     case "landung":  return (cf.landung || "").toLowerCase();
     case "glider":   return (f.glider || "").toLowerCase();
+    case "typ":      return (cf.typ || "").toLowerCase();
     case "pilot":    return (f.pilot || "").toLowerCase();
     case "pax":      return (cf.passagier || "").toLowerCase();
     case "reise":    return (cf.reise || "").toLowerCase();
@@ -2022,6 +2025,7 @@ function formatSortValue(f, sortId) {
     case "site":     return f.site || "—";
     case "landung":  return cf.landung || "—";
     case "glider":   return f.glider || "—";
+    case "typ":      return cf.typ || "—";
     case "pilot":    return f.pilot || "—";
     case "pax":      return cf.passagier || "—";
     case "reise":    return cf.reise || "—";
@@ -2159,6 +2163,7 @@ const SEARCH_FIELDS = [
   { id: "site",      label: "Startplatz",     type: "text" },
   { id: "landung",   label: "Landeplatz",     type: "text" },
   { id: "glider",    label: "Schirm",         type: "text" },
+  { id: "typ",       label: "Typ",            type: "text" },
   { id: "pilot",     label: "Pilot",          type: "text" },
   { id: "passagier", label: "Passagier",      type: "text", anyOption: true },
   { id: "reise",     label: "Reise",          type: "text" },
