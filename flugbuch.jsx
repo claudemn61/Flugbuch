@@ -4166,7 +4166,21 @@ function FlugbuchApp() {
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
           {sortDir==="asc"?"↑":"↓"}
         </button>
-        <button onClick={()=>setCollapsedYears(s=>s.size===0?new Set(years):new Set())} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
+        <button onClick={()=>{
+            const collapsing = collapsedYears.size===0;
+            setCollapsedYears(collapsing ? new Set(years) : new Set());
+            if (subGroupId) {
+              if (collapsing) {
+                const allSubKeys = new Set();
+                filteredFlights.forEach(f => {
+                  if (f.year) allSubKeys.add(f.year + "|" + (sortFieldValue(f, subGroupId) || "—"));
+                });
+                setCollapsedSubGroups(allSubKeys);
+              } else {
+                setCollapsedSubGroups(new Set());
+              }
+            }
+          }} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:23,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
           {collapsedYears.size===0?"➖":"➕"}
         </button>
