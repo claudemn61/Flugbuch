@@ -1135,42 +1135,44 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm, isPlaybac
       ctx.lineTo(padL+plotW/2, padT+plotH);
       ctx.stroke();
       ctx.restore();
+    }
 
-      // Altitude where the track crosses the dashed centre line — same
-      // point the map's red reference marker sits at — shown on the
-      // Y-axis alongside the min/max labels, positioned at its own height.
-      // While cine playback is actively running, this follows the moving
-      // glider's position instead (same distance basis FlightMap reports),
-      // so the red label always matches whichever marker is actually
-      // visible on the map right now.
-      const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm*scale : (visStart+visEnd)/2;
-      let closestIdx = 0, closestDiff = Infinity;
-      for (let i=0;i<distances.length;i++) {
-        const diff = Math.abs(distances[i]-centerDist);
-        if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
-      }
-      const centerAlt = track[closestIdx]?.gpsAlt;
-      if (centerAlt != null) {
-        const cy = Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt)));
-        ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
-        ctx.textAlign = "right";
-        ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
-      }
+    // Altitude where the track crosses the centre of the visible window —
+    // same point the map's red reference marker sits at — shown on the
+    // Y-axis alongside the min/max labels, positioned at its own height.
+    // While cine playback is actively running, this follows the moving
+    // glider's position instead (same distance basis FlightMap reports),
+    // so the red label always matches whichever marker is actually
+    // visible on the map right now. Shown at every zoom level, including
+    // the overview (1×) — not just once actually zoomed in.
+    const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm*scale : (visStart+visEnd)/2;
+    let closestIdx = 0, closestDiff = Infinity;
+    for (let i=0;i<distances.length;i++) {
+      const diff = Math.abs(distances[i]-centerDist);
+      if (diff < closestDiff) { closestDiff = diff; closestIdx = i; }
+    }
+    const centerAlt = track[closestIdx]?.gpsAlt;
+    if (centerAlt != null) {
+      const cy = Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt)));
+      ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
+      ctx.textAlign = "right";
+      ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
+    }
 
-      // Elapsed flight duration + distance at that same point, shown under
-      // the X-axis at the dashed line's horizontal position (not absolute
-      // clock time — duration since takeoff is what's actually useful when
-      // scrubbing through a flight's profile).
-      const utcStartSec = track[0]?.timeSec;
-      const rawTime = track[closestIdx]?.timeSec;
-      if (rawTime != null && utcStartSec != null) {
-        const elapsedSec = Math.max(0, rawTime - utcStartSec);
-        const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
-        const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
-        ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
-        ctx.textAlign = "center";
-        ctx.fillText(`${hh}:${mm}/${centerDist.toFixed(1)}km`, padL+plotW/2, padT+plotH+29*dpr);
-      }
+    // Elapsed flight duration + distance at that same point, shown under
+    // the X-axis at the centre position (not absolute clock time —
+    // duration since takeoff is what's actually useful when scrubbing
+    // through a flight's profile). Same "always shown" treatment as the
+    // altitude label above.
+    const utcStartSec = track[0]?.timeSec;
+    const rawTime = track[closestIdx]?.timeSec;
+    if (rawTime != null && utcStartSec != null) {
+      const elapsedSec = Math.max(0, rawTime - utcStartSec);
+      const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
+      const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
+      ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(`${hh}:${mm}/${centerDist.toFixed(1)}km`, padL+plotW/2, padT+plotH+29*dpr);
     }
 
     if (playbackDistanceKm != null) {
