@@ -365,7 +365,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         </button>
       </div>
       <div style={{padding:"0 16px 12px"}}>
-        <SearchBar filterText={search} setFilterText={setSearch} />
+        <SearchBar filterText={search} setFilterText={setSearch} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
       </div>
 
       <div style={{margin:"0 16px",position:"relative",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
@@ -1808,7 +1808,7 @@ function evalToken(f, tok){
   // comparison field op value — now also accepts != (not equal)
   let m=tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
   if(m){
-    const field=m[1].toLowerCase(), op=(m[2]==="≠"?"!=":m[2]), raw=m[3].trim();
+    const field=m[1].toLowerCase(), op=(m[2]==="≠"?"!=":m[2]), raw=m[3].trim().replace(/^"(.*)"$/, "$1");
     // "passagier:*" (or pax:*) means "any passenger at all" — for finding
     // biplace flights regardless of who the passenger was, rather than
     // matching a specific name.
@@ -2140,7 +2140,7 @@ function matchFlights(flights, q){
     return orGroups.some(group=>{
       const andTerms=group.split(/\s*&&\s*/).flatMap(t=>{
         // also split on spaces but keep field:val / quoted together
-        return t.match(/(?:[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]+"|\S+)/gi)||[];
+        return t.match(/(?:[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]+"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]+"|\S+)/gi)||[];
       }).map(t=>t.replace(/^"|"$/g,""));
       if(!andTerms.length) return true;
       return andTerms.every(term=>{
@@ -2219,6 +2219,11 @@ const TILE_FIELD_OPTIONS = [
 const DEFAULT_TILE_KEYS = ["duration","maxAlt","distanz","startAlt","endAlt","hDiff","maxSinken","maxSteigen","speed"];
 
 function buildAdvancedQuery(rows, combine) {
+  // Values containing whitespace must be quoted — the query tokenizer
+  // (matchFlights/evalToken) splits on spaces outside quotes, so an
+  // unquoted "field:Advance Pi 23" silently became three unrelated terms
+  // ("field:Advance", "Pi", "23") that essentially never all matched.
+  const quoteIfNeeded = v => /\s/.test(v) ? `"${v}"` : v;
   const parts = rows
     .filter(r => r.value !== "" && r.value != null)
     .map(r => {
@@ -2233,7 +2238,7 @@ function buildAdvancedQuery(rows, combine) {
         // from its partner by an OR elsewhere in the query.
         return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
       }
-      return `${r.field}${op}${String(r.value).trim()}`;
+      return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
     });
   if (!parts.length) return "";
   return parts.join(combine === "OR" ? " || " : " && ");
@@ -2246,7 +2251,7 @@ function newSearchRow() { return { field: "site", op: ":", value: "" }; }
 // rows, combined either all-UND or all-ODER — which is translated live into
 // the same query string the plain text box uses, so results stay identical
 // either way.
-function SearchBar({ filterText, setFilterText }) {
+function SearchBar({ filterText, setFilterText, knownGliders }) {
   // Opens on focus/tap into the search field itself (no separate button
   // needed) and stays independent state from then on — it does NOT close
   // again just because the field's text changes, since that caused the
@@ -2312,6 +2317,7 @@ function SearchBar({ filterText, setFilterText }) {
                   <input value={row.value==="*"?"":row.value} onChange={e=>updateRow(idx,{value:e.target.value})}
                     placeholder={fieldDef?.anyOption ? "Name, oder \"beliebig\" →" : (row.op==="between" ? "von…" : "Wert…")}
                     disabled={row.value==="*"}
+                    list={row.field==="glider" && knownGliders?.length ? "glider-datalist" : undefined}
                     style={{flex:1,minWidth:0,background:row.value==="*"?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
                   {row.op==="between" && (
                     <input value={row.value2||""} onChange={e=>updateRow(idx,{value2:e.target.value})} placeholder="bis…"
@@ -2343,6 +2349,11 @@ function SearchBar({ filterText, setFilterText }) {
             </div>
           </div>
         </div>
+      )}
+      {knownGliders?.length > 0 && (
+        <datalist id="glider-datalist">
+          {knownGliders.map(g => <option key={g} value={g} />)}
+        </datalist>
       )}
     </div>
   );
@@ -3232,7 +3243,7 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
     <div style={{width:"clamp(340px, 22vw, 440px)",minWidth:340,height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,0.08)",background:"#040e20",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
       <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 14px 8px",position:"sticky",top:0,background:"#040e20",zIndex:5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
         <div style={{marginBottom:6}}>
-          <SearchBar filterText={filterText} setFilterText={setFilterText} />
+          <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
         </div>
         <div style={{display:"flex",gap:6,position:"relative"}}>
           <button onClick={()=>setShowSortMenu(s=>!s)}
@@ -4478,7 +4489,7 @@ function FlugbuchApp() {
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
             <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
-              <SearchBar filterText={filterText} setFilterText={setFilterText} />
+              <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
             <button onClick={()=>setShowSortMenu(s=>!s)}
               style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
