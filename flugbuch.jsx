@@ -2632,6 +2632,40 @@ function buildAdvancedQuery(rows, combine) {
 
 function newSearchRow() { return { field: "site", op: ":", value: "" }; }
 
+// Reconstructs the row-builder's rows/combine from a query string — used
+// when the search panel is reopened after being hidden, so a previously
+// built multi-row search reappears as those same rows instead of just the
+// raw filterText string the person would otherwise have to decode by eye
+// to edit further.
+function parseQueryToRows(query) {
+  if (!query || !query.trim()) return { rows: [newSearchRow()], combine: "AND" };
+  const combine = query.includes(" || ") ? "OR" : "AND";
+  const parts = query.split(combine === "OR" ? / \|\| / : / && /);
+  const parsed = parts.map(part => {
+    const m = part.trim().match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+    if (!m) return null;
+    const field = m[1].toLowerCase();
+    if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
+    const op = m[2] === "≠" ? "!=" : m[2];
+    const value = m[3].trim().replace(/^"(.*)"$/, "$1");
+    return { field, op, value };
+  });
+  if (parsed.some(p => !p)) return { rows: [newSearchRow()], combine: "AND" };
+  // Merge a "between" pair back into one row — buildAdvancedQuery always
+  // emits these as two consecutive same-field >=/<= entries joined by &&.
+  const rows = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const cur = parsed[i], next = parsed[i+1];
+    if (combine === "AND" && next && cur.field === next.field && cur.op === ">=" && next.op === "<=") {
+      rows.push({ field: cur.field, op: "between", value: cur.value, value2: next.value });
+      i++;
+    } else {
+      rows.push(cur);
+    }
+  }
+  return { rows: rows.length ? rows : [newSearchRow()], combine };
+}
+
 // Collapsed: a single search line (existing behaviour). Expanding it reveals
 // a macOS-Finder-like row builder — add any number of Feld/Operator/Wert
 // rows, combined either all-UND or all-ODER — which is translated live into
@@ -2644,8 +2678,9 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
   // panel to flicker open/closed on every keystroke. Closing only happens
   // via the explicit ✓ button below.
   const [advOpen, setAdvOpen] = useState(false);
-  const [rows, setRows] = useState([newSearchRow()]);
-  const [combine, setCombine] = useState("AND");
+  const [{ rows, combine }, setRowState] = useState(() => parseQueryToRows(filterText));
+  const setRows = (nextRows) => setRowState(s => ({ ...s, rows: nextRows }));
+  const setCombine = (nextCombine) => setRowState(s => ({ ...s, combine: nextCombine }));
 
   const applyRows = (nextRows, nextCombine) => {
     setRows(nextRows);
@@ -3173,7 +3208,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       setInlinePassagier(next.customFields?.passagier || "");
     };
     const onTouchStart = (e) => {
-      if (profileZoomActive) { touchStart.current = null; return; }
+      if (profileZoomActive || e.target.closest?.('[data-no-swipe]')) { touchStart.current = null; return; }
       const t = e.touches[0];
       touchStart.current = { x: t.clientX, y: t.clientY };
     };
@@ -3467,8 +3502,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           </div>
 
           {/* Map */}
-          <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
-          <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
+          <div data-no-swipe="true">
+            <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
+            <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
+          </div>
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
               zurücksetzen) portals in here, compact enough for one line. */}
