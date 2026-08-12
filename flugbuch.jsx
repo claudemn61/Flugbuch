@@ -2141,7 +2141,7 @@ function matchFlights(flights, q){
       const andTerms=group.split(/\s*&&\s*/).flatMap(t=>{
         // also split on spaces but keep field:val / quoted together
         return t.match(/(?:[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]+"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]+"|\S+)/gi)||[];
-      }).map(t=>t.replace(/^"|"$/g,""));
+      }).map(t=>t.replace(/^"(.*)"$/,"$1"));
       if(!andTerms.length) return true;
       return andTerms.every(term=>{
         if(term.startsWith("+")) return evalToken(f, term.slice(1));
