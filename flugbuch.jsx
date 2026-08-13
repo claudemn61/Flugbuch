@@ -4661,7 +4661,7 @@ function FlugbuchApp() {
   if (view==="detail" && selected && isWide) {
     return (
       <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#040e20"}}>
-        <SidebarList flights={flights} selectedId={selected.id} longestId={longestId}
+        <SidebarList flights={filterText.trim() ? filteredFlights : flights} selectedId={selected.id} longestId={longestId}
           onSelect={f=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");}} />
         <div style={{flex:1,minWidth:0,height:"100vh",overflowY:"auto"}}>
           <DetailContent fl={enrichedSelected} flights={flightsWithRanks} navFlights={filterText.trim() ? filteredFlights : flightsWithRanks} customFieldDefs={customFieldDefs}
