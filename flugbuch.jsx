@@ -829,6 +829,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       const span = (b._t - a._t) || 1;
       const frac = Math.max(0, Math.min(1, (targetT - a._t) / span));
       lat = a.lat + (b.lat-a.lat)*frac; lon = a.lon + (b.lon-a.lon)*frac;
+      alt = (a.ele!=null && b.ele!=null) ? a.ele + (b.ele-a.ele)*frac : (a.ele ?? b.ele ?? null);
       showBoot = true;
       if (onPlaybackPositionChange) {
         const distKm = (a._distKm||0) + ((b._distKm||a._distKm||0) - (a._distKm||0)) * frac;
