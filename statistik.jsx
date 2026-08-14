@@ -109,6 +109,23 @@ function SeasonSection({ flights }) {
   const olderYears = years.filter(y => !explicitYears.includes(y));
   const [yr, setYr] = useState(years[0]||"");
   const [showMoreYears, setShowMoreYears] = useState(false);
+  // Restores the previously chosen year filter on mount — statistik.html
+  // is its own separate page (a full navigation, not a client-side route),
+  // so plain React state always resets to the default on return; this is
+  // the same window.storage pattern used elsewhere in the app for
+  // anything that needs to survive that.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("statistikYearFilter");
+        if (r && r.value) setYr(r.value);
+      } catch (e) { /* nothing stored yet, or storage unavailable — keep default */ }
+    })();
+  }, []);
+  useEffect(() => {
+    if (!yr) return;
+    (async () => { try { await window.storage.set("statistikYearFilter", yr); } catch (e) {} })();
+  }, [yr]);
   const yf = yr==="alle" ? flights : flights.filter(f=>f.year===yr);
   const parseDurStr = s => {
     if (!s) return 0;
