@@ -122,10 +122,10 @@ function SeasonSection({ flights }) {
       } catch (e) { /* nothing stored yet, or storage unavailable — keep default */ }
     })();
   }, []);
-  useEffect(() => {
-    if (!yr) return;
-    (async () => { try { await window.storage.set("statistikYearFilter", yr); } catch (e) {} })();
-  }, [yr]);
+  const chooseYr = (y) => {
+    setYr(y);
+    try { window.storage.set("statistikYearFilter", y); } catch (e) {}
+  };
   const yf = yr==="alle" ? flights : flights.filter(f=>f.year===yr);
   const parseDurStr = s => {
     if (!s) return 0;
@@ -174,8 +174,8 @@ function SeasonSection({ flights }) {
   return (
     <div style={{margin:"12px 16px 0",display:"flex",flexDirection:"column",gap:8}}>
       <div style={S.yearRow}>
-        <button style={S.yrBtn(yr==="alle")} onClick={()=>setYr("alle")}>Alle</button>
-        {explicitYears.map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>setYr(y)}>{y}</button>)}
+        <button style={S.yrBtn(yr==="alle")} onClick={()=>chooseYr("alle")}>Alle</button>
+        {explicitYears.map(y=><button key={y} style={S.yrBtn(y===yr)} onClick={()=>chooseYr(y)}>{y}</button>)}
         {olderYears.length>0 && (
           <button onClick={()=>setShowMoreYears(true)}
             style={S.yrBtn(olderYears.includes(yr))}>
@@ -190,7 +190,7 @@ function SeasonSection({ flights }) {
             style={{background:"#2a0d16",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:14,maxHeight:"60vh",overflowY:"auto",width:"100%",maxWidth:280,boxShadow:"0 8px 30px rgba(0,0,0,0.5)"}}>
             <div style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.5)",marginBottom:8,padding:"0 4px"}}>Jahr wählen</div>
             {olderYears.map(y=>(
-              <div key={y} onClick={()=>{setYr(y);setShowMoreYears(false);}}
+              <div key={y} onClick={()=>{chooseYr(y);setShowMoreYears(false);}}
                 style={{padding:"10px 12px",borderRadius:10,fontSize:15,cursor:"pointer",color:"#e8f4fd",background:y===yr?"rgba(224,48,74,0.15)":"transparent",marginBottom:2}}>
                 {y}
               </div>
