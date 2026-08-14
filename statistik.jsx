@@ -375,8 +375,31 @@ function StatistikApp() {
 
 function StatTable({ table, sortOptions, initialDetailName }) {
   const { rows, id } = table;
-  const [sortField, setSortField] = useState(sortOptions[0].id);
-  const [sortDir, setSortDir] = useState("desc");
+  const [sortField, setSortFieldRaw] = useState(sortOptions[0].id);
+  const [sortDir, setSortDirRaw] = useState("desc");
+  // Restores the previously chosen sort for this specific table — each of
+  // the 4 tables (Schirm/Startplätze/Landeplätze/Passagiere) keeps its own
+  // independent choice. statistik.html is a separate full page, not a
+  // client-side route, so plain React state resets on navigation; saving
+  // directly in the click handlers (not via a reactive effect) avoids
+  // losing the write to a navigation that follows right after.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("statistikSort_"+id);
+        if (r && r.value) {
+          const saved = JSON.parse(r.value);
+          if (saved.field && sortOptions.some(o=>o.id===saved.field)) setSortFieldRaw(saved.field);
+          if (saved.dir) setSortDirRaw(saved.dir);
+        }
+      } catch (e) { /* nothing stored yet, or storage unavailable — keep default */ }
+    })();
+  }, [id]);
+  const persistSort = (field, dir) => {
+    try { window.storage.set("statistikSort_"+id, JSON.stringify({ field, dir })); } catch (e) {}
+  };
+  const setSortField = (f) => { setSortFieldRaw(f); persistSort(f, sortDir); };
+  const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function" ? updater(prev) : updater; persistSort(sortField, next); return next; }); };
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [openDetail, setOpenDetail] = useState(null); // the row (r) whose flight list is shown
   // Restores the flight-list overlay for whichever row was open when the
