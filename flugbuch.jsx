@@ -2470,6 +2470,9 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         <span style={{flex:1}} />
         <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
           {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist} km</span> : null}
+          {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
+            <span style={{color:"#f87171",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
+          )}
           <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
       </div>
