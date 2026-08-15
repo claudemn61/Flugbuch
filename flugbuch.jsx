@@ -2085,6 +2085,25 @@ function haversineDistKm(a, b) {
   const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
 }
+// Swisstopo-style Faustregel-Näherung for hiking time (not the exact,
+// unpublished 15th-degree-polynomial formula behind the official signposts):
+// 15 min/km flat, 15 min/100 Hm ascent, 15 min/200 Hm descent. Returns a
+// formatted "XhYYm" string, or "" if the track has no usable data.
+function calcRecommendedHikeTime(pts) {
+  if (!pts || pts.length < 2) return "";
+  let distKm = 0, ascent = 0, descent = 0;
+  for (let i=1;i<pts.length;i++) {
+    distKm += haversineDistKm(pts[i-1], pts[i]) || 0;
+    if (pts[i].ele!=null && pts[i-1].ele!=null) {
+      const d = pts[i].ele - pts[i-1].ele;
+      if (d>0) ascent += d; else descent += -d;
+    }
+  }
+  const totalMin = distKm*15 + ascent/100*15 + descent/200*15;
+  if (!totalMin || !Number.isFinite(totalMin)) return "";
+  const h = Math.floor(totalMin/60), m = Math.round(totalMin%60);
+  return h>0 ? `${h}h${String(m).padStart(2,"0")}m` : `${m}m`;
+}
 // Compass bearing (0°=North, 90°=East, ...) from point a to point b —
 // used to rotate the glider reference marker to face the actual flight
 // direction at that point in the track.
@@ -2939,6 +2958,23 @@ function HikeStartFields({ startpunkt, starthoehe, hikeTrack, onSavePunkt, onSav
   );
 }
 
+// Shows the calculated "Empf. Zeit" (Swisstopo-style Faustregel-Näherung,
+// see calcRecommendedHikeTime) and auto-fills the still-editable Dauer
+// field with it once, if Dauer is empty — same "suggest, never overwrite
+// a manual entry" pattern already used for Startpunkt.
+function HikeDauerFields({ hikeTrack, dauer, onSaveDauer }) {
+  const recommended = calcRecommendedHikeTime(hikeTrack);
+  useEffect(() => {
+    if (!dauer && recommended) onSaveDauer(recommended);
+  }, [dauer, recommended]);
+  return (
+    <>
+      <StaticField label="Empf. Zeit" value={recommended} />
+      <InlineField label="Dauer" value={dauer} onSave={onSaveDauer} />
+    </>
+  );
+}
+
 function EditableLabelField({label, onLabelSave, value, onSave, unit}) {
   const [labelEditing, setLabelEditing] = useState(false);
   const [labelVal, setLabelVal] = useState(label||"");
@@ -3722,7 +3758,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);
                   return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? String(Math.round(startAlt-hikeStart)) : "";
                 })()} unit="m" />
-              <InlineField label="Dauer" value={fl.customFields?.hikeDauer} onSave={v=>saveField({customFields:{hikeDauer:v}})} />
+              <HikeDauerFields hikeTrack={fl.hikeTrack} dauer={fl.customFields?.hikeDauer}
+                onSaveDauer={v=>saveField({customFields:{hikeDauer:v}})} />
               <EditableLabelField label={fl.customFields?.hikeZusatzLabel||"Zusatz"}
                 onLabelSave={v=>saveField({customFields:{hikeZusatzLabel:v}})}
                 value={fl.customFields?.hikeZusatzValue}
