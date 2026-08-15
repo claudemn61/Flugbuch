@@ -2889,6 +2889,37 @@ function StaticField({label, value, unit}) {
 // also independently editable (tap it to rename what the field means) —
 // used for the Hike-Daten card's "Zusatz" row, which starts out generic
 // but the person may want to relabel (e.g. "Gipfelzeit", "Pausen").
+// Startpunkt accepts either a free-text place name or "lat, lon"
+// coordinates — when coordinates are recognized, Starthöhe is fetched
+// automatically from the same elevation API the ground profile uses
+// (rather than typed by hand) and persisted so it doesn't need refetching
+// on every visit; any other Startpunkt text leaves Starthöhe empty.
+function HikeStartFields({ startpunkt, starthoehe, onSavePunkt, onSaveHoehe }) {
+  useEffect(() => {
+    const m = (startpunkt||"").trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+    if (!m) { if (starthoehe) onSaveHoehe(""); return; }
+    const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const elev = Array.isArray(data.elevation) ? data.elevation[0] : null;
+        onSaveHoehe(elev!=null ? String(Math.round(elev)) : "");
+      } catch (e) { if (!cancelled) onSaveHoehe(""); }
+    })();
+    return () => { cancelled = true; };
+  }, [startpunkt]);
+  return (
+    <>
+      <InlineField label="Startpunkt" value={startpunkt} onSave={onSavePunkt} />
+      <StaticField label="Starthöhe" value={starthoehe||""} unit="m" />
+    </>
+  );
+}
+
 function EditableLabelField({label, onLabelSave, value, onSave, unit}) {
   const [labelEditing, setLabelEditing] = useState(false);
   const [labelVal, setLabelVal] = useState(label||"");
@@ -3651,15 +3682,19 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           </div>
 
           {/* Hike-Daten — nur wenn eine Hike-GPX-Route importiert wurde.
-              Höhenmeter ist kein eigenes gespeichertes Feld, sondern live
-              berechnet (Startplatzhöhe des Flugs minus die hier
-              eingetragene Starthöhe der Wanderung), damit es nie mit den
-              beiden Eingabefeldern aus dem Takt gerät. */}
+              Startpunkt akzeptiert auch "lat, lon"-Koordinaten, aus denen
+              Starthöhe automatisch berechnet wird (siehe HikeStartFields).
+              Höhenmeter ist ebenfalls kein eigenes gespeichertes Feld,
+              sondern live berechnet (Startplatzhöhe des Flugs minus
+              Starthöhe der Wanderung). */}
           {fl.hikeTrack?.length>1 && (
             <div style={{background:"rgba(22,163,74,0.06)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(22,163,74,0.15)"}}>
               <div style={{fontSize:10,fontWeight:700,color:"#4ade80",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>🥾 Hike-Daten</div>
-              <InlineField label="Startpunkt" value={fl.customFields?.hikeStartpunkt} onSave={v=>saveField({customFields:{hikeStartpunkt:v}})} />
-              <InlineField label="Starthöhe"  value={fl.customFields?.hikeStarthoehe} onSave={v=>saveField({customFields:{hikeStarthoehe:v}})} unit="m" />
+              <HikeStartFields
+                startpunkt={fl.customFields?.hikeStartpunkt}
+                starthoehe={fl.customFields?.hikeStarthoehe}
+                onSavePunkt={v=>saveField({customFields:{hikeStartpunkt:v}})}
+                onSaveHoehe={v=>saveField({customFields:{hikeStarthoehe:v}})} />
               <StaticField label="Höhenmeter" value={(() => {
                   const startAlt = fl.startAlt>0 ? fl.startAlt : parseFloat(fl.customFields?.msa);
                   const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);
