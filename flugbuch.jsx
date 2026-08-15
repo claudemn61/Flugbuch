@@ -2935,9 +2935,16 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         // even if the single closest/default result is something else
         // (e.g. a street or a bigger municipality centroid).
         const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de&limit=10`);
+        if (!res.ok) {
+          const bodyText = await res.text();
+          console.error("[Hike-Ort] MapTiler geocoding HTTP error", res.status, bodyText);
+          onSaveOrt(`(Fehler ${res.status}: ${bodyText.slice(0,80)})`);
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         const features = Array.isArray(data.features) ? data.features : [];
+        console.log("[Hike-Ort] geocoding response", data);
         // "village"/"hamlet"/"town" live in properties.place_designation
         // (a semantic settlement-size hint), NOT in place_type (which only
         // has broader categories like "municipality"/"place") — checking
@@ -2948,7 +2955,7 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
         const best = byDesignation("village") || byDesignation("hamlet") || byDesignation("town") || features[0];
         onSaveOrt(best?.text || best?.place_name || "");
-      } catch (e) { if (!cancelled) onSaveOrt(""); }
+      } catch (e) { console.error("[Hike-Ort] geocoding fetch failed", e); if (!cancelled) onSaveOrt(`(Fehler: ${String(e?.message||e).slice(0,80)})`); }
     })();
     return () => { cancelled = true; };
   }, [startpunkt]);
