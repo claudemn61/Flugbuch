@@ -2504,6 +2504,9 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
       <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
         <div style={{fontSize:13,fontWeight:600,color:"#7dd3fc",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
           {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
+          {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
+            <span style={{color:"#f87171",fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:54,display:"inline-block",verticalAlign:"bottom"}}>🥾{f.customFields.hikeDauer}</span>
+          )}
           <span>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
         {secondaryText !== "—" && (
@@ -3552,12 +3555,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             </div>
           </div>
           <EditableTitle value={fl.name} onSave={v=>saveField({name:v})} />
-          <div style={{fontSize:13,color:"rgba(232,244,253,0.5)",marginBottom:12,display:"flex",alignItems:"baseline",gap:6,flexWrap:"nowrap",overflow:"hidden"}}>
-            <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fl.startTime}{fl.endTime?" – "+fl.endTime:""}</span>
-            {fl.hikeTrack?.length>1 && fl.customFields?.hikeDauer && (
-              <span style={{color:"#f87171",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>🥾 {fl.customFields.hikeDauer}</span>
-            )}
-          </div>
+          <div style={{fontSize:13,color:"rgba(232,244,253,0.5)",marginBottom:12}}>{fl.startTime}{fl.endTime?" – "+fl.endTime:""}</div>
 
           {/* Rating inline */}
           <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
