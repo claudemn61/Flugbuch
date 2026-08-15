@@ -2885,6 +2885,51 @@ function StaticField({label, value, unit}) {
   );
 }
 
+// Same tap-to-edit value behaviour as InlineField, but the label itself is
+// also independently editable (tap it to rename what the field means) —
+// used for the Hike-Daten card's "Zusatz" row, which starts out generic
+// but the person may want to relabel (e.g. "Gipfelzeit", "Pausen").
+function EditableLabelField({label, onLabelSave, value, onSave, unit}) {
+  const [labelEditing, setLabelEditing] = useState(false);
+  const [labelVal, setLabelVal] = useState(label||"");
+  const commitLabel = () => {
+    setLabelEditing(false);
+    if (labelVal.trim() && labelVal!==label) onLabelSave(labelVal.trim());
+  };
+  return (
+    <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+      {labelEditing ? (
+        <input value={labelVal} onChange={e=>setLabelVal(e.target.value)} onBlur={commitLabel} autoFocus
+          onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); e.target.blur(); } }}
+          style={{flex:"0 1 90px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 6px",color:"#7dd3fc",fontSize:13}} />
+      ) : (
+        <span onClick={()=>{setLabelVal(label||"");setLabelEditing(true);}}
+          style={{fontSize:13,color:"rgba(125,211,252,0.7)",minWidth:90,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textDecorationColor:"rgba(125,211,252,0.35)"}}>
+          {label}
+        </span>
+      )}
+      <InlineFieldValueOnly value={value} onSave={onSave} unit={unit} />
+    </div>
+  );
+}
+// Just the tap-to-edit value half of InlineField, reused by
+// EditableLabelField (which supplies its own label/row wrapper).
+function InlineFieldValueOnly({value, onSave, unit}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value||"");
+  const commit = () => { setEditing(false); if(val!==(value||"")) onSave(val); };
+  return editing ? (
+    <input value={val} onChange={e=>setVal(e.target.value)} onBlur={commit} autoFocus
+      onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); e.target.blur(); } }}
+      style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right"}} />
+  ) : (
+    <span onClick={()=>{setVal(value||"");setEditing(true);}}
+      style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
+      {value||(unit?"— "+unit:"—")}
+    </span>
+  );
+}
+
 function InlineField({label, value, onSave, multiline, unit}) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value||"");
@@ -3604,6 +3649,29 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 }} />
             </div>
           </div>
+
+          {/* Hike-Daten — nur wenn eine Hike-GPX-Route importiert wurde.
+              Höhenmeter ist kein eigenes gespeichertes Feld, sondern live
+              berechnet (Startplatzhöhe des Flugs minus die hier
+              eingetragene Starthöhe der Wanderung), damit es nie mit den
+              beiden Eingabefeldern aus dem Takt gerät. */}
+          {fl.hikeTrack?.length>1 && (
+            <div style={{background:"rgba(22,163,74,0.06)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(22,163,74,0.15)"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#4ade80",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>🥾 Hike-Daten</div>
+              <InlineField label="Startpunkt" value={fl.customFields?.hikeStartpunkt} onSave={v=>saveField({customFields:{hikeStartpunkt:v}})} />
+              <InlineField label="Starthöhe"  value={fl.customFields?.hikeStarthoehe} onSave={v=>saveField({customFields:{hikeStarthoehe:v}})} unit="m" />
+              <StaticField label="Höhenmeter" value={(() => {
+                  const startAlt = fl.startAlt>0 ? fl.startAlt : parseFloat(fl.customFields?.msa);
+                  const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);
+                  return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? String(Math.round(startAlt-hikeStart)) : "";
+                })()} unit="m" />
+              <InlineField label="Dauer" value={fl.customFields?.hikeDauer} onSave={v=>saveField({customFields:{hikeDauer:v}})} />
+              <EditableLabelField label={fl.customFields?.hikeZusatzLabel||"Zusatz"}
+                onLabelSave={v=>saveField({customFields:{hikeZusatzLabel:v}})}
+                value={fl.customFields?.hikeZusatzValue}
+                onSave={v=>saveField({customFields:{hikeZusatzValue:v}})} />
+            </div>
+          )}
 
           {/* Editierbare Felder */}
           <div id="flugdaten-section" style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
