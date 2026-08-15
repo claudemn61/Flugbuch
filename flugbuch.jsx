@@ -3552,7 +3552,12 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             </div>
           </div>
           <EditableTitle value={fl.name} onSave={v=>saveField({name:v})} />
-          <div style={{fontSize:13,color:"rgba(232,244,253,0.5)",marginBottom:12}}>{fl.startTime}{fl.endTime?" – "+fl.endTime:""}</div>
+          <div style={{fontSize:13,color:"rgba(232,244,253,0.5)",marginBottom:12,display:"flex",alignItems:"baseline",gap:6,flexWrap:"nowrap",overflow:"hidden"}}>
+            <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fl.startTime}{fl.endTime?" – "+fl.endTime:""}</span>
+            {fl.hikeTrack?.length>1 && fl.customFields?.hikeDauer && (
+              <span style={{color:"#f87171",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>🥾 {fl.customFields.hikeDauer}</span>
+            )}
+          </div>
 
           {/* Rating inline */}
           <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>

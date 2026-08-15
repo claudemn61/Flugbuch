@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.9.1";
+const APP_VERSION = "4.9.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.9.2", note: "Flugdetail: bei Hike-Flügen mit importierter GPX-Route erscheint die Hike-Dauer rot und kleiner direkt neben der Flugzeit (zwischen Flugzeit und Bewertung) — bleibt garantiert auf einer Zeile, notfalls mit Auslassungspunkten." },
   { v: "4.9.1", note: "Hike-GPX-Import füllt Startpunkt (Koordinaten des ersten Track-Punkts) und damit auch Starthöhe automatisch aus, wenn noch nicht manuell gesetzt — bei allen drei Import-Wegen (Datums-Abgleich, Flugnummer, Direkt-Import)." },
   { v: "4.9", note: "Neue \"🥾 Hike-Daten\"-Kachel im Flugdetail, nur sichtbar wenn eine Hike-GPX-Route importiert wurde — direkt über den Flugdaten. Felder: Startpunkt, Starthöhe, Höhenmeter (live berechnet aus Startplatzhöhe minus Starthöhe), Dauer, und \"Zusatz\" mit frei umbenennbarem Titel." },
   { v: "4.8.3", note: "Flugdetail-Kopfzeile umgebaut: IGC-Badge jetzt blau (Track-Farbe), neues GPX-Badge grün (Hike-Farbe, wenn vorhanden), neuer 🥾 Import-Button (grün, ordnet GPX direkt diesem Flug zu, ohne Datums-Abgleich), XContest-Button jetzt gelb. Reihenfolge: Bewertung, IGC, GPX, Import, XContest." },
