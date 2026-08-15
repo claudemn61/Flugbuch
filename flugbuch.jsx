@@ -2502,7 +2502,10 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
             {pax&&<span style={{border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤 {pax}</span>}
           </span>
         </div>
-        <div style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{f.date} · {f.site||"—"}{f.glider?" · "+f.glider:""}</div>
+        <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",display:"flex",alignItems:"baseline",whiteSpace:"nowrap",overflow:"hidden"}}>
+          <span style={{flexShrink:0}}>{f.date} · {f.site||"—"}</span>
+          {f.glider && <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>&nbsp;· {f.glider}</span>}
+        </div>
       </div>
       <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
         <div style={{fontSize:13,fontWeight:600,color:"#7dd3fc",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
