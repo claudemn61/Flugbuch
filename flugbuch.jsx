@@ -2931,12 +2931,10 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
     })();
     (async () => {
       try {
-        // types=municipality,locality,place restricts results to
-        // settlement-level features (skips streets/addresses entirely),
-        // and limit=10 gives enough candidates to find a village among
-        // them even if a bigger municipality centroid is technically
-        // closer to these coordinates.
-        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de&types=municipality,locality,place&limit=10`);
+        // limit=10 gives enough candidates to find a village among them
+        // even if the single closest/default result is something else
+        // (e.g. a street or a bigger municipality centroid).
+        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de&limit=10`);
         const data = await res.json();
         if (cancelled) return;
         const features = Array.isArray(data.features) ? data.features : [];
@@ -2946,7 +2944,7 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         // place_type for "village" never matched anything. Priority order
         // puts village first per "in erster Linie Dorf", then hamlet
         // (even smaller), then town, before falling back to whatever
-        // place_type feature comes first from the API's own ranking.
+        // feature comes first from the API's own relevance ranking.
         const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
         const best = byDesignation("village") || byDesignation("hamlet") || byDesignation("town") || features[0];
         onSaveOrt(best?.text || best?.place_name || "");
