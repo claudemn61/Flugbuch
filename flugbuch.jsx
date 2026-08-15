@@ -3570,7 +3570,9 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                     const text = await file.text();
                     const { points } = parseGpxTrack(text);
                     if (points.length) {
-                      const upd = { ...fl, hikeTrack: points };
+                      const cf = { ...(fl.customFields||{}) };
+                      if (!cf.hikeStartpunkt) cf.hikeStartpunkt = `${points[0].lat.toFixed(5)}, ${points[0].lon.toFixed(5)}`;
+                      const upd = { ...fl, hikeTrack: points, customFields: cf };
                       await saveFlight(upd);
                       setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
                       setSelected(upd);
@@ -4662,7 +4664,14 @@ function FlugbuchApp() {
   // only (never overwrites an existing hikeTrack, matching how IGC import
   // never overwrites an existing real track without explicit confirmation).
   const attachGpxToFlight = useCallback(async (existing, points) => {
-    const updated = { ...existing, hikeTrack: points };
+    const cf = { ...(existing.customFields||{}) };
+    if (!cf.hikeStartpunkt && points.length) {
+      // "lat, lon" — same format HikeStartFields already recognizes and
+      // auto-fetches Starthöhe from, so setting this here is all that's
+      // needed to also get the elevation filled in automatically.
+      cf.hikeStartpunkt = `${points[0].lat.toFixed(5)}, ${points[0].lon.toFixed(5)}`;
+    }
+    const updated = { ...existing, hikeTrack: points, customFields: cf };
     await saveFlight(updated);
     setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
     if (selected?.id===updated.id) setSelected(updated);
