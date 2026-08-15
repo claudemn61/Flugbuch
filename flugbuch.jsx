@@ -2931,16 +2931,24 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
     })();
     (async () => {
       try {
-        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de`);
+        // types=municipality,locality,place restricts results to
+        // settlement-level features (skips streets/addresses entirely),
+        // and limit=10 gives enough candidates to find a village among
+        // them even if a bigger municipality centroid is technically
+        // closer to these coordinates.
+        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de&types=municipality,locality,place&limit=10`);
         const data = await res.json();
         if (cancelled) return;
         const features = Array.isArray(data.features) ? data.features : [];
-        // Prioritise village/town-level results (matching "in erster Linie
-        // Dorf, Ort") over more specific street/address matches or wider
-        // administrative regions — falls back to whatever's first if
-        // nothing at that level is present.
-        const preferred = features.find(f => (f.place_type||[]).some(t => ["village","town","municipality","place"].includes(t)));
-        const best = preferred || features[0];
+        // "village"/"hamlet"/"town" live in properties.place_designation
+        // (a semantic settlement-size hint), NOT in place_type (which only
+        // has broader categories like "municipality"/"place") — checking
+        // place_type for "village" never matched anything. Priority order
+        // puts village first per "in erster Linie Dorf", then hamlet
+        // (even smaller), then town, before falling back to whatever
+        // place_type feature comes first from the API's own ranking.
+        const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
+        const best = byDesignation("village") || byDesignation("hamlet") || byDesignation("town") || features[0];
         onSaveOrt(best?.text || best?.place_name || "");
       } catch (e) { if (!cancelled) onSaveOrt(""); }
     })();
