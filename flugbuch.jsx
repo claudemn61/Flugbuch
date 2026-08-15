@@ -2903,7 +2903,7 @@ function StaticField({label, value, unit}) {
 // automatically from the same elevation API the ground profile uses
 // (rather than typed by hand) and persisted so it doesn't need refetching
 // on every visit; any other Startpunkt text leaves Starthöhe empty.
-function HikeStartFields({ startpunkt, starthoehe, hikeTrack, onSavePunkt, onSaveHoehe }) {
+function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, onSaveHoehe, onSaveOrt }) {
   // Retroactively fills Startpunkt for a hike track that was already
   // imported before this auto-fill existed (or through some other path
   // that didn't set it) — not just brand-new imports going forward.
@@ -2916,9 +2916,9 @@ function HikeStartFields({ startpunkt, starthoehe, hikeTrack, onSavePunkt, onSav
   useEffect(() => {
     const cleaned = (startpunkt||"").trim().replace(/°/g, "").replace(/\s*[NSEW]\b/gi, "");
     const m = cleaned.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-    if (!m) { if (starthoehe) onSaveHoehe(""); return; }
+    if (!m) { if (starthoehe) onSaveHoehe(""); if (ort) onSaveOrt(""); return; }
     const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); return; }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); if (ort) onSaveOrt(""); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -2929,11 +2929,27 @@ function HikeStartFields({ startpunkt, starthoehe, hikeTrack, onSavePunkt, onSav
         onSaveHoehe(elev!=null ? String(Math.round(elev)) : "");
       } catch (e) { if (!cancelled) onSaveHoehe(""); }
     })();
+    (async () => {
+      try {
+        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de`);
+        const data = await res.json();
+        if (cancelled) return;
+        const features = Array.isArray(data.features) ? data.features : [];
+        // Prioritise village/town-level results (matching "in erster Linie
+        // Dorf, Ort") over more specific street/address matches or wider
+        // administrative regions — falls back to whatever's first if
+        // nothing at that level is present.
+        const preferred = features.find(f => (f.place_type||[]).some(t => ["village","town","municipality","place"].includes(t)));
+        const best = preferred || features[0];
+        onSaveOrt(best?.text || best?.place_name || "");
+      } catch (e) { if (!cancelled) onSaveOrt(""); }
+    })();
     return () => { cancelled = true; };
   }, [startpunkt]);
   return (
     <>
       <InlineField label="Startpunkt" value={startpunkt} onSave={onSavePunkt} />
+      <StaticField label="Ort" value={ort||""} />
       <StaticField label="Starthöhe" value={starthoehe||""} unit="m" />
     </>
   );
@@ -3714,9 +3730,11 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               <HikeStartFields
                 startpunkt={fl.customFields?.hikeStartpunkt}
                 starthoehe={fl.customFields?.hikeStarthoehe}
+                ort={fl.customFields?.hikeOrt}
                 hikeTrack={fl.hikeTrack}
                 onSavePunkt={v=>saveField({customFields:{hikeStartpunkt:v}})}
-                onSaveHoehe={v=>saveField({customFields:{hikeStarthoehe:v}})} />
+                onSaveHoehe={v=>saveField({customFields:{hikeStarthoehe:v}})}
+                onSaveOrt={v=>saveField({customFields:{hikeOrt:v}})} />
               <StaticField label="Höhenmeter" value={(() => {
                   const startAlt = fl.startAlt>0 ? fl.startAlt : parseFloat(fl.customFields?.msa);
                   const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);

@@ -232,12 +232,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.9.4";
+const APP_VERSION = "4.10";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.10", note: "Hike-Daten-Kachel: neues \"Ort\"-Feld (Reverse-Geocoding via MapTiler, Dorf/Ort-Bezeichnung aus Startpunkt-Koordinaten). Statistik: neue helle gelbe \"🥾 Hike\"-Hauptkachel nach Passagiere — gruppiert nach Ort, mit Höhenmeter, Hike-Dauer, erster/letzter Flug." },
   { v: "4.9.4", note: "\"Empf. Zeit\"-Berechnung aus v4.9.3 wieder entfernt — die Näherungsformel traf die eigenen tatsächlichen Werte nicht ausreichend. Hike-Daten-Kachel wieder wie in v4.9.2 (Dauer nur manuell)." },
   { v: "4.9.3", note: "Hike-Daten-Kachel: neues \"Empf. Zeit\"-Feld, berechnet nach der Swisstopo-Faustregel-Näherung (15 Min./km Ebene, 15 Min./100 Hm Aufstieg, 15 Min./200 Hm Abstieg) aus dem importierten Track. Füllt das Dauer-Feld automatisch, solange dieses noch leer ist." },
   { v: "4.9.2", note: "Flugdetail: bei Hike-Flügen mit importierter GPX-Route erscheint die Hike-Dauer rot und kleiner direkt neben der Flugzeit (zwischen Flugzeit und Bewertung) — bleibt garantiert auf einer Zeile, notfalls mit Auslassungspunkten." },

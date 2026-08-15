@@ -276,6 +276,18 @@ function StatistikApp() {
     const withCoord = flights.find(f => f.site === r.name && f.startPt);
     return { ...r, alt: withCoord?.startAlt || withCoord?.startPt?.gpsAlt || null, lat: withCoord?.startPt?.lat, lon: withCoord?.startPt?.lon };
   });
+  const hikeFlights = flights.filter(f => f.hikeTrack?.length > 1);
+  const hikeRows = aggregate(hikeFlights, f => f.customFields?.hikeOrt || null).map(r => {
+    const withData = hikeFlights.find(f => (f.customFields?.hikeOrt||null) === r.name);
+    const cf = withData?.customFields || {};
+    const startAlt = withData?.startAlt>0 ? withData.startAlt : parseFloat(cf.msa);
+    const hikeStart = parseFloat(cf.hikeStarthoehe);
+    return { ...r,
+      ort: r.name,
+      hoehenmeter: (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : null,
+      hikeDauer: cf.hikeDauer || null,
+      lat: withData?.hikeTrack?.[0]?.lat, lon: withData?.hikeTrack?.[0]?.lon };
+  });
 
   const SORT_OPTIONS = {
     schirm: [
@@ -311,6 +323,13 @@ function StatistikApp() {
       { id: "last", label: "Letzter Flug" },
       { id: "name", label: "Name" },
     ],
+    hike: [
+      { id: "count", label: "Anzahl Flüge" },
+      { id: "hoehenmeter", label: "Höhenmeter" },
+      { id: "first", label: "Erster Flug" },
+      { id: "last", label: "Letzter Flug" },
+      { id: "name", label: "Name" },
+    ],
   };
 
   const TABLES = [
@@ -318,8 +337,9 @@ function StatistikApp() {
     { id: "startplaetze", icon: "🛫", label: "Startplätze", rows: startRows, color: "#4ade80", glow: "rgba(74,222,128,0.5)" },
     { id: "landeplaetze", icon: "🛬", label: "Landeplätze", rows: landRows, color: "#f5a623", glow: "rgba(245,166,35,0.5)" },
     { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa", glow: "rgba(167,139,250,0.5)" },
+    { id: "hike", icon: "🥾", label: "Hike", rows: hikeRows, color: "#fef08a", glow: "rgba(254,240,138,0.5)" },
     { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a", glow: "rgba(224,48,74,0.5)" },
-  ].filter(t => t.id !== "passagiere" || passagierRows.length > 0);
+  ].filter(t => (t.id !== "passagiere" || passagierRows.length > 0) && (t.id !== "hike" || hikeRows.length > 0));
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -510,6 +530,12 @@ function StatTable({ table, sortOptions, initialDetailName }) {
             </>)}
             {(id === "landeplaetze" || id === "startplaetze") && (<>
               {r.alt ? <StatChip label="m.ü.M." value={r.alt} /> : null}
+              <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
+              <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
+            </>)}
+            {id === "hike" && (<>
+              {r.hoehenmeter!=null ? <StatChip label="Höhenmeter" value={`${r.hoehenmeter} m`} /> : null}
+              {r.hikeDauer ? <StatChip label="Hike-Dauer" value={r.hikeDauer} /> : null}
               <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
               <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
             </>)}

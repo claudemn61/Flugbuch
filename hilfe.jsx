@@ -83,11 +83,11 @@ const SECTIONS = [
       <p>Auf der Karte erscheint die Hike-Route grün gestrichelt, neben dem blauen Flug-Track. Zusätzlich zeigt ein eigenes grünes Hike-Höhenprofil (kompakt, ohne Zoom) die Höhenwerte über der Distanz, direkt über dem normalen Höhenprofil. Die Cine-Wiedergabe kombiniert beide: die Hike-Phase (🥾-Symbol, fixe Ausrichtung) spielt zuerst, pausiert automatisch am Übergang zum Flug, danach läuft die Flug-Phase (🪂) wie gewohnt weiter — beide Profile zeigen dabei live die passende Position.</p>
       <p>In der Flugliste zeigt ein rotes "GPX"-Badge direkt neben dem IGC-Badge, wenn ein Flug eine Hike-Route hat.</p>
       <p>Export als eigene GPX-Datei im Flugdetail ("⬇ Hike", neben "⬇ IGC" und "⬇ GPX"). Löschen über die konsolidierte 🗑-Kachel im Flugdetail, die zwischen IGC-Track, GPX Hike und dem ganzen Flug wählen lässt.</p>
-      <p>Nach erfolgreichem Import erscheint zusätzlich eine "🥾 Hike-Daten"-Kachel direkt über den Flugdaten: Startpunkt, Starthöhe, Höhenmeter (live berechnet aus Startplatzhöhe minus Starthöhe, kein eigenes Eingabefeld), Dauer, sowie ein frei benennbares "Zusatz"-Feld — dessen Titel selbst antippbar und umbenennbar ist.</p>
+      <p>Nach erfolgreichem Import erscheint zusätzlich eine "🥾 Hike-Daten"-Kachel direkt über den Flugdaten: Startpunkt (akzeptiert auch Koordinaten, z.B. "46.5, 8.1"), Ort (automatisch per Reverse-Geocoding aus den Koordinaten bestimmt, i.d.R. Dorf/Ortschaft), Starthöhe (automatisch aus den Koordinaten berechnet), Höhenmeter (live berechnet aus Startplatzhöhe minus Starthöhe, kein eigenes Eingabefeld), Dauer, sowie ein frei benennbares "Zusatz"-Feld — dessen Titel selbst antippbar und umbenennbar ist.</p>
       <p>Passt eine IGC-Datei zu keiner Flug-Nr. im Dateinamen, wird zusätzlich nach Datum gegen Flüge ohne GPS-Track abgeglichen. Bei genau einem Treffer wird automatisch zugeordnet; bei mehreren Flügen am selben Tag fragt die App aktiv nach, welchem Flug zugeordnet werden soll.</p>
       <p>Direkt nach dem Feld Gerät/Schirm steht ein optionales Feld "Typ" — erscheint nur bei Inhalt, sonst nur ein dezenter "+ Typ"-Link zum erstmaligen Eintragen. Wird auch beim CSV-Import erkannt (Spalten "Typ", "Type", "Schirmtyp", "Kategorie").</p>
       <p>Im Mehrfachauswahl-Modus lässt sich die Spaltenauswahl/-reihenfolge für "📋 Kopieren" über das ⚙️-Zahnrad daneben frei konfigurieren (an-/abwählen, per ↑/↓ neu anordnen) — praktisch, um die kopierte Tabelle an eine externe Tabellenkalkulation anzupassen.</p>
-      <h3>3.5 Flugdetail: Karte &amp; Höhenprofil</h3>
+      <h3>3.6 Flugdetail: Karte &amp; Höhenprofil</h3>
       <p>Karte (MapTiler, Geländestil mit deutscher Beschriftung) zeigt den Track in kräftigem Dunkelblau (nicht höhen-/steigenkodiert); Vollbild per Antippen mit echtem Pinch-/Doppeltipp-Zoom, Link zu GPS Visualizer. Der Referenzpunkt (bei aktivem Profil-Zoom) ist ein stilisierter Gleitschirm, der sich in die tatsächliche Flugrichtung dreht. Cine-Wiedergabe (▶-Button, auch schon in der kleinen Vorschau, nicht nur im Vollbild) spielt den Flug mit wählbarer Geschwindigkeit (1×–100×) ab — der Gleitschirm-Marker folgt der Strecke und dreht sich live mit; im Vollbild steht zusätzlich die aktuelle Höhe (rot) direkt neben dem Marker. Bei aktivem Profil-Zoom springen Karte und Höhenprofil während der Wiedergabe automatisch mit, sobald der Marker den sichtbaren Bereich verlässt. ↺ springt zurück zum Start. Höhenprofil zeigt Höhe über Distanz höhenfarbig (rot=tief, blau=hoch) mit braunem Bodenprofil (echte Geländedaten, 80 Stützpunkte), proportional auf die eingetragene Distanz skaliert.</p>
       <ul>
         <li>🔍 Zoom-Button — Listenauswahl 1× bis 8×</li>
@@ -95,19 +95,20 @@ const SECTIONS = [
         <li>Karte zoomt dabei synchron mit, roter Referenzpunkt an der Fenster-Mitte</li>
         <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Flugdauer/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot. Beim Wählen eines Zoom-Levels springt die Markierung auf Flugstart (0:00)</li>
       </ul>
-      <h3>3.6 Weltkarte</h3>
+      <h3>3.7 Weltkarte</h3>
       <p>Start-/Landeplätze (grün/rot) auf einer MapTiler-Geländekarte (deutsche Beschriftung), einzeln ein-/ausblendbar, mit echtem Pinch-/Doppeltipp-Zoom. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche nutzt denselben erweiterbaren Zeilen-Baukasten wie die Flugliste (siehe 3.2) — mehrere Bedingungen, UND/ODER.</p>
     </>),
   },
   {
     id: "statistik", title: "4. Statistik",
     body: () => (<>
-      <p>Fünf farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
+      <p>Sechs farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
       <ul>
         <li>🪂 Schirm (blau) — Flüge, Flugzeit, Distanz, Bewertungen je Fluggerät</li>
         <li>🛫 Startplätze (grün)</li>
         <li>🛬 Landeplätze (orange)</li>
         <li>👤 Passagiere (violett) — erster/letzter Flug je Person, Bewertungen. Blendet sich aus, wenn kein Flug im ganzen Flugbuch einen Passagier hat.</li>
+        <li>🥾 Hike (hellgelb) — gruppiert nach Ort (aus dem Hike-Startpunkt bestimmt), mit Höhenmeter, Hike-Dauer, erster/letzter Flug. Blendet sich aus, wenn kein Flug eine Hike-GPX-Route hat.</li>
         <li>📅 Saison (rot) — Jahresauswahl (Alle/aktuell/-1/-2/Mehr) mit Kennzahlen (Flüge, Flugzeit, Flugtage, Ø/Flug) und persönlichen Rekorden</li>
       </ul>
     </>),
@@ -143,7 +144,7 @@ function KurzContent() {
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
         <li>Optionale Untergruppierung je Jahr (📁 Gruppieren): Schirm/Typ/Startplatz/Landeplatz/Reise, standardmässig aus</li>
-        <li>Hike-GPX-Import (🥾, per Datum/Flugnummer/Auswahl zugeordnet), grün auf Karte + eigenes grünes Hike-Höhenprofil, kombinierte Wiedergabe (Hike→Pause→Flug), rotes GPX-Badge in Flugliste, Export "⬇ Hike" im Flugdetail, Löschen über konsolidierte 🗑-Kachel (IGC/GPX Hike/Alles); "🥾 Hike-Daten"-Kachel (Startpunkt/Starthöhe/Höhenmeter berechnet/Dauer/Zusatz mit editierbarem Titel) über den Flugdaten</li>
+        <li>Hike-GPX-Import (🥾, per Datum/Flugnummer/Auswahl zugeordnet), grün auf Karte + eigenes grünes Hike-Höhenprofil, kombinierte Wiedergabe (Hike→Pause→Flug), rotes GPX-Badge in Flugliste, Export "⬇ Hike" im Flugdetail, Löschen über konsolidierte 🗑-Kachel (IGC/GPX Hike/Alles); "🥾 Hike-Daten"-Kachel (Startpunkt/Ort per Reverse-Geocoding/Starthöhe/Höhenmeter berechnet/Dauer/Zusatz mit editierbarem Titel) über den Flugdaten; Statistik: hellgelbe "🥾 Hike"-Kachel nach Passagiere, gruppiert nach Ort</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
         <li>Cine-Wiedergabe (▶, Vorschau + Vollbild): 1×-100×, Gleitschirm dreht sich mit; Vollbild zeigt zusätzlich rote Höhenangabe daneben; Karte/Profil springen bei Zoom automatisch mit</li>
         <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>
