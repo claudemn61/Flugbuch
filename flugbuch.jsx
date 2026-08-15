@@ -2896,7 +2896,8 @@ function StaticField({label, value, unit}) {
 // on every visit; any other Startpunkt text leaves Starthöhe empty.
 function HikeStartFields({ startpunkt, starthoehe, onSavePunkt, onSaveHoehe }) {
   useEffect(() => {
-    const m = (startpunkt||"").trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+    const cleaned = (startpunkt||"").trim().replace(/°/g, "").replace(/\s*[NSEW]\b/gi, "");
+    const m = cleaned.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
     if (!m) { if (starthoehe) onSaveHoehe(""); return; }
     const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); return; }
