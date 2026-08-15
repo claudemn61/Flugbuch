@@ -2934,7 +2934,7 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         // limit=10 gives enough candidates to find a village among them
         // even if the single closest/default result is something else
         // (e.g. a street or a bigger municipality centroid).
-        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de&limit=10`);
+        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de`);
         if (!res.ok) {
           const bodyText = await res.text();
           console.error("[Hike-Ort] MapTiler geocoding HTTP error", res.status, bodyText);
@@ -2944,7 +2944,6 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         const data = await res.json();
         if (cancelled) return;
         const features = Array.isArray(data.features) ? data.features : [];
-        console.log("[Hike-Ort] geocoding response", data);
         // "village"/"hamlet"/"town" live in properties.place_designation
         // (a semantic settlement-size hint), NOT in place_type (which only
         // has broader categories like "municipality"/"place") — checking
