@@ -2894,7 +2894,16 @@ function StaticField({label, value, unit}) {
 // automatically from the same elevation API the ground profile uses
 // (rather than typed by hand) and persisted so it doesn't need refetching
 // on every visit; any other Startpunkt text leaves Starthöhe empty.
-function HikeStartFields({ startpunkt, starthoehe, onSavePunkt, onSaveHoehe }) {
+function HikeStartFields({ startpunkt, starthoehe, hikeTrack, onSavePunkt, onSaveHoehe }) {
+  // Retroactively fills Startpunkt for a hike track that was already
+  // imported before this auto-fill existed (or through some other path
+  // that didn't set it) — not just brand-new imports going forward.
+  useEffect(() => {
+    if (!startpunkt && hikeTrack?.length) {
+      const p = hikeTrack[0];
+      onSavePunkt(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
+    }
+  }, [startpunkt, hikeTrack]);
   useEffect(() => {
     const cleaned = (startpunkt||"").trim().replace(/°/g, "").replace(/\s*[NSEW]\b/gi, "");
     const m = cleaned.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
@@ -3696,6 +3705,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               <HikeStartFields
                 startpunkt={fl.customFields?.hikeStartpunkt}
                 starthoehe={fl.customFields?.hikeStarthoehe}
+                hikeTrack={fl.hikeTrack}
                 onSavePunkt={v=>saveField({customFields:{hikeStartpunkt:v}})}
                 onSaveHoehe={v=>saveField({customFields:{hikeStarthoehe:v}})} />
               <StaticField label="Höhenmeter" value={(() => {
