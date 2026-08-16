@@ -2949,17 +2949,17 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         // has broader categories like "municipality"/"place") — checking
         // place_type for "village" never matched anything.
         //
-        // Priority: village first (explicit emphasis on this), then a
-        // recognizable municipality name (place_type), then town, then
-        // locality/place — hamlet is demoted to a last resort before the
-        // raw first result, since a small hamlet (e.g. "Schmidighischere")
-        // was winning purely by being geographically nearer despite being
-        // far less recognizable than the actual village people mean
-        // (e.g. "Binn").
+        // Priority: municipality first — the standardized, officially
+        // recognized settlement name (e.g. "Binn") — since "village" as a
+        // place_designation turned out to also tag small, obscure hamlet-
+        // level features (e.g. "Schmidighischere"), which then won purely
+        // by being geographically nearer despite being far less
+        // recognizable than the actual municipality people mean. Village/
+        // town only used as fallbacks when no municipality match exists.
         const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
         const byType = (want) => features.find(f => (f.place_type||[]).includes(want));
-        const best = byDesignation("village")
-          || byType("municipality")
+        const best = byType("municipality")
+          || byDesignation("village")
           || byDesignation("town")
           || byType("locality") || byType("place")
           || byDesignation("hamlet")
