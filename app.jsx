@@ -21,12 +21,13 @@ function useIsWide() {
 // before any migration has happened).
 async function readFlightStatsFromStorage() {
   const PREFIX = "flugbuch:";
-  let total = 0, biplace = 0, found = false;
+  let total = 0, biplace = 0, hikeFlights = 0, found = false;
   const startSites = new Set(), endSites = new Set(), gliders = new Set(), reisen = new Set();
 
   function tally(f) {
     total++;
     if (f?.customFields?.passagier && String(f.customFields.passagier).trim()) biplace++;
+    if (f?.hikeTrack?.length > 1) hikeFlights++;
     if (f?.site) startSites.add(f.site);
     if (f?.customFields?.landung) endSites.add(f.customFields.landung);
     if (f?.glider) gliders.add(f.glider);
@@ -74,7 +75,7 @@ async function readFlightStatsFromStorage() {
     } catch {}
   }
 
-  return { total, biplace, startSites: startSites.size, endSites: endSites.size, gliders: gliders.size, reisen: reisen.size };
+  return { total, biplace, hikeFlights, startSites: startSites.size, endSites: endSites.size, gliders: gliders.size, reisen: reisen.size };
 }
 
 const GERMAN_MONTHS = {
@@ -232,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.10.3";
+const APP_VERSION = "4.10.4";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.10.4", note: "Home/Statistik-Kachel: neue Info-Kachel \"X Hike-Flüge\" (nur sichtbar wenn >0). Kleine Info-Kacheln überall leicht verkleinert, damit auch 5 davon eher auf einer Zeile Platz haben." },
   { v: "4.10.3", note: "Höhenprofil: Hike-Bodenprofil kommt jetzt direkt aus den eigenen GPX-Höhenwerten statt der externen Terrain-API — braucht keine Anfrage mehr und der grüne Hike-Track liegt garantiert exakt am Boden. Flug-Teil behält 80 Abtastpunkte, plus ein automatischer Wiederholungsversuch bei Fehlschlag, da der kostenlose Höhendaten-Dienst keine Verfügbarkeits-Garantie bietet." },
   { v: "4.10.2", note: "Automatisches Reverse-Geocoding für Hike-Ort entfernt (MapTiler-Zuordnung erwies sich als unzuverlässig). \"Ort\" ist jetzt manuell editierbar wie Startpunkt — beim Import mit dem GPX-eigenen Routennamen vorbefüllt, falls die Wander-App einen gespeichert hat, sonst leer." },
   { v: "4.10.1", note: "Flugliste: Suchfilter, Sortierfeld/-richtung, Jahres-Gruppierung ein/aus und Untergruppierung bleiben jetzt beim erneuten Öffnen erhalten (gleiches Prinzip wie schon bei der Statistik)." },
@@ -661,7 +663,7 @@ function HomeApp() {
   const [flightCount, setFlightCount] = useState(null);
   const [biplaceCount, setBiplaceCount] = useState(null);
   const [serviceUrgency, setServiceUrgency] = useState({ overdue: [], nextReserve: null });
-  const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null });
+  const [statistikCounts, setStatistikCounts] = useState({ startSites: null, endSites: null, gliders: null, biplace: null, hikeFlights: null });
   const [showSettings, setShowSettings] = useState(false);
   const [titleCfg, setTitleCfg] = useState(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -727,10 +729,10 @@ function HomeApp() {
   }, []);
 
   useEffect(() => {
-    readFlightStatsFromStorage().then(({ total, biplace, startSites, endSites, gliders, reisen }) => {
+    readFlightStatsFromStorage().then(({ total, biplace, startSites, endSites, gliders, reisen, hikeFlights }) => {
       setFlightCount(total);
       setBiplaceCount(biplace);
-      setStatistikCounts({ startSites, endSites, gliders, biplace, reisen });
+      setStatistikCounts({ startSites, endSites, gliders, biplace, reisen, hikeFlights });
     });
     // Safety net: on a very first load, the IndexedDB migration inside the
     // storage shim (flugbuch:* keys copied over from localStorage) can still
@@ -739,10 +741,10 @@ function HomeApp() {
     // Re-check once, shortly after, so Home is correct without needing a
     // visit to another page first.
     const t = setTimeout(() => {
-      readFlightStatsFromStorage().then(({ total, biplace, startSites, endSites, gliders, reisen }) => {
+      readFlightStatsFromStorage().then(({ total, biplace, startSites, endSites, gliders, reisen, hikeFlights }) => {
         setFlightCount(total);
         setBiplaceCount(biplace);
-        setStatistikCounts({ startSites, endSites, gliders, biplace, reisen });
+        setStatistikCounts({ startSites, endSites, gliders, biplace, reisen, hikeFlights });
       });
     }, 1200);
     return () => clearTimeout(t);
@@ -806,6 +808,7 @@ function HomeApp() {
         { label: `${statistikCounts.endSites ?? "—"} Landeplätze` },
         { label: `${statistikCounts.biplace ?? "—"} Passagierflüge` },
         { label: `${statistikCounts.gliders ?? "—"} Schirme` },
+        ...(statistikCounts.hikeFlights ? [{ label: `${statistikCounts.hikeFlights} Hike-Flüge` }] : []),
       ],
       href: "statistik.html",
       ready: true,
@@ -989,13 +992,13 @@ function HomeApp() {
                   <span
                     key={s.label || s.line1}
                     style={{
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: s.color ? 700 : 400,
                       color: s.color || "rgba(232,244,253,0.75)",
                       background: "rgba(255,255,255,0.04)",
                       border: "1px solid rgba(255,255,255,0.06)",
                       borderRadius: s.line2 ? 10 : 20,
-                      padding: s.line2 ? "3px 8px" : "2px 8px",
+                      padding: s.line2 ? "2px 6px" : "2px 6px",
                       display: s.line2 ? "flex" : undefined,
                       flexDirection: s.line2 ? "column" : undefined,
                       alignItems: s.line2 ? "flex-start" : undefined,
@@ -1004,7 +1007,7 @@ function HomeApp() {
                   >
                     {s.line2 ? (<>
                       <span>{s.line1}</span>
-                      <span style={{ opacity: 0.7, fontSize: 9 }}>{s.line2}</span>
+                      <span style={{ opacity: 0.7, fontSize: 8 }}>{s.line2}</span>
                     </>) : (s.label || s.line1)}
                   </span>
                 ))}
