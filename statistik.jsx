@@ -277,8 +277,8 @@ function StatistikApp() {
     return { ...r, alt: withCoord?.startAlt || withCoord?.startPt?.gpsAlt || null, lat: withCoord?.startPt?.lat, lon: withCoord?.startPt?.lon };
   });
   const hikeFlights = flights.filter(f => f.hikeTrack?.length > 1);
-  const hikeRows = aggregate(hikeFlights, f => f.customFields?.hikeOrt || null).map(r => {
-    const withData = hikeFlights.find(f => (f.customFields?.hikeOrt||null) === r.name);
+  const hikeRows = aggregate(hikeFlights, f => f.customFields?.hikeOrt || "Unbekannt").map(r => {
+    const withData = hikeFlights.find(f => (f.customFields?.hikeOrt||"Unbekannt") === r.name);
     const cf = withData?.customFields || {};
     const startAlt = withData?.startAlt>0 ? withData.startAlt : parseFloat(cf.msa);
     const hikeStart = parseFloat(cf.hikeStarthoehe);
