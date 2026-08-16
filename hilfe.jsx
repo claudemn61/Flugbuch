@@ -62,7 +62,7 @@ const SECTIONS = [
       <h3>3.3 Icon-Reihe (7 Buttons)</h3>
       <ul>
         <li>📥 Import — IGC-Dateien, CSV oder Hike-GPX-Routen. Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>
-        <li>☁️ Backup — Datensicherung exportieren/wiederherstellen</li>
+        <li>☁️ Backup — Datensicherung exportieren/wiederherstellen (gzip-komprimiert, siehe 7.), roter Punkt am Button bei ungesicherten Änderungen</li>
         <li>☑ Auswahl — Mehrfachauswahl von Flügen (z.B. für die Weltkarte, oder Sammel-Bearbeitung/Löschen)</li>
         <li>🗺️ Weltkarte — siehe 3.6</li>
         <li>↑/↓ — Sortierrichtung umkehren</li>
@@ -126,7 +126,11 @@ const SECTIONS = [
   },
   {
     id: "backup", title: "7. Datensicherung",
-    body: () => (<p>Über den 💾-Button im Flugbuch oder die Einstellungen kann der komplette Datenbestand (Flüge, Wartung, Reisen, Notizen) als Datei exportiert und auf einem anderen Gerät oder nach einem Neustart wieder eingespielt werden. Regelmässige Backups werden empfohlen.</p>),
+    body: () => (<>
+      <p>Über den 💾-Button im Flugbuch oder die Einstellungen kann der komplette Datenbestand (Flüge, Wartung, Reisen, Notizen) als Datei exportiert und auf einem anderen Gerät oder nach einem Neustart wieder eingespielt werden. Regelmässige Backups werden empfohlen.</p>
+      <p>Der Export wird automatisch gzip-komprimiert (Dateiendung <code>.json.gz</code>) — deutlich kleiner als reines JSON. Der Import erkennt sowohl komprimierte als auch ältere, unkomprimierte <code>.json</code>-Backups automatisch, unabhängig vom Dateinamen.</p>
+      <p>Ein roter Punkt am 💾-Button zeigt an, dass es seit dem letzten Backup ungesicherte Änderungen an Flügen oder Feld-Definitionen gibt. Er verschwindet nach einem erfolgreichen Export oder Import. Änderungen, die ausschliesslich in Wartung, Reisen oder Notizen gemacht werden, lösen den Hinweis nicht aus.</p>
+    </>),
   },
 ];
 
@@ -139,7 +143,7 @@ function KurzContent() {
       <h3>Flugbuch</h3>
       <ul>
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
-        <li>📥 Import (IGC/CSV) · ☁️ Backup · ☑ Auswahl · 🗺️ Weltkarte · ↑↓ Reihenfolge · ➖➕ alle Jahre · 🔍 Suchen/Sortieren ein-/ausblenden</li>
+        <li>📥 Import (IGC/CSV) · ☁️ Backup (gzip, roter Punkt = ungesichert) · ☑ Auswahl · 🗺️ Weltkarte · ↑↓ Reihenfolge · ➖➕ alle Jahre · 🔍 Suchen/Sortieren ein-/ausblenden</li>
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>

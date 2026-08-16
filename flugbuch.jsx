@@ -4266,6 +4266,35 @@ function FlugbuchApp() {
   const backupFileRef = useRef(null);
   const fileRef = useRef(null);
   const pdfFileRef = useRef(null);
+  // Backup-Hinweis: zeigt einen Punkt am 💾-Button, sobald sich Flüge oder
+  // Feld-Definitionen seit dem letzten Backup geändert haben. Persistiert
+  // über window.storage, damit der Hinweis auch nach einem Neustart der
+  // App noch stimmt. Erfasst bewusst nur Änderungen, die über diese Seite
+  // (Flugliste/-detail) laufen — Wartung/Reisen/Notizen sind eigene Seiten
+  // mit eigenem Speicherzugriff und lösen den Hinweis hier nicht aus.
+  const [backupDirty, setBackupDirty] = useState(false);
+  // Starts false; flips permanently true a short moment after the initial
+  // flights/customFieldDefs load below has fully settled, so the load
+  // itself is never mistaken for an unbacked-up change. suppressNextDirtyRef
+  // is a separate one-shot flag (auto-resets after one skip) used by
+  // importBackup, whose bulk restore is a deliberate full-snapshot load,
+  // not a change that should trigger the "please back up" hint.
+  const dirtyTrackingReadyRef = useRef(false);
+  const suppressNextDirtyRef = useRef(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("settings:backupDirty");
+        if (r && r.value === "1") setBackupDirty(true);
+      } catch {}
+    })();
+  }, []);
+  useEffect(() => {
+    if (!dirtyTrackingReadyRef.current) return;
+    if (suppressNextDirtyRef.current) { suppressNextDirtyRef.current = false; return; }
+    setBackupDirty(true);
+    try { window.storage.set("settings:backupDirty", "1"); } catch {}
+  }, [flights, customFieldDefs]);
 
   // Warn if the person tries to leave/reload while flights are still being
   // written to storage — otherwise anything not yet saved would be lost.
@@ -4315,6 +4344,12 @@ function FlugbuchApp() {
         const r = await window.storage.get("customFieldDefs");
         if (r) { const s = JSON.parse(r.value); if (s.length) setCustomFieldDefs(s); }
       } catch {}
+      // Only start flagging real changes once the initial load (flights +
+      // customFieldDefs, above) has fully settled and re-rendered — a
+      // short delay rather than flipping the flag immediately after the
+      // last setState call, so the load's own render/effect pass doesn't
+      // get mistaken for an unbacked-up change.
+      setTimeout(() => { dirtyTrackingReadyRef.current = true; }, 500);
     })();
   }, []);
 
@@ -4353,15 +4388,38 @@ function FlugbuchApp() {
     };
     const json = JSON.stringify(payload, null, 0);
     const dateStamp = new Date().toISOString().slice(0,10);
-    const filename = `flugbuch-backup-${dateStamp}.json`;
+
+    // Gzip the JSON before writing it out, when the browser supports the
+    // Compression Streams API (all current browsers, incl. iOS Safari) —
+    // typically shrinks the backup file to a fraction of its plain-text
+    // size. Falls back to plain, uncompressed JSON on anything older, so
+    // the export never breaks even on an unsupported browser.
+    let blob, filename;
+    try {
+      if (typeof CompressionStream !== "undefined") {
+        const gzStream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+        blob = await new Response(gzStream).blob();
+        filename = `flugbuch-backup-${dateStamp}.json.gz`;
+      }
+    } catch (e) { console.error("Backup: gzip compression failed, falling back to plain JSON:", e); }
+    if (!blob) {
+      blob = new Blob([json], { type: "application/json" });
+      filename = `flugbuch-backup-${dateStamp}.json`;
+    }
+
+    const markBackedUp = () => {
+      setBackupDirty(false);
+      try { window.storage.set("settings:backupDirty", "0"); } catch {}
+    };
 
     // Prefer the native share sheet (lets the user pick "Save to Files" → iCloud Drive)
     if (navigator.share && navigator.canShare) {
       try {
-        const file = new File([json], filename, { type: "application/json" });
+        const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file] });
           setBackupMsg("✓ Backup geteilt.");
+          markBackedUp();
           return;
         }
       } catch (e) {
@@ -4371,18 +4429,36 @@ function FlugbuchApp() {
     }
 
     // Fallback: plain download link (older browsers / desktop)
-    const encoded = "data:application/json;charset=utf-8," + encodeURIComponent(json);
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = encoded;
+    a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    markBackedUp();
   }, [flights, customFieldDefs]);
 
   const importBackup = useCallback(async (file) => {
     try {
-      const text = await file.text();
+      // Backups may be plain JSON (older exports, or gzip unsupported at
+      // export time) or gzip-compressed (current default) — detected via
+      // the gzip magic bytes rather than trusting the file extension alone,
+      // since a person may have renamed the file.
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const isGzip = bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+      let text;
+      if (isGzip) {
+        if (typeof DecompressionStream === "undefined") {
+          throw new Error("Dieses gzip-komprimierte Backup kann auf diesem Browser nicht gelesen werden (Decompression Streams API fehlt).");
+        }
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        text = await new Response(stream).text();
+      } else {
+        text = new TextDecoder("utf-8").decode(bytes);
+      }
       const data = JSON.parse(text);
       if (!Array.isArray(data.flights)) throw new Error("Ungültiges Backup-Format (kein 'flights'-Array).");
       // Persist every flight back into storage
@@ -4413,7 +4489,13 @@ function FlugbuchApp() {
       }
       const sorted = [...data.flights].sort((a,b)=>
         (parseInt((b.name||"").match(/\d+/)?.[0]||"0",10)) - (parseInt((a.name||"").match(/\d+/)?.[0]||"0",10)));
+      // A freshly imported backup is, by definition, an up-to-date snapshot
+      // — skip the next dirty-tracking pass (which would otherwise treat
+      // this bulk restore as "unbacked-up changes") and clear the flag.
+      suppressNextDirtyRef.current = true;
       setFlights(sorted);
+      setBackupDirty(false);
+      try { window.storage.set("settings:backupDirty", "0"); } catch {}
       setBackupMsg(`✓ ${data.flights.length} Flüge${restoredExtras?` + Service/Reisen-Daten`:""} wiederhergestellt.`);
     } catch (e) {
       setBackupMsg("Fehler beim Import: " + e.message);
@@ -5012,8 +5094,12 @@ function FlugbuchApp() {
           📥
         </button>
         <button onClick={()=>{ setShowBackupMenu(m=>!m); setShowImportMenu(false); }} title="Backup"
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showBackupMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showBackupMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
+          style={{position:"relative",flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showBackupMenu?"rgba(56,189,248,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showBackupMenu?"rgba(56,189,248,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
           💾
+          {backupDirty && (
+            <span title="Ungesicherte Änderungen seit dem letzten Backup"
+              style={{position:"absolute",top:6,right:8,width:10,height:10,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
+          )}
         </button>
         <button onClick={()=>{ setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${selectMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:34,cursor:"pointer"}}>
@@ -5093,7 +5179,7 @@ function FlugbuchApp() {
       )}
 
       {/* Backup + selection: badges collapse into menus, shown together with Import badge below */}
-      <input ref={backupFileRef} type="file" accept=".json" style={{display:"none"}}
+      <input ref={backupFileRef} type="file" accept=".json,.gz,.json.gz" style={{display:"none"}}
         onChange={e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=""; }} />
 
       {showCsvColumnConfig && (
