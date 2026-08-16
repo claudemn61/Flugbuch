@@ -232,12 +232,14 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.10.1";
+const APP_VERSION = "4.10.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.10.3", note: "Höhenprofil: Hike-Bodenprofil kommt jetzt direkt aus den eigenen GPX-Höhenwerten statt der externen Terrain-API — braucht keine Anfrage mehr und der grüne Hike-Track liegt garantiert exakt am Boden. Flug-Teil behält 80 Abtastpunkte, plus ein automatischer Wiederholungsversuch bei Fehlschlag, da der kostenlose Höhendaten-Dienst keine Verfügbarkeits-Garantie bietet." },
+  { v: "4.10.2", note: "Automatisches Reverse-Geocoding für Hike-Ort entfernt (MapTiler-Zuordnung erwies sich als unzuverlässig). \"Ort\" ist jetzt manuell editierbar wie Startpunkt — beim Import mit dem GPX-eigenen Routennamen vorbefüllt, falls die Wander-App einen gespeichert hat, sonst leer." },
   { v: "4.10.1", note: "Flugliste: Suchfilter, Sortierfeld/-richtung, Jahres-Gruppierung ein/aus und Untergruppierung bleiben jetzt beim erneuten Öffnen erhalten (gleiches Prinzip wie schon bei der Statistik)." },
   { v: "4.10", note: "Hike-Daten-Kachel: neues \"Ort\"-Feld (Reverse-Geocoding via MapTiler, Dorf/Ort-Bezeichnung aus Startpunkt-Koordinaten). Statistik: neue helle gelbe \"🥾 Hike\"-Hauptkachel nach Passagiere — gruppiert nach Ort, mit Höhenmeter, Hike-Dauer, erster/letzter Flug." },
   { v: "4.9.4", note: "\"Empf. Zeit\"-Berechnung aus v4.9.3 wieder entfernt — die Näherungsformel traf die eigenen tatsächlichen Werte nicht ausreichend. Hike-Daten-Kachel wieder wie in v4.9.2 (Dauer nur manuell)." },

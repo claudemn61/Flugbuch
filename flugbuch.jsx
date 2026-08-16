@@ -1371,48 +1371,70 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
     let cancelled = false;
     (async () => {
       try {
-        // Sample points proportionally across the combined hike+flight
-        // range — roughly 80 points total, split by how much of the
-        // combined distance each portion actually covers.
+        // Hike portion: no API call needed at all — a hiker's own GPS
+        // elevation (already in hikePts[].ele from the GPX) effectively
+        // IS the ground elevation at that point, so it's used directly.
+        // This also guarantees the green hike line and its brown ground
+        // fill align exactly, with no interpolation/sampling mismatch
+        // possible between the two.
+        const hikeGroundPts = hikePts.map((p, i) => ({ distKm: hikeDist[i], elev: p.ele ?? null }));
+
+        // Flight portion: 80 sample points across the flown distance,
+        // fetched from the external terrain API — a paraglider's own
+        // altitude genuinely isn't ground level, so this can't be
+        // derived from the track's own data the way the hike portion can.
         const N = 80;
-        const nHike = hikeOffsetKm > 0 ? Math.max(4, Math.round(N * hikeOffsetKm/totalDist)) : 0;
-        const nFlight = N - nHike;
         const samplePts = [];
-        for (let i = 0; i <= nHike && hikePts.length > 1; i++) {
-          const targetDist = (hikeOffsetKm / nHike) * i;
-          let idx = 0;
-          while (idx < hikeDist.length-1 && hikeDist[idx] < targetDist) idx++;
-          samplePts.push({ lat: hikePts[idx].lat, lon: hikePts[idx].lon, distKm: hikeDist[idx], ownElev: hikePts[idx].ele, isHike: true });
-        }
         let idx = 0;
-        for (let i = 0; i <= nFlight && track.length > 1; i++) {
-          const targetDist = (rawTotalDist / nFlight) * i;
+        for (let i = 0; i <= N && track.length > 1; i++) {
+          const targetDist = (rawTotalDist / N) * i;
           while (idx < rawDistances.length-1 && rawDistances[idx] < targetDist) idx++;
-          samplePts.push({ lat: track[idx].lat, lon: track[idx].lon, distKm: distances[idx], ownElev: track[idx].gpsAlt, isHike: false });
+          samplePts.push({ lat: track[idx].lat, lon: track[idx].lon, distKm: distances[idx], ownElev: track[idx].gpsAlt });
         }
-        if (!samplePts.length) return;
+
+        if (!samplePts.length) {
+          if (hikeGroundPts.length) setGroundProfile(hikeGroundPts);
+          return;
+        }
         const lats = samplePts.map(s=>s.lat.toFixed(5)).join(",");
         const lons = samplePts.map(s=>s.lon.toFixed(5)).join(",");
-        const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`);
-        const data = await res.json();
-        if (cancelled) return;
-        if (Array.isArray(data.elevation)) {
-          // Never let the ground appear above the flight/hike trace: a
-          // 90m-resolution terrain model can occasionally overshoot near a
-          // ridge or narrow valley the actual GPS track cleared, which
-          // would otherwise draw as physically walking/flying through the
-          // ground. Only the flight gets the -5m safety clamp — a hiker is
-          // essentially walking at ground level, so the hike's green line
-          // should visually touch the brown ground fill, not float above
-          // it with the same gap the paraglider (genuinely airborne) has.
-          setGroundProfile(samplePts.map((s,i) => ({
-            distKm: s.distKm,
-            elev: data.elevation[i] != null ? Math.min(data.elevation[i], s.ownElev - (s.isHike?0:5)) : null,
-          })));
-        } else {
-          setGroundError(true);
+        const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`;
+        // The free open-meteo tier explicitly carries no uptime guarantee
+        // — a single transient failure/timeout shouldn't immediately show
+        // "nicht erreichbar" to the person, so one retry is attempted
+        // after a short pause before actually giving up.
+        const fetchElevations = async () => {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!Array.isArray(data.elevation)) throw new Error("unexpected response shape");
+          return data.elevation;
+        };
+        let elevation;
+        try {
+          elevation = await fetchElevations();
+        } catch (firstErr) {
+          await new Promise(r => setTimeout(r, 1200));
+          if (cancelled) return;
+          elevation = await fetchElevations();
         }
-      } catch { if (!cancelled) setGroundError(true); }
+        if (cancelled) return;
+        // Never let the ground appear above the flight trace: a 90m-
+        // resolution terrain model can occasionally overshoot near a
+        // ridge or narrow valley the aircraft actually cleared, which
+        // would otherwise draw as physically flying through the ground.
+        const flightGroundPts = samplePts.map((s,i) => ({
+          distKm: s.distKm,
+          elev: elevation[i] != null ? Math.min(elevation[i], s.ownElev - 5) : null,
+        }));
+        setGroundProfile([...hikeGroundPts, ...flightGroundPts]);
+      } catch {
+        if (cancelled) return;
+        // Even if the flight-side API call fails entirely, the hike
+        // portion (needing no API at all) can still show correctly.
+        const hikeGroundPts = hikePts.map((p, i) => ({ distKm: hikeDist[i], elev: p.ele ?? null }));
+        if (hikeGroundPts.length) { setGroundProfile(hikeGroundPts); setGroundError(track.length > 1); }
+        else setGroundError(true);
+      }
     })();
     return () => { cancelled = true; };
   }, [flight?.id, totalDist, hikeOffsetKm]);
@@ -1662,7 +1684,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
         </>,
         controlsSlot
       )}
-      {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Flugtrace wird trotzdem angezeigt.</div>}
+      {groundError && <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:4}}>Bodenprofil für den Flug-Teil momentan nicht verfügbar (Höhendaten-Dienst nicht erreichbar) — Trace wird trotzdem angezeigt.</div>}
       {manualDist>0 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:4}}>Streckenachse proportional auf die eingetragene Distanz ({manualDist} km) skaliert.</div>}
       {zoomLevel>1 && <div style={{fontSize:9,color:"rgba(232,244,253,0.3)",marginTop:2}}>Im Profil wischen, um den sichtbaren Ausschnitt zu verschieben.</div>}
     </div>
@@ -2913,12 +2935,18 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
       onSavePunkt(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
     }
   }, [startpunkt, hikeTrack]);
+  // Automatic reverse-geocoding for Ort was removed — the MapTiler
+  // village/municipality matching proved unreliably wrong in practice
+  // (and untestable directly, since api.maptiler.com blocks automated
+  // fetches). Ort is manually editable instead, pre-filled on import from
+  // the GPX file's own route name where available (see importGpxFiles /
+  // attachGpxToFlight), which the person can then correct freely.
   useEffect(() => {
     const cleaned = (startpunkt||"").trim().replace(/°/g, "").replace(/\s*[NSEW]\b/gi, "");
     const m = cleaned.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-    if (!m) { if (starthoehe) onSaveHoehe(""); if (ort) onSaveOrt(""); return; }
+    if (!m) { if (starthoehe) onSaveHoehe(""); return; }
     const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); if (ort) onSaveOrt(""); return; }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -2929,50 +2957,12 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         onSaveHoehe(elev!=null ? String(Math.round(elev)) : "");
       } catch (e) { if (!cancelled) onSaveHoehe(""); }
     })();
-    (async () => {
-      try {
-        // limit=10 gives enough candidates to find a village among them
-        // even if the single closest/default result is something else
-        // (e.g. a street or a bigger municipality centroid).
-        const res = await fetch(`https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${MAPTILER_API_KEY}&language=de`);
-        if (!res.ok) {
-          const bodyText = await res.text();
-          console.error("[Hike-Ort] MapTiler geocoding HTTP error", res.status, bodyText);
-          onSaveOrt(`(Fehler ${res.status}: ${bodyText.slice(0,80)})`);
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-        const features = Array.isArray(data.features) ? data.features : [];
-        // "village"/"hamlet"/"town" live in properties.place_designation
-        // (a semantic settlement-size hint), NOT in place_type (which only
-        // has broader categories like "municipality"/"place") — checking
-        // place_type for "village" never matched anything.
-        //
-        // Priority: municipality first — the standardized, officially
-        // recognized settlement name (e.g. "Binn") — since "village" as a
-        // place_designation turned out to also tag small, obscure hamlet-
-        // level features (e.g. "Schmidighischere"), which then won purely
-        // by being geographically nearer despite being far less
-        // recognizable than the actual municipality people mean. Village/
-        // town only used as fallbacks when no municipality match exists.
-        const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
-        const byType = (want) => features.find(f => (f.place_type||[]).includes(want));
-        const best = byType("municipality")
-          || byDesignation("village")
-          || byDesignation("town")
-          || byType("locality") || byType("place")
-          || byDesignation("hamlet")
-          || features[0];
-        onSaveOrt(best?.text || best?.place_name || "");
-      } catch (e) { console.error("[Hike-Ort] geocoding fetch failed", e); if (!cancelled) onSaveOrt(`(Fehler: ${String(e?.message||e).slice(0,80)})`); }
-    })();
     return () => { cancelled = true; };
   }, [startpunkt]);
   return (
     <>
       <InlineField label="Startpunkt" value={startpunkt} onSave={onSavePunkt} />
-      <StaticField label="Ort" value={ort||""} />
+      <InlineField label="Ort" value={ort} onSave={onSaveOrt} />
       <StaticField label="Starthöhe" value={starthoehe||""} unit="m" />
     </>
   );
@@ -3625,10 +3615,11 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   if (!files.length) return;
                   for (const file of files) {
                     const text = await file.text();
-                    const { points } = parseGpxTrack(text);
+                    const { points, name } = parseGpxTrack(text);
                     if (points.length) {
                       const cf = { ...(fl.customFields||{}) };
                       if (!cf.hikeStartpunkt) cf.hikeStartpunkt = `${points[0].lat.toFixed(5)}, ${points[0].lon.toFixed(5)}`;
+                      if (!cf.hikeOrt && name) cf.hikeOrt = name;
                       const upd = { ...fl, hikeTrack: points, customFields: cf };
                       await saveFlight(upd);
                       setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
@@ -4755,7 +4746,7 @@ function FlugbuchApp() {
   // Attaches a parsed Hike-GPX track onto an existing flight — additive
   // only (never overwrites an existing hikeTrack, matching how IGC import
   // never overwrites an existing real track without explicit confirmation).
-  const attachGpxToFlight = useCallback(async (existing, points) => {
+  const attachGpxToFlight = useCallback(async (existing, points, gpxName) => {
     const cf = { ...(existing.customFields||{}) };
     if (!cf.hikeStartpunkt && points.length) {
       // "lat, lon" — same format HikeStartFields already recognizes and
@@ -4763,6 +4754,11 @@ function FlugbuchApp() {
       // needed to also get the elevation filled in automatically.
       cf.hikeStartpunkt = `${points[0].lat.toFixed(5)}, ${points[0].lon.toFixed(5)}`;
     }
+    // Many hiking apps (Komoot, Outdooractive, SwitzerlandMobility etc.)
+    // embed the route's own name in the GPX <name> tag, often already
+    // naming the place — used as an initial Ort suggestion instead of
+    // unreliable automated reverse-geocoding; still freely editable.
+    if (!cf.hikeOrt && gpxName) cf.hikeOrt = gpxName;
     const updated = { ...existing, hikeTrack: points, customFields: cf };
     await saveFlight(updated);
     setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
@@ -4791,10 +4787,10 @@ function FlugbuchApp() {
           dateStr = `${String(d.getUTCDate()).padStart(2,"0")}.${String(d.getUTCMonth()+1).padStart(2,"0")}.${d.getUTCFullYear()}`;
         }
       }
-      if (!dateStr) { pendingManual.push({ file, points }); continue; }
+      if (!dateStr) { pendingManual.push({ file, points, name }); continue; }
       const candidates = flights.filter(f => f.date === dateStr);
       if (candidates.length === 1) {
-        await attachGpxToFlight(candidates[0], points);
+        await attachGpxToFlight(candidates[0], points, name);
         attached++;
       } else if (candidates.length > 1) {
         dateAmbiguous.push({ file, date: dateStr, points, name, candidates });
@@ -4824,9 +4820,9 @@ function FlugbuchApp() {
         let attached = 0;
         for (const file of gpx) {
           const text = await file.text();
-          const { points } = parseGpxTrack(text);
+          const { points, name } = parseGpxTrack(text);
           if (points.length) {
-            for (const target of targets) await attachGpxToFlight(target, points);
+            for (const target of targets) await attachGpxToFlight(target, points, name);
             attached++;
           }
         }
@@ -5101,7 +5097,7 @@ function FlugbuchApp() {
           onClose={()=>setPendingGpxAmbiguous(q=>q.slice(1))}
           onAssign={async (chosen) => {
             const item = pendingGpxAmbiguous[0];
-            await attachGpxToFlight(chosen, item.points);
+            await attachGpxToFlight(chosen, item.points, item.name);
             setPendingGpxAmbiguous(q=>q.slice(1));
           }}
         />
@@ -5114,7 +5110,7 @@ function FlugbuchApp() {
           onSkip={()=>setPendingGpxManual(q=>q.slice(1))}
           onAssign={async (chosen) => {
             const item = pendingGpxManual[0];
-            await attachGpxToFlight(chosen, item.points);
+            await attachGpxToFlight(chosen, item.points, item.name);
             setPendingGpxManual(q=>q.slice(1));
           }}
         />
