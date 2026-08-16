@@ -2633,6 +2633,15 @@ const TILE_FIELD_OPTIONS = [
   { key: "rangStrecke", label: "Rang Strecke", icon: "🏅", get: fl => fl.rangStrecke!=null ? "#"+fl.rangStrecke : "—" },
   { key: "pctStrecke", label: "% Strecke",    icon: "📊", get: fl => fl.pctStrecke!=null ? fl.pctStrecke+"%" : "—" },
   { key: "rating",    label: "Bewertung",     icon: "⭐️", get: fl => fl.rating ? "★".repeat(fl.rating) : "—" },
+  { key: "hikeStartpunkt", label: "Hike-Startpunkt", icon: "🥾", hikeOnly: true, get: fl => fl.customFields?.hikeStartpunkt || "—" },
+  { key: "hikeOrt",        label: "Hike-Ort",        icon: "🥾", hikeOnly: true, get: fl => fl.customFields?.hikeOrt || "—" },
+  { key: "hikeStarthoehe", label: "Hike-Starthöhe",  icon: "🥾", hikeOnly: true, get: fl => fl.customFields?.hikeStarthoehe ? fl.customFields.hikeStarthoehe+" m" : "—" },
+  { key: "hikeHoehenmeter", label: "Hike-Höhenmeter", icon: "🥾", hikeOnly: true, get: fl => {
+      const startAlt = fl.startAlt>0 ? fl.startAlt : parseFloat(fl.customFields?.msa);
+      const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);
+      return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart)+" m" : "—";
+    } },
+  { key: "hikeDauer",      label: "Hike-Dauer",      icon: "🥾", hikeOnly: true, get: fl => fl.customFields?.hikeDauer || "—" },
 ];
 const DEFAULT_TILE_KEYS = ["duration","maxAlt","distanz","startAlt","endAlt","hDiff","maxSinken","maxSteigen","speed"];
 
@@ -3688,7 +3697,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 style={{background:"#14253a",borderTopLeftRadius:18,borderTopRightRadius:18,padding:"16px 18px calc(20px + env(safe-area-inset-bottom, 0px))",maxWidth:480,width:"100%",maxHeight:"75vh",overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)"}}>
                 <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>Kachel {tilePickerIdx+1}: Feld wählen</div>
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {TILE_FIELD_OPTIONS.map(opt => (
+                  {TILE_FIELD_OPTIONS.filter(opt => !opt.hikeOnly || fl.hikeTrack?.length>1).map(opt => (
                     <button key={opt.key}
                       onClick={()=>{
                         const next = [...tileConfig]; next[tilePickerIdx] = opt.key;
