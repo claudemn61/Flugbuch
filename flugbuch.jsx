@@ -5241,6 +5241,7 @@ function FlugbuchApp() {
       )}
       {bulkEditOpen && (() => {
         const chosenCount = selectedIds.size;
+        const hasHikeInSelection = flights.some(f => selectedIds.has(f.id) && f.hikeTrack?.length>1);
         const applyBulkEdit = async () => {
           const d = bulkEditData;
           let updated = flights.map(f => {
@@ -5256,6 +5257,11 @@ function FlugbuchApp() {
             if (d.passagier) cfPatch.passagier = d.passagier;
             if (d.typ) cfPatch.typ = d.typ;
             if (d.reise) cfPatch.reise = d.reise==="__CLEAR__" ? "" : d.reise;
+            if (d.hikeStartpunkt) cfPatch.hikeStartpunkt = d.hikeStartpunkt;
+            if (d.hikeOrt) cfPatch.hikeOrt = d.hikeOrt;
+            if (d.hikeStarthoehe) cfPatch.hikeStarthoehe = d.hikeStarthoehe;
+            if (d.hikeDauer) cfPatch.hikeDauer = d.hikeDauer;
+            if (d.hikeZusatzValue) cfPatch.hikeZusatzValue = d.hikeZusatzValue;
             return { ...f, ...patch, customFields: { ...(f.customFields||{}), ...cfPatch } };
           });
           // A date change can shift where these flights (and everyone
@@ -5302,6 +5308,14 @@ function FlugbuchApp() {
                   {reisenNames.map(n => <option key={n} value={n} style={{background:"#14253a"}}>{n}</option>)}
                 </select>
               </div>
+              {hasHikeInSelection && (<>
+                <div style={{fontSize:10,fontWeight:700,color:"#4ade80",letterSpacing:1.5,textTransform:"uppercase",margin:"4px 0 10px"}}>🥾 Hike-Daten</div>
+                {field("Startpunkt", "hikeStartpunkt")}
+                {field("Ort", "hikeOrt")}
+                {field("Starthöhe", "hikeStarthoehe", { placeholder: "unverändert lassen (m)" })}
+                {field("Dauer", "hikeDauer")}
+                {field("Zusatz", "hikeZusatzValue")}
+              </>)}
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:6}}>Bewertung</div>
                 <div style={{display:"flex",gap:6}}>
