@@ -2947,12 +2947,23 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         // "village"/"hamlet"/"town" live in properties.place_designation
         // (a semantic settlement-size hint), NOT in place_type (which only
         // has broader categories like "municipality"/"place") — checking
-        // place_type for "village" never matched anything. Priority order
-        // puts village first per "in erster Linie Dorf", then hamlet
-        // (even smaller), then town, before falling back to whatever
-        // feature comes first from the API's own relevance ranking.
+        // place_type for "village" never matched anything.
+        //
+        // Priority: village first (explicit emphasis on this), then a
+        // recognizable municipality name (place_type), then town, then
+        // locality/place — hamlet is demoted to a last resort before the
+        // raw first result, since a small hamlet (e.g. "Schmidighischere")
+        // was winning purely by being geographically nearer despite being
+        // far less recognizable than the actual village people mean
+        // (e.g. "Binn").
         const byDesignation = (want) => features.find(f => f.properties?.place_designation === want);
-        const best = byDesignation("village") || byDesignation("hamlet") || byDesignation("town") || features[0];
+        const byType = (want) => features.find(f => (f.place_type||[]).includes(want));
+        const best = byDesignation("village")
+          || byType("municipality")
+          || byDesignation("town")
+          || byType("locality") || byType("place")
+          || byDesignation("hamlet")
+          || features[0];
         onSaveOrt(best?.text || best?.place_name || "");
       } catch (e) { console.error("[Hike-Ort] geocoding fetch failed", e); if (!cancelled) onSaveOrt(`(Fehler: ${String(e?.message||e).slice(0,80)})`); }
     })();
@@ -4120,9 +4131,9 @@ function FlugbuchApp() {
   const [customFieldDefs, setCustomFieldDefs] = useState([{id:"passagier",name:"Passagier",type:"text",formula:""}]);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
   const [inlinePassagier, setInlinePassagier] = useState("");
-  const [filterText, setFilterText] = useState("");
-  const [sortId, setSortId] = useState("number");
-  const [sortDir, setSortDir] = useState("desc");
+  const [filterText, setFilterTextRaw] = useState("");
+  const [sortId, setSortIdRaw] = useState("number");
+  const [sortDir, setSortDirRaw] = useState("desc");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchRowOpen, setSearchRowOpen] = useState(false);
   const [collapsedYears, setCollapsedYears] = useState(new Set());
@@ -4133,10 +4144,42 @@ function FlugbuchApp() {
   // (existing behaviour). Turning it off shows a flat, ungrouped list
   // (sub-grouping is nested under Jahr conceptually, so it's ignored too
   // while this is off).
-  const [yearGroupingOn, setYearGroupingOn] = useState(true);
-  const [subGroupId, setSubGroupId] = useState("");
+  const [yearGroupingOn, setYearGroupingOnRaw] = useState(true);
+  const [subGroupId, setSubGroupIdRaw] = useState("");
   const [showSubGroupMenu, setShowSubGroupMenu] = useState(false);
   const [collapsedSubGroups, setCollapsedSubGroups] = useState(new Set());
+  // Restores the previously used Suchen/Sortieren/Gruppieren settings on
+  // mount — flugbuch.html is a separate page (full navigation, not a
+  // client-side route), so plain React state always resets to the default
+  // on return. Same window.storage pattern already used for the Statistik
+  // year filter and per-table sort.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("flugbuchListSettings");
+        if (r && r.value) {
+          const s = JSON.parse(r.value);
+          if (typeof s.filterText === "string") setFilterTextRaw(s.filterText);
+          if (s.sortId) setSortIdRaw(s.sortId);
+          if (s.sortDir) setSortDirRaw(s.sortDir);
+          if (typeof s.yearGroupingOn === "boolean") setYearGroupingOnRaw(s.yearGroupingOn);
+          if (typeof s.subGroupId === "string") setSubGroupIdRaw(s.subGroupId);
+        }
+      } catch (e) { /* nothing stored yet, or storage unavailable — keep defaults */ }
+    })();
+  }, []);
+  const persistListSettings = (patch) => {
+    try {
+      window.storage.set("flugbuchListSettings", JSON.stringify({
+        filterText, sortId, sortDir, yearGroupingOn, subGroupId, ...patch,
+      }));
+    } catch (e) {}
+  };
+  const setFilterText = (v) => { setFilterTextRaw(v); persistListSettings({ filterText: v }); };
+  const setSortId = (v) => { setSortIdRaw(v); persistListSettings({ sortId: v }); };
+  const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ sortDir: next }); return next; }); };
+  const setYearGroupingOn = (updater) => { setYearGroupingOnRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ yearGroupingOn: next }); return next; }); };
+  const setSubGroupId = (v) => { setSubGroupIdRaw(v); persistListSettings({ subGroupId: v }); };
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
