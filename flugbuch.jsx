@@ -2950,12 +2950,24 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
   // fetches). Ort is manually editable instead, pre-filled on import from
   // the GPX file's own route name where available (see importGpxFiles /
   // attachGpxToFlight), which the person can then correct freely.
+  //
+  // Bugfix (Flug 932): this effect used to re-fetch on every mount (i.e.
+  // every time the Flugdetail was opened) and, on any fetch failure —
+  // offline, rate-limited, blocked in an in-app preview — it cleared an
+  // already-correct Starthöhe via onSaveHoehe(""), silently wiping data
+  // that had been fetched successfully before. fetchedForRef now tracks
+  // which Startpunkt the current Starthöhe belongs to, so a remount with
+  // an unchanged Startpunkt and an existing Starthöhe skips the fetch
+  // entirely, and a failed fetch leaves a previously stored value intact
+  // instead of clearing it.
+  const fetchedForRef = useRef(startpunkt);
   useEffect(() => {
+    if (startpunkt === fetchedForRef.current && starthoehe) return;
     const cleaned = (startpunkt||"").trim().replace(/°/g, "").replace(/\s*[NSEW]\b/gi, "");
     const m = cleaned.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-    if (!m) { if (starthoehe) onSaveHoehe(""); return; }
+    if (!m) { fetchedForRef.current = startpunkt; if (starthoehe) onSaveHoehe(""); return; }
     const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { if (starthoehe) onSaveHoehe(""); return; }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { fetchedForRef.current = startpunkt; if (starthoehe) onSaveHoehe(""); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -2963,8 +2975,16 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
         const data = await res.json();
         if (cancelled) return;
         const elev = Array.isArray(data.elevation) ? data.elevation[0] : null;
-        onSaveHoehe(elev!=null ? String(Math.round(elev)) : "");
-      } catch (e) { if (!cancelled) onSaveHoehe(""); }
+        if (elev != null) {
+          onSaveHoehe(String(Math.round(elev)));
+          fetchedForRef.current = startpunkt;
+        }
+        // else: unexpected response shape — leave any existing Starthöhe as is
+      } catch (e) {
+        // network/fetch failure — leave any existing Starthöhe as is rather
+        // than clearing it; will retry on the next Startpunkt change or
+        // next mount since fetchedForRef wasn't updated
+      }
     })();
     return () => { cancelled = true; };
   }, [startpunkt]);
