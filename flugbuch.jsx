@@ -3485,6 +3485,13 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       const newSelected = renumbered.find(f => f.id === fl.id);
       if (newSelected) setSelected(newSelected);
     };
+    // Both Datum (indirectly, via renumberAllFlights above) and der
+    // Flugname/-nummer selbst (EditableTitle) ändern die Nummerierung —
+    // genau das, was die letzte Nummerierungs-Verschiebung im Backup
+    // verursacht hat. Beide laufen deshalb über eine explizite
+    // Bestätigung, statt sofort beim Verlassen des Feldes zu speichern.
+    const [confirmDateChange, setConfirmDateChange] = useState(null); // newDateStr | null
+    const [confirmNameChange, setConfirmNameChange] = useState(null); // newName | null
     // Consolidated delete: one 🗑 tile opens a small menu choosing what to
     // remove (IGC track / Hike-GPX / whole flight) instead of separate
     // buttons for each.
@@ -3618,7 +3625,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               {fl.pdfOnly&&<span style={{background:"rgba(139,92,246,0.2)",color:"#c4b5fd",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700}}>CSV</span>}
             </div>
           </div>
-          <EditableTitle value={fl.name} onSave={v=>saveField({name:v})} />
+          <EditableTitle value={fl.name} onSave={v=>setConfirmNameChange(v)} />
           <div style={{fontSize:13,color:"rgba(232,244,253,0.5)",marginBottom:12}}>{fl.startTime}{fl.endTime?" – "+fl.endTime:""}</div>
 
           {/* Rating inline */}
@@ -3794,7 +3801,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           {/* Editierbare Felder */}
           <div id="flugdaten-section" style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Flugdaten</div>
-            <InlineField label="Datum" value={fl.date} onSave={saveDateField} />
+            <InlineField label="Datum" value={fl.date} onSave={v=>setConfirmDateChange(v)} />
             <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})}
               extra={(!fl.customFields?.typ && !typRevealed) ? (
                 <span onClick={(e)=>{ e.stopPropagation(); setTypRevealed(true); }}
@@ -3912,6 +3919,44 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
                 <button onClick={confirmDeleteKind==="igc" ? deleteTrack : deleteHikeTrack}
                   style={{flex:1,background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:10,padding:"10px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer"}}>Löschen</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmNameChange !== null && (
+          <div onClick={()=>setConfirmNameChange(null)}
+            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:24}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:"#14253a",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+              <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>⚠️ Flugname/-nummer ändern?</div>
+              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+                „{fl.name}“ wird zu „{confirmNameChange}“. Die Nummer wird sonst nirgends automatisch angepasst — bei falscher Eingabe können Dopplungen oder Lücken in der Nummerierung entstehen.
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setConfirmNameChange(null)}
+                  style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+                <button onClick={()=>{ saveField({name:confirmNameChange}); setConfirmNameChange(null); }}
+                  style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Ändern</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmDateChange !== null && (
+          <div onClick={()=>setConfirmDateChange(null)}
+            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:24}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:"#14253a",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+              <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>⚠️ Datum ändern?</div>
+              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+                Ein neues Datum verschiebt {fl.name} evtl. an eine andere Stelle in der Chronologie — dabei werden <b>alle</b> Flugnummern neu, lückenlos durchnummeriert. Fortfahren?
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setConfirmDateChange(null)}
+                  style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+                <button onClick={()=>{ const d=confirmDateChange; setConfirmDateChange(null); saveDateField(d); }}
+                  style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Ändern</button>
               </div>
             </div>
           </div>
@@ -4246,6 +4291,9 @@ function FlugbuchApp() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditData, setBulkEditData] = useState({});
+  // Wie beim Datum im Flugdetail: eine Datumsänderung hier nummeriert
+  // ALLE Flüge neu — deshalb erst nach expliziter Warnung anwendbar.
+  const [confirmBulkDateRenumber, setConfirmBulkDateRenumber] = useState(false);
   const [reisenNames, setReisenNames] = useState([]);
   // When arriving here via a flight opened from Statistik or Reisen
   // (?openFlightId=...&returnTo=...), the back button in the detail view
@@ -5462,10 +5510,28 @@ function FlugbuchApp() {
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>{setBulkEditOpen(false);setBulkEditData({});}}
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
-                <button onClick={applyBulkEdit}
+                <button onClick={()=>{ if (bulkEditData.date) setConfirmBulkDateRenumber(true); else applyBulkEdit(); }}
                   style={{flex:1,background:"linear-gradient(135deg,#0ea5e9,#0284c7)",color:"#fff",border:"none",borderRadius:10,padding:10,fontSize:14,fontWeight:800,cursor:"pointer"}}>Speichern</button>
               </div>
             </div>
+            {confirmBulkDateRenumber && (
+              <div onClick={()=>setConfirmBulkDateRenumber(false)}
+                style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:210,padding:24}}>
+                <div onClick={e=>e.stopPropagation()}
+                  style={{background:"#14253a",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+                  <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>⚠️ Datum ändern?</div>
+                  <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+                    Das neue Datum verschiebt die {chosenCount} ausgewählten Flüge evtl. an eine andere Stelle in der Chronologie — dabei werden <b>alle</b> Flugnummern neu, lückenlos durchnummeriert. Fortfahren?
+                  </div>
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>setConfirmBulkDateRenumber(false)}
+                      style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+                    <button onClick={()=>{ setConfirmBulkDateRenumber(false); applyBulkEdit(); }}
+                      style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Ändern</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
