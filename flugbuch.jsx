@@ -3928,6 +3928,16 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const filtered = matchFlights(flights, filterText);
   const years = [...new Set(filtered.map(f=>f.year).filter(Boolean))].sort((a,b)=>b-a);
+  // Keeps the left Flugliste (iPad/Mac split view) in sync with the right
+  // Flugdetail: whenever the selected flight changes — including via the
+  // detail view's own swipe/prev-next navigation, not just clicks on this
+  // list — the matching row scrolls into view so the highlighted entry is
+  // always visible without the person needing to manually scroll to find it.
+  const rowRefs = useRef({});
+  useEffect(() => {
+    const el = rowRefs.current[selectedId];
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedId]);
   return (
     <div style={{width:"clamp(340px, 22vw, 440px)",minWidth:340,height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,0.08)",background:"#040e20",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
       <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 14px 8px",position:"sticky",top:0,background:"#040e20",zIndex:5,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
@@ -3958,7 +3968,8 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
       </div>
       {sortId !== "date" ? (
         sortFlights(filtered, sortId, sortDir).map(f => (
-          <SidebarFlightRow key={f.id} f={f} selectedId={selectedId} longestId={longestId} onSelect={onSelect} />
+          <SidebarFlightRow key={f.id} f={f} selectedId={selectedId} longestId={longestId} onSelect={onSelect}
+            registerRef={el=>{ rowRefs.current[f.id]=el; }} />
         ))
       ) : years.map(yr => {
         const yFlights = sortFlights(filtered.filter(f=>f.year===yr), sortId, sortDir);
@@ -3966,7 +3977,8 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
           <div key={yr}>
             <div style={{padding:"8px 14px",fontSize:12,fontWeight:700,color:"#7dd3fc",background:"rgba(255,255,255,0.02)"}}>{yr} · {yFlights.length}</div>
             {yFlights.map(f => (
-              <SidebarFlightRow key={f.id} f={f} selectedId={selectedId} longestId={longestId} onSelect={onSelect} />
+              <SidebarFlightRow key={f.id} f={f} selectedId={selectedId} longestId={longestId} onSelect={onSelect}
+                registerRef={el=>{ rowRefs.current[f.id]=el; }} />
             ))}
           </div>
         );
@@ -3975,9 +3987,9 @@ function SidebarList({ flights, selectedId, onSelect, longestId }) {
   );
 }
 
-function SidebarFlightRow({ f, selectedId, longestId, onSelect }) {
+function SidebarFlightRow({ f, selectedId, longestId, onSelect, registerRef }) {
   return (
-    <div onClick={()=>onSelect(f)}
+    <div ref={registerRef} onClick={()=>onSelect(f)}
       style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,0.04)",background:f.id===selectedId?"rgba(14,165,233,0.12)":"transparent",borderLeft:f.id===selectedId?"3px solid #7dd3fc":"3px solid transparent"}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         {f.id===longestId && <span style={{fontSize:11}}>🏆</span>}
