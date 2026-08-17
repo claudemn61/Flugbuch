@@ -47,7 +47,8 @@ const SECTIONS = [
     body: () => (<>
       <h3>3.1 Flugliste</h3>
       <p>Standardmässig nach Jahr gruppiert, absteigend nach Nummer sortiert. Über die Sortier-Auswahl lässt sich nach vielen anderen Feldern sortieren (Datum, Dauer, Distanz, Startplatz, Bewertung u.a.), die Richtung über den Pfeil-Button daneben.</p>
-      <p>Optional lässt sich innerhalb jedes Jahres zusätzlich gruppieren ("📁 Gruppieren" unter Suchen/Sortieren): Schirm, Typ, Startplatz, Landeplatz oder Reise, standardmässig "Keine" (aus). Die Jahres-Gruppierung selbst bleibt dabei immer bestehen.</p>
+      <p>Zwei frei wählbare, unabhängige Gruppierungs-Ebenen stehen zur Verfügung ("📁 Gr. 1°" und "📁 Gr. 2°" unter Suchen/Sortieren, Gr. 2° verschachtelt innerhalb von Gr. 1°): Jahr, Schirm, Typ, Startplatz, Landeplatz, Reise, Hike-Ort oder Bewertung — beide standardmässig mit "Keine" wählbar. Jede Ebene hat eine eigene Sortierrichtung (↑↓ für die Gruppen selbst) und ein eigenes Alle-ein-/ausklappen (+). Werksseitig ist Gr. 1° auf Jahr voreingestellt, Gr. 2° auf Keine.</p>
+      <p>Die Sortierrichtung der Flugliste selbst (↑↓, für die Flüge innerhalb der Gruppen) liegt ebenfalls im Suchen/Sortieren-Panel, direkt neben der Feldauswahl.</p>
       <h3>3.2 Suche</h3>
       <p>Durchsucht alle Felder eines Flugs gleichzeitig. Erweiterte Operatoren:</p>
       <table><tbody>
@@ -143,11 +144,12 @@ function KurzContent() {
       <h3>Flugbuch</h3>
       <ul>
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
-        <li>📥 Import (IGC/CSV) · ☁️ Backup (gzip, roter Punkt = ungesichert) · ☑ Auswahl · 🗺️ Weltkarte · ↑↓ Reihenfolge · ➖➕ alle Jahre · 🔍 Suchen/Sortieren ein-/ausblenden</li>
+        <li>📥 Import (IGC/CSV) · ☁️ Backup (gzip, roter Punkt = ungesichert) · ☑ Auswahl · 🗺️ Weltkarte · 🔍 Suchen/Sortieren ein-/ausblenden</li>
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
         <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen automatisch (Steigen/Sinken über 30s-Fenster) — Distanz bleibt manuell (XContest-Wert), XContest-Button neben IGC-Badge; bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
-        <li>Optionale Untergruppierung je Jahr (📁 Gruppieren): Schirm/Typ/Startplatz/Landeplatz/Reise, standardmässig aus</li>
+        <li>Suchen/Sortieren-Panel: Suchen · Sortieren (⇅, alle Datenfelder) · Reihenfolge (↑↓)</li>
+        <li>Zwei unabhängige Gruppierungs-Ebenen Gr. 1°/Gr. 2° (Jahr/Schirm/Typ/Startplatz/Landeplatz/Reise/Hike-Ort/Bewertung, je "Keine" wählbar), je mit eigener Sortierrichtung und Alle-ein-/ausklappen — Gr. 1° standardmässig Jahr, Gr. 2° standardmässig aus</li>
         <li>Hike-GPX-Import (🥾, per Datum/Flugnummer/Auswahl zugeordnet), grün auf Karte + eigenes grünes Hike-Höhenprofil, kombinierte Wiedergabe (Hike→Pause→Flug), rotes GPX-Badge in Flugliste, Export "⬇ Hike" im Flugdetail, Löschen über konsolidierte 🗑-Kachel (IGC/GPX Hike/Alles); "🥾 Hike-Daten"-Kachel (Startpunkt/Ort per Reverse-Geocoding/Starthöhe/Höhenmeter berechnet/Dauer/Zusatz mit editierbarem Titel) über den Flugdaten; Statistik: hellgelbe "🥾 Hike"-Kachel nach Passagiere, gruppiert nach Ort</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
         <li>Cine-Wiedergabe (▶, Vorschau + Vollbild): 1×-100×, Gleitschirm dreht sich mit; Vollbild zeigt zusätzlich rote Höhenangabe daneben; Karte/Profil springen bei Zoom automatisch mit</li>

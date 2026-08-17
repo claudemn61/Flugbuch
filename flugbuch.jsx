@@ -2302,13 +2302,17 @@ function evalToken(f, tok){
 // (nested inside each year) — deliberately narrower than the full
 // SORT_OPTIONS list, since grouping by a continuous numeric field (e.g.
 // Distanz, Dauer) would just create one tiny group per flight.
-const SUBGROUP_FIELDS = [
+// Used for both Gr. 1° and Gr. 2° (same field list in both, "Keine" added
+// separately in the dropdown UI itself).
+const GROUP_FIELDS = [
+  { id: "jahr",    label: "Jahr" },
   { id: "glider",  label: "Schirm" },
   { id: "typ",     label: "Typ" },
   { id: "site",    label: "Startplatz" },
   { id: "landung", label: "Landeplatz" },
   { id: "reise",   label: "Reise" },
   { id: "hikeOrt", label: "Hike-Ort" },
+  { id: "rating",  label: "Bewertung" },
 ];
 
 const SORT_OPTIONS = [
@@ -2429,6 +2433,7 @@ function sortFieldValue(f, sortId) {
       return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
     }
     case "hikeDauer": return (cf.hikeDauer || "").toLowerCase();
+    case "jahr":     return f.year || 0;
     default:         return 0;
   }
 }
@@ -2492,6 +2497,7 @@ function formatSortValue(f, sortId) {
       return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) + " m" : "—";
     }
     case "hikeDauer": return cf.hikeDauer || "—";
+    case "jahr":     return f.year ? String(f.year) : "—";
     default:         return f.durationStr || "—";
   }
 }
@@ -4289,19 +4295,18 @@ function FlugbuchApp() {
   const [sortDir, setSortDirRaw] = useState("desc");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchRowOpen, setSearchRowOpen] = useState(false);
-  const [collapsedYears, setCollapsedYears] = useState(new Set());
-  // Optional second grouping level, nested inside each year (Jahr stays
-  // fixed as the primary level — only this inner level is configurable).
-  // "" means off — flights just list directly under the year as before.
-  // Whether the fixed Jahr grouping is applied at all — default on
-  // (existing behaviour). Turning it off shows a flat, ungrouped list
-  // (sub-grouping is nested under Jahr conceptually, so it's ignored too
-  // while this is off).
-  const [yearGroupingOn, setYearGroupingOnRaw] = useState(true);
-  const [subGroupId, setSubGroupIdRaw] = useState("");
-  const [subGroupSortDir, setSubGroupSortDirRaw] = useState("asc");
-  const [showSubGroupMenu, setShowSubGroupMenu] = useState(false);
-  const [collapsedSubGroups, setCollapsedSubGroups] = useState(new Set());
+  // Two independent, freely choosable grouping levels (Gr. 1° = outer,
+  // Gr. 2° = inner, nested inside Gr. 1°). Jahr is no longer a fixed,
+  // always-on outer wrapper — it's just one of the selectable fields now,
+  // same as Schirm/Bewertung/etc. "" means that level is off ("Keine").
+  const [group1Id, setGroup1IdRaw] = useState("jahr");
+  const [group1Dir, setGroup1DirRaw] = useState("desc");
+  const [showGroup1Menu, setShowGroup1Menu] = useState(false);
+  const [collapsed1, setCollapsed1] = useState(new Set());
+  const [group2Id, setGroup2IdRaw] = useState("");
+  const [group2Dir, setGroup2DirRaw] = useState("asc");
+  const [showGroup2Menu, setShowGroup2Menu] = useState(false);
+  const [collapsed2, setCollapsed2] = useState(new Set());
   // Restores the previously used Suchen/Sortieren/Gruppieren settings on
   // mount — flugbuch.html is a separate page (full navigation, not a
   // client-side route), so plain React state always resets to the default
@@ -4316,9 +4321,10 @@ function FlugbuchApp() {
           if (typeof s.filterText === "string") setFilterTextRaw(s.filterText);
           if (s.sortId) setSortIdRaw(s.sortId);
           if (s.sortDir) setSortDirRaw(s.sortDir);
-          if (typeof s.yearGroupingOn === "boolean") setYearGroupingOnRaw(s.yearGroupingOn);
-          if (typeof s.subGroupId === "string") setSubGroupIdRaw(s.subGroupId);
-          if (s.subGroupSortDir) setSubGroupSortDirRaw(s.subGroupSortDir);
+          if (typeof s.group1Id === "string") setGroup1IdRaw(s.group1Id);
+          if (s.group1Dir) setGroup1DirRaw(s.group1Dir);
+          if (typeof s.group2Id === "string") setGroup2IdRaw(s.group2Id);
+          if (s.group2Dir) setGroup2DirRaw(s.group2Dir);
         }
       } catch (e) { /* nothing stored yet, or storage unavailable — keep defaults */ }
     })();
@@ -4326,16 +4332,17 @@ function FlugbuchApp() {
   const persistListSettings = (patch) => {
     try {
       window.storage.set("flugbuchListSettings", JSON.stringify({
-        filterText, sortId, sortDir, yearGroupingOn, subGroupId, subGroupSortDir, ...patch,
+        filterText, sortId, sortDir, group1Id, group1Dir, group2Id, group2Dir, ...patch,
       }));
     } catch (e) {}
   };
   const setFilterText = (v) => { setFilterTextRaw(v); persistListSettings({ filterText: v }); };
   const setSortId = (v) => { setSortIdRaw(v); persistListSettings({ sortId: v }); };
   const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ sortDir: next }); return next; }); };
-  const setYearGroupingOn = (updater) => { setYearGroupingOnRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ yearGroupingOn: next }); return next; }); };
-  const setSubGroupId = (v) => { setSubGroupIdRaw(v); persistListSettings({ subGroupId: v }); };
-  const setSubGroupSortDir = (updater) => { setSubGroupSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ subGroupSortDir: next }); return next; }); };
+  const setGroup1Id = (v) => { setGroup1IdRaw(v); persistListSettings({ group1Id: v }); };
+  const setGroup1Dir = (updater) => { setGroup1DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group1Dir: next }); return next; }); };
+  const setGroup2Id = (v) => { setGroup2IdRaw(v); persistListSettings({ group2Id: v }); };
+  const setGroup2Dir = (updater) => { setGroup2DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group2Dir: next }); return next; }); };
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
@@ -5097,8 +5104,6 @@ function FlugbuchApp() {
 
   // Grouped flights
   const filteredFlights = matchFlights(flightsWithRanks, filterText);
-  const years = [...new Set(filteredFlights.map(f=>f.year).filter(Boolean))].sort((a,b)=>b-a);
-  const noYear = filteredFlights.filter(f=>!f.year);
   const parseDurForList = s => { if(!s)return 0; const a=s.match(/(\d+):(\d{2}):(\d{2})/); if(a)return+a[1]*3600+ +a[2]*60+ +a[3]; const b=s.match(/(\d+):(\d{2})/); if(b)return+b[1]*60+ +b[2]; const c=s.match(/(\d+)h\s*(\d+)m/); if(c)return+c[1]*3600+ +c[2]*60; return 0; };
   const getDurFlight = f => f.durationSec || parseDurForList(f.durationStr);
   const longestId = flights.length ? flights.reduce((a,b)=>getDurFlight(a)>getDurFlight(b)?a:b).id : null;
@@ -5214,10 +5219,13 @@ function FlugbuchApp() {
         </div>
       </div>
 
-      {/* Row 2: Import / Backup / Auswahl / Weltkarte / Richtung / Jahr / Suchen — 7 quadratische
+      {/* Row 2: Import / Backup / Auswahl / Weltkarte / Suchen — 5 quadratische
           Icon-Buttons, einheitliches Design: grauer Rand standardmässig, die
           jeweils aktive Kachel (offenes Panel) mit rotem Rand und flächig
-          leicht rot eingefärbtem Hintergrund. */}
+          leicht rot eingefärbtem Hintergrund. Reihenfolge (Sortierrichtung)
+          und die feste Jahres-Gruppierung sind hierher ins Suchen/Sortieren-
+          Panel gewandert, seit Jahr nur noch ein wählbares Gruppieren-Feld
+          unter mehreren ist statt eines fest verdrahteten Extra-Buttons. */}
       <div style={{padding:"10px 16px 0",display:"flex",gap:8}}>
         <button onClick={()=>{ setShowImportMenu(m=>!m); setShowBackupMenu(false); }} title="Import"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${showImportMenu?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
@@ -5238,28 +5246,6 @@ function FlugbuchApp() {
         <button onClick={()=>setView("worldmap")} title="Weltkarte"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
           🗺️
-        </button>
-        <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")} title={sortDir==="asc"?"Aufsteigend":"Absteigend"}
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
-          {sortDir==="asc"?"↑":"↓"}
-        </button>
-        <button onClick={()=>{
-            const collapsing = collapsedYears.size===0;
-            setCollapsedYears(collapsing ? new Set(years) : new Set());
-            if (subGroupId) {
-              if (collapsing) {
-                const allSubKeys = new Set();
-                filteredFlights.forEach(f => {
-                  if (f.year) allSubKeys.add(f.year + "|" + (sortFieldValue(f, subGroupId) || "—"));
-                });
-                setCollapsedSubGroups(allSubKeys);
-              } else {
-                setCollapsedSubGroups(new Set());
-              }
-            }
-          }} title={collapsedYears.size===0?"Alle reduzieren":"Alle erweitern"}
-          style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:23,fontWeight:700,letterSpacing:1,cursor:"pointer"}}>
-          {collapsedYears.size===0?"➖":"➕"}
         </button>
         <button onClick={()=>{ setSearchRowOpen(o=>!o); setShowImportMenu(false); setShowBackupMenu(false); }} title="Suchen/Sortieren"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:searchRowOpen?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${searchRowOpen?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
@@ -5670,7 +5656,14 @@ function FlugbuchApp() {
         </div>
       )}
 
-      {/* Row 3: Suchen / Sortierung — ein-/ausblendbar über die 🔍-Kachel oben */}
+      {/* Suchen/Sortieren/Gruppieren-Panel — ein-/ausblendbar über die 🔍-Kachel
+          oben. Zeile 1: Suchen / Sortieren (⇅, alle Datenfelder) / Reihenfolge
+          (↑, hierher verschoben aus der oberen Icon-Zeile). Zeile 2 + 3: zwei
+          gleichwertige, unabhängig wählbare Gruppierungs-Ebenen (Gr. 1°
+          aussen, Gr. 2° innerhalb von Gr. 1° verschachtelt) — jeweils
+          Feldauswahl (⇅, inkl. "Keine") / Sortierrichtung der Gruppen (↑) /
+          Alle ein-/ausklappen (+). Jahr ist jetzt nur noch eines der
+          wählbaren Felder, kein fest verdrahteter Extra-Schalter mehr. */}
       {searchRowOpen && (
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
@@ -5682,57 +5675,80 @@ function FlugbuchApp() {
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
+            <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}
+              title={sortDir==="asc" ? "Aufsteigend" : "Absteigend"}
+              style={{flexShrink:0,width:34,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer"}}>
+              {sortDir==="asc"?"↑":"↓"}
+            </button>
           </div>
-          <div style={{marginTop:6,position:"relative",display:"flex",gap:6}}>
-            <button onClick={()=>setYearGroupingOn(v=>!v)} title={yearGroupingOn ? "Jahres-Gruppierung ausschalten" : "Jahres-Gruppierung einschalten"}
-              style={{flexShrink:0,boxSizing:"border-box",background:yearGroupingOn?"rgba(125,211,252,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${yearGroupingOn?"rgba(125,211,252,0.35)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"7px 10px",color:yearGroupingOn?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-              Jahr {yearGroupingOn?"−":"+"}
-            </button>
-            <button onClick={()=>setShowSubGroupMenu(s=>!s)}
-              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:subGroupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
-              <span>📁 Gruppieren: {subGroupId ? (SUBGROUP_FIELDS.find(o=>o.id===subGroupId)?.label||"—") : "Keine"}</span>
-              <span style={{flexShrink:0,marginLeft:4}}>{showSubGroupMenu?"▾":"▸"}</span>
-            </button>
-            {subGroupId && (
-              <button onClick={()=>setSubGroupSortDir(d=>d==="asc"?"desc":"asc")}
-                title={subGroupSortDir==="asc" ? "Untergruppen A→Z / aufsteigend" : "Untergruppen Z→A / absteigend"}
-                style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
-                {subGroupSortDir==="asc"?"↑":"↓"}
-              </button>
-            )}
-            {subGroupId && (
-              <button onClick={()=>{
-                  if (collapsedSubGroups.size===0) {
-                    const allSubKeys = new Set();
-                    filteredFlights.forEach(f => {
-                      const groupKey = yearGroupingOn ? (f.year||"—") : "ALL";
-                      allSubKeys.add(groupKey + "|" + (sortFieldValue(f, subGroupId) || "—"));
-                    });
-                    setCollapsedSubGroups(allSubKeys);
-                  } else {
-                    setCollapsedSubGroups(new Set());
-                  }
-                }}
-                title={collapsedSubGroups.size===0 ? "Alle Untergruppen reduzieren" : "Alle Untergruppen erweitern"}
-                style={{flexShrink:0,width:36,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
-                {collapsedSubGroups.size===0?"➖":"➕"}
-              </button>
-            )}
-            {showSubGroupMenu && (
-              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
-                <div onClick={()=>{setSubGroupId("");setShowSubGroupMenu(false);}}
-                  style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!subGroupId?"#7dd3fc":"rgba(232,244,253,0.5)",background:!subGroupId?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
-                  Keine
-                </div>
-                {SUBGROUP_FIELDS.map(o=>(
-                  <div key={o.id} onClick={()=>{setSubGroupId(o.id);setShowSubGroupMenu(false);}}
-                    style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===subGroupId?"#7dd3fc":"rgba(232,244,253,0.75)",background:o.id===subGroupId?"rgba(14,165,233,0.15)":"transparent"}}>
-                    {o.label}
+
+          {[1,2].map(level => {
+            const groupId = level===1 ? group1Id : group2Id;
+            const setGroupId = level===1 ? setGroup1Id : setGroup2Id;
+            const groupDir = level===1 ? group1Dir : group2Dir;
+            const setGroupDir = level===1 ? setGroup1Dir : setGroup2Dir;
+            const showMenu = level===1 ? showGroup1Menu : showGroup2Menu;
+            const setShowMenu = level===1 ? setShowGroup1Menu : setShowGroup2Menu;
+            const collapsedSet = level===1 ? collapsed1 : collapsed2;
+            const setCollapsedSet = level===1 ? setCollapsed1 : setCollapsed2;
+            return (
+              <div key={level} style={{marginTop:6,position:"relative",display:"flex",gap:6}}>
+                <button onClick={()=>setShowMenu(s=>!s)}
+                  style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:groupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ Gr. {level}°: {groupId ? (GROUP_FIELDS.find(o=>o.id===groupId)?.label||"—") : "Keine"}</span>
+                  <span style={{flexShrink:0,marginLeft:4}}>{showMenu?"▾":"▸"}</span>
+                </button>
+                {groupId && (
+                  <button onClick={()=>setGroupDir(d=>d==="asc"?"desc":"asc")}
+                    title={groupDir==="asc" ? "Gruppen A→Z / aufsteigend" : "Gruppen Z→A / absteigend"}
+                    style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                    {groupDir==="asc"?"↑":"↓"}
+                  </button>
+                )}
+                {groupId && (
+                  <button onClick={()=>{
+                      if (collapsedSet.size===0) {
+                        // Must mirror renderLevel's own collapseKey scheme
+                        // exactly ("ROOT|<g1>" for level 1, "ROOT|<g1>|<g2>"
+                        // for level 2, or "ROOT|<g2>" if Gr. 1° is "Keine"),
+                        // or the collapse-all button and the actual group
+                        // headers disagree on which keys mean "collapsed".
+                        const allKeys = new Set();
+                        filteredFlights.forEach(f => {
+                          const g1 = group1Id ? (sortFieldValue(f, group1Id) || "—") : null;
+                          if (level===1) { allKeys.add("ROOT|" + g1); return; }
+                          const g2 = sortFieldValue(f, group2Id) || "—";
+                          const prefix = group1Id ? ("ROOT|" + g1) : "ROOT";
+                          allKeys.add(prefix + "|" + g2);
+                        });
+                        setCollapsedSet(allKeys);
+                      } else {
+                        setCollapsedSet(new Set());
+                      }
+                    }}
+                    title={collapsedSet.size===0 ? "Alle Gruppen reduzieren" : "Alle Gruppen erweitern"}
+                    style={{flexShrink:0,width:36,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                    {collapsedSet.size===0?"➖":"➕"}
+                  </button>
+                )}
+                {showMenu && (
+                  <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:280,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
+                    <div onClick={()=>{setGroupId("");setShowMenu(false);}}
+                      style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:!groupId?"#7dd3fc":"rgba(232,244,253,0.5)",background:!groupId?"rgba(14,165,233,0.15)":"transparent",fontStyle:"italic"}}>
+                      Keine
+                    </div>
+                    {GROUP_FIELDS.map(o=>(
+                      <div key={o.id} onClick={()=>{setGroupId(o.id);setShowMenu(false);}}
+                        style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===groupId?"#7dd3fc":"rgba(232,244,253,0.75)",background:o.id===groupId?"rgba(14,165,233,0.15)":"transparent"}}>
+                        {o.label}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
+
         {showFilterHelp && (
           <div style={{marginTop:8,background:"rgba(125,211,252,0.07)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:10,padding:"10px 12px",fontSize:11,lineHeight:1.6,color:"rgba(232,244,253,0.7)"}}>
             <div style={{fontWeight:700,color:"#7dd3fc",marginBottom:4}}>Filter-Syntax</div>
@@ -5833,7 +5849,11 @@ function FlugbuchApp() {
         </div>
       )}
 
-      {/* Flight list */}
+      {/* Flight list — generic two-level grouping (Gr. 1° outer, Gr. 2°
+          nested inside). Both levels independently optional ("Keine" =
+          off); if only Gr. 2° is set while Gr. 1° is "Keine", Gr. 2°
+          becomes the sole grouping level instead of staying nested under
+          an empty outer level. */}
       <div style={{padding:"4px 0 16px"}}>
         {flights.length===0&&(
           <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(232,244,253,0.25)"}}>
@@ -5842,182 +5862,74 @@ function FlugbuchApp() {
             <div style={{fontSize:13}}>CSV importieren oder IGC-Dateien ablegen</div>
           </div>
         )}
-        {!yearGroupingOn ? (
-          subGroupId ? (
-            // Jahr off but a grouping field is chosen — that field becomes
-            // the sole top-level grouping instead of being nested under
-            // Jahr, with its own collapsible headers (using "ALL|value" as
-            // the collapse key, matching the collapse-all button above).
-            (() => {
-              const allFlights = [...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))];
-              const subKeyOf = f => sortFieldValue(f, subGroupId) || "—";
-              const subKeys = sortSubKeys([...new Set(allFlights.map(subKeyOf))], subGroupSortDir);
-              return subKeys.map(subKey => {
-                const subFlights = sortFlights(allFlights.filter(f => subKeyOf(f) === subKey), sortId, sortDir);
-                const subCollapseKey = "ALL|" + subKey;
-                const subCollapsed = collapsedSubGroups.has(subCollapseKey);
-                const subLabel = subFlights.length ? formatSortValue(subFlights[0], subGroupId) : subKey;
-                return (
-                  <div key={subKey}>
-                    <div onClick={()=>{
-                        if (selectMode) {
-                          const subIds = subFlights.map(f=>f.id);
-                          const allSelected = subIds.every(id=>selectedIds.has(id));
-                          setSelectedIds(prev=>{
-                            const n = new Set(prev);
-                            subIds.forEach(id => allSelected ? n.delete(id) : n.add(id));
-                            return n;
-                          });
-                        } else {
-                          setCollapsedSubGroups(s=>{const n=new Set(s);n.has(subCollapseKey)?n.delete(subCollapseKey):n.add(subCollapseKey);return n;});
-                        }
-                      }}
-                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                      <span style={{fontWeight:700,color:"#7dd3fc",fontSize:14}}>{subLabel} · {subFlights.length} Flüge</span>
-                      <span style={{fontSize:12,color:"rgba(232,244,253,0.35)"}}>{subCollapsed?"▸":"▾"}</span>
-                    </div>
-                    {!subCollapsed && subFlights.map(f=>(
-                      <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                        selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                        onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                        onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                    ))}
-                  </div>
-                );
-              });
-            })()
-          ) : (
-            // Jahr off, no grouping field chosen either — fully flat list.
-            <div>
-              {(() => {
-                const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
-                return sorted.map(f=>(
-                  <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                    selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                    onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                    onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                ));
-              })()}
-            </div>
-          )
-        ) : (sortId !== "date" && sortId !== "number") ? (
-          // Existing heuristic (unrelated to the Jahr toggle): flat,
-          // year-spanning sort implied by the chosen sort field.
-          <div>
-            {(() => {
-              const sorted = sortFlights([...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))], sortId, sortDir);
-              return sorted.map(f=>(
-                <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                  selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                  onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                  onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-              ));
-            })()}
-          </div>
-        ) : (<>
-        {years.map(yr => {
-          const yFlights = sortFlights(filteredFlights.filter(f=>f.year===yr), sortId, sortDir);
-          const collapsed = collapsedYears.has(yr);
+        {(() => {
+          const renderFlightRows = (list) => sortFlights(list, sortId, sortDir).map(f => (
+            <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
+              selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+              onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+              onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
+          ));
           const parseDStr = s => { if(!s)return 0; const a=s.match(/(\d+):(\d{2}):(\d{2})/); if(a)return+a[1]*3600+ +a[2]*60+ +a[3]; const b=s.match(/(\d+):(\d{2})/); if(b)return+b[1]*60+ +b[2]; const c=s.match(/(\d+)h\s*(\d+)m/); if(c)return+c[1]*3600+ +c[2]*60; return 0; };
-          const yrSec = yFlights.reduce((s,f)=>s+(f.durationSec||parseDStr(f.durationStr)),0);
-          const yrH = Math.floor(yrSec/3600), yrM = String(Math.floor((yrSec%3600)/60)).padStart(2,"0");
-          const yrBiplace = yFlights.filter(f=>(f.customFields?.passagier||"").trim()).length;
-          return (
-            <div key={yr}>
-              <div onClick={()=>{
-                  if (selectMode) {
-                    // In selection mode, tapping the year header toggles
-                    // selection of every flight in that year instead of
-                    // collapsing it — collapsing and bulk-selecting both
-                    // wanting the same tap target would be confusing.
-                    const yearIds = yFlights.map(f=>f.id);
-                    const allSelected = yearIds.every(id=>selectedIds.has(id));
-                    setSelectedIds(prev=>{
-                      const n = new Set(prev);
-                      yearIds.forEach(id => allSelected ? n.delete(id) : n.add(id));
-                      return n;
-                    });
-                  } else {
-                    setCollapsedYears(s=>{const n=new Set(s);n.has(yr)?n.delete(yr):n.add(yr);return n;});
-                  }
-                }}
-                style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  {selectMode && (() => {
-                    const yearIds = yFlights.map(f=>f.id);
-                    const allSelected = yearIds.length>0 && yearIds.every(id=>selectedIds.has(id));
-                    return (
-                      <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${allSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:allSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {allSelected && <span style={{color:"#0a1628",fontSize:11,fontWeight:900}}>✓</span>}
-                      </div>
-                    );
-                  })()}
-                  <span style={{fontWeight:700,color:"#7dd3fc",fontSize:14}}>{yr} · {yFlights.length} Flüge{yrBiplace>0&&<span style={{color:"#fcd34d",fontSize:11,fontWeight:600}}> · {yrBiplace} Biplace</span>}</span>
+          // levels: array of remaining group descriptors to apply, outer first.
+          const renderLevel = (list, levels, prefix, depth) => {
+            if (levels.length === 0) return renderFlightRows(list);
+            const [lvl, ...rest] = levels;
+            if (!lvl.id) return renderLevel(list, rest, prefix, depth);
+            const keyOf = f => sortFieldValue(f, lvl.id) || "—";
+            const keys = sortSubKeys([...new Set(list.map(keyOf))], lvl.dir);
+            return keys.map(key => {
+              const groupFlights = list.filter(f => keyOf(f) === key);
+              const collapseKey = prefix + "|" + key;
+              const isCollapsed = lvl.collapsed.has(collapseKey);
+              const label = groupFlights.length ? formatSortValue(groupFlights[0], lvl.id) : key;
+              const sec = groupFlights.reduce((s,f)=>s+(f.durationSec||parseDStr(f.durationStr)),0);
+              const h = Math.floor(sec/3600), m = String(Math.floor((sec%3600)/60)).padStart(2,"0");
+              const biplace = depth===0 ? groupFlights.filter(f=>(f.customFields?.passagier||"").trim()).length : 0;
+              return (
+                <div key={key}>
+                  <div onClick={()=>{
+                      if (selectMode) {
+                        const ids = groupFlights.map(f=>f.id);
+                        const allSelected = ids.every(id=>selectedIds.has(id));
+                        setSelectedIds(prev=>{
+                          const n = new Set(prev);
+                          ids.forEach(id => allSelected ? n.delete(id) : n.add(id));
+                          return n;
+                        });
+                      } else {
+                        lvl.setCollapsed(s=>{const n=new Set(s);n.has(collapseKey)?n.delete(collapseKey):n.add(collapseKey);return n;});
+                      }
+                    }}
+                    style={depth===0
+                      ? {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}
+                      : {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      {selectMode && depth===0 && (() => {
+                        const ids = groupFlights.map(f=>f.id);
+                        const allSelected = ids.length>0 && ids.every(id=>selectedIds.has(id));
+                        return (
+                          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${allSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:allSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {allSelected && <span style={{color:"#0a1628",fontSize:11,fontWeight:900}}>✓</span>}
+                          </div>
+                        );
+                      })()}
+                      <span style={depth===0 ? {fontWeight:700,color:"#7dd3fc",fontSize:14} : {fontWeight:600,color:"rgba(125,211,252,0.75)",fontSize:12}}>
+                        {label} · {groupFlights.length}{depth===0?" Flüge":""}{biplace>0&&<span style={{color:"#fcd34d",fontSize:11,fontWeight:600}}> · {biplace} Biplace</span>}
+                      </span>
+                    </div>
+                    <span style={{fontSize:depth===0?12:11,color:"rgba(232,244,253,0.35)"}}>{depth===0&&sec>0?`${h}h${m}m `:""}{isCollapsed?"▸":"▾"}</span>
+                  </div>
+                  {!isCollapsed && renderLevel(groupFlights, rest, collapseKey, depth+1)}
                 </div>
-                <span style={{fontSize:12,color:"rgba(232,244,253,0.35)"}}>{yrH}h{yrM}m {collapsed?"▸":"▾"}</span>
-              </div>
-              {!collapsed && (
-                subGroupId ? (() => {
-                  // Sub-groups computed from this year's own flights, in
-                  // the same order sortFlights would produce, then
-                  // clustered by consecutive equal sub-group value —
-                  // avoids a second independent sort pass fighting the
-                  // chosen Kat.2 order.
-                  const subKeyOf = f => sortFieldValue(f, subGroupId) || "—";
-                  const subKeys = sortSubKeys([...new Set(yFlights.map(subKeyOf))], subGroupSortDir);
-                  return subKeys.map(subKey => {
-                    const subFlights = yFlights.filter(f => subKeyOf(f) === subKey);
-                    const subCollapseKey = yr + "|" + subKey;
-                    const subCollapsed = collapsedSubGroups.has(subCollapseKey);
-                    const subLabel = subFlights.length ? formatSortValue(subFlights[0], subGroupId) : subKey;
-                    return (
-                      <div key={subKey}>
-                        <div onClick={()=>{
-                            if (selectMode) {
-                              const subIds = subFlights.map(f=>f.id);
-                              const allSelected = subIds.every(id=>selectedIds.has(id));
-                              setSelectedIds(prev=>{
-                                const n = new Set(prev);
-                                subIds.forEach(id => allSelected ? n.delete(id) : n.add(id));
-                                return n;
-                              });
-                            } else {
-                              setCollapsedSubGroups(s=>{const n=new Set(s);n.has(subCollapseKey)?n.delete(subCollapseKey):n.add(subCollapseKey);return n;});
-                            }
-                          }}
-                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
-                          <span style={{fontWeight:600,color:"rgba(125,211,252,0.75)",fontSize:12}}>{subLabel} · {subFlights.length}</span>
-                          <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{subCollapsed?"▸":"▾"}</span>
-                        </div>
-                        {!subCollapsed && subFlights.map(f=>(
-                          <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                            selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                            onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                            onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                        ))}
-                      </div>
-                    );
-                  });
-                })() : (
-                  yFlights.map(f=>(
-                    <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-                      selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-                      onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-                      onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
-                  ))
-                )
-              )}
-            </div>
-          );
-        })}
-        {noYear.length>0&&sortFlights(noYear, sortId, sortDir).map(f=>(
-          <div key={f.id} onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}}
-            style={{padding:"11px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
-            <span style={{fontWeight:700}}>{f.name}</span>
-            <span style={{fontSize:12,color:"rgba(232,244,253,0.4)",marginLeft:8}}>{f.site}</span>
-          </div>
-        ))}
-        </>)}
+              );
+            });
+          };
+          const levels = [
+            { id: group1Id, dir: group1Dir, collapsed: collapsed1, setCollapsed: setCollapsed1 },
+            { id: group2Id, dir: group2Dir, collapsed: collapsed2, setCollapsed: setCollapsed2 },
+          ];
+          return renderLevel(filteredFlights, levels, "ROOT", 0);
+        })()}
       </div>
       {showFieldEditor&&<FieldEditor customFieldDefs={customFieldDefs} onSave={handleSaveFields} onClose={()=>setShowFieldEditor(false)} />}
     </div>
