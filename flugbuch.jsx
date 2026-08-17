@@ -488,7 +488,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // hikeTrack, playPhase just stays "flight" and nothing here changes
   // behaviour at all.
   const hasHike = (flight?.hikeTrack?.length || 0) > 1;
-  const [playPhase, setPlayPhase] = useState("flight"); // "hike" | "flight"
+  // Starts in the hike phase whenever a Hike-GPX exists — matters especially
+  // when there is no IGC flight track at all (Hike & Fly logged without a
+  // recorded flight), since playPhase would otherwise default to "flight",
+  // a phase with no points to animate.
+  const [playPhase, setPlayPhase] = useState(() => hasHike ? "hike" : "flight");
   useEffect(() => { if (onPlaybackPhaseChange) onPlaybackPhaseChange(playPhase); }, [playPhase]);
   // Hike points assigned a synthetic, evenly-paced timeline (average
   // walking speed ~4.5 km/h) when the GPX carries no real timestamps —
@@ -522,7 +526,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const togglePlay = () => {
     setIsPlaying(p => {
       if (!p && playPhase === "hike" && hikeTimed.length > 1 && playElapsedSec >= hikeTimed[hikeTimed.length-1]._t - 0.01) {
-        setPlayPhase("flight");
+        if ((flight?.track?.length || 0) > 1) {
+          setPlayPhase("flight");
+        }
+        // No IGC track to move on to — replay the hike from the start
+        // instead of switching to an empty "flight" phase with nothing to animate.
         setPlayElapsedSec(0);
       }
       return !p;
@@ -531,7 +539,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
 
   const track = flight?.track || [];
   const sP = flight?.startPt, eP = flight?.endPt;
-  const hasMap = track.length > 0 || (sP && eP);
+  const hasMap = track.length > 0 || (sP && eP) || hasHike;
 
   // Same GPS-glitch rejection as before: a single wild fix shouldn't blow
   // out the bounding box used for fitBounds.
@@ -974,7 +982,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       </div>
       {controlsSlot && hasMap && ReactDOM.createPortal(
         <>
-          {flight?.track?.length > 1 && (
+          {(flight?.track?.length > 1 || hasHike) && (
             <>
               <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
@@ -1035,7 +1043,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}
         >
           <div ref={fullDivRef} style={{width:"100%",height:"70vh"}} />
-          {flight?.track?.length > 1 && (
+          {(flight?.track?.length > 1 || hasHike) && (
             <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center"}}>
               <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
