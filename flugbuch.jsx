@@ -2338,6 +2338,10 @@ const SORT_OPTIONS = [
   { id: "rangStrecke", label: "Rang Strecke" },
   { id: "pctStrecke", label: "% Strecke" },
   { id: "rating",   label: "Bewertung" },
+  { id: "hikeOrt",         label: "Hike-Ort" },
+  { id: "hikeStarthoehe",  label: "Hike-Starthöhe" },
+  { id: "hikeHoehenmeter", label: "Hike-Höhenmeter" },
+  { id: "hikeDauer",       label: "Hike-Dauer" },
 ];
 function parseDateToTs(d, timeStr) {
   if (!d) return 0;
@@ -2418,8 +2422,24 @@ function sortFieldValue(f, sortId) {
     case "speed":    return parseFloat(cf.kmh || 0) || 0;
     case "rating":   return f.rating || 0;
     case "hikeOrt":  return (cf.hikeOrt || "").toLowerCase();
+    case "hikeStarthoehe": return +(cf.hikeStarthoehe||0) || 0;
+    case "hikeHoehenmeter": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
+    }
+    case "hikeDauer": return (cf.hikeDauer || "").toLowerCase();
     default:         return 0;
   }
+}
+// Orders the distinct sub-group keys themselves (e.g. the list of Schirm-
+// or Hike-Ort-names a "Gruppieren" level produces) — separate from
+// sortFlights, which orders the flights inside each group. Locale-aware,
+// numeric-aware compare so it reads naturally for both text groups (Schirm)
+// and numeric-ish ones (Hike-Starthöhe).
+function sortSubKeys(keys, dir) {
+  const sorted = [...keys].sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}));
+  return dir === "desc" ? sorted.reverse() : sorted;
 }
 function sortFlights(flights, sortId, dir) {
   if (!sortId) return flights;
@@ -2465,6 +2485,13 @@ function formatSortValue(f, sortId) {
     case "speed":    return cf.kmh ? cf.kmh + " km/h" : "—";
     case "rating":   return f.rating ? "★".repeat(f.rating) : "—";
     case "hikeOrt":  return cf.hikeOrt || "—";
+    case "hikeStarthoehe": return cf.hikeStarthoehe ? cf.hikeStarthoehe + " m" : "—";
+    case "hikeHoehenmeter": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) + " m" : "—";
+    }
+    case "hikeDauer": return cf.hikeDauer || "—";
     default:         return f.durationStr || "—";
   }
 }
@@ -4272,6 +4299,7 @@ function FlugbuchApp() {
   // while this is off).
   const [yearGroupingOn, setYearGroupingOnRaw] = useState(true);
   const [subGroupId, setSubGroupIdRaw] = useState("");
+  const [subGroupSortDir, setSubGroupSortDirRaw] = useState("asc");
   const [showSubGroupMenu, setShowSubGroupMenu] = useState(false);
   const [collapsedSubGroups, setCollapsedSubGroups] = useState(new Set());
   // Restores the previously used Suchen/Sortieren/Gruppieren settings on
@@ -4290,6 +4318,7 @@ function FlugbuchApp() {
           if (s.sortDir) setSortDirRaw(s.sortDir);
           if (typeof s.yearGroupingOn === "boolean") setYearGroupingOnRaw(s.yearGroupingOn);
           if (typeof s.subGroupId === "string") setSubGroupIdRaw(s.subGroupId);
+          if (s.subGroupSortDir) setSubGroupSortDirRaw(s.subGroupSortDir);
         }
       } catch (e) { /* nothing stored yet, or storage unavailable — keep defaults */ }
     })();
@@ -4297,7 +4326,7 @@ function FlugbuchApp() {
   const persistListSettings = (patch) => {
     try {
       window.storage.set("flugbuchListSettings", JSON.stringify({
-        filterText, sortId, sortDir, yearGroupingOn, subGroupId, ...patch,
+        filterText, sortId, sortDir, yearGroupingOn, subGroupId, subGroupSortDir, ...patch,
       }));
     } catch (e) {}
   };
@@ -4306,6 +4335,7 @@ function FlugbuchApp() {
   const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ sortDir: next }); return next; }); };
   const setYearGroupingOn = (updater) => { setYearGroupingOnRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ yearGroupingOn: next }); return next; }); };
   const setSubGroupId = (v) => { setSubGroupIdRaw(v); persistListSettings({ subGroupId: v }); };
+  const setSubGroupSortDir = (updater) => { setSubGroupSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ subGroupSortDir: next }); return next; }); };
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
@@ -5664,6 +5694,13 @@ function FlugbuchApp() {
               <span style={{flexShrink:0,marginLeft:4}}>{showSubGroupMenu?"▾":"▸"}</span>
             </button>
             {subGroupId && (
+              <button onClick={()=>setSubGroupSortDir(d=>d==="asc"?"desc":"asc")}
+                title={subGroupSortDir==="asc" ? "Untergruppen A→Z / aufsteigend" : "Untergruppen Z→A / absteigend"}
+                style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                {subGroupSortDir==="asc"?"↑":"↓"}
+              </button>
+            )}
+            {subGroupId && (
               <button onClick={()=>{
                   if (collapsedSubGroups.size===0) {
                     const allSubKeys = new Set();
@@ -5814,7 +5851,7 @@ function FlugbuchApp() {
             (() => {
               const allFlights = [...filteredFlights, ...noYear.filter(f=>!filteredFlights.includes(f))];
               const subKeyOf = f => sortFieldValue(f, subGroupId) || "—";
-              const subKeys = [...new Set(allFlights.map(subKeyOf))];
+              const subKeys = sortSubKeys([...new Set(allFlights.map(subKeyOf))], subGroupSortDir);
               return subKeys.map(subKey => {
                 const subFlights = sortFlights(allFlights.filter(f => subKeyOf(f) === subKey), sortId, sortDir);
                 const subCollapseKey = "ALL|" + subKey;
@@ -5927,7 +5964,7 @@ function FlugbuchApp() {
                   // avoids a second independent sort pass fighting the
                   // chosen Kat.2 order.
                   const subKeyOf = f => sortFieldValue(f, subGroupId) || "—";
-                  const subKeys = [...new Set(yFlights.map(subKeyOf))];
+                  const subKeys = sortSubKeys([...new Set(yFlights.map(subKeyOf))], subGroupSortDir);
                   return subKeys.map(subKey => {
                     const subFlights = yFlights.filter(f => subKeyOf(f) === subKey);
                     const subCollapseKey = yr + "|" + subKey;
