@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.10.5";
+const APP_VERSION = "4.10.6";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.10.6", note: "Flugliste: die 7 Icon-Kacheln oben (Import, Backup, Auswahl, Weltkarte, Reihenfolge, alle Jahre, Suchen) einheitlich gestaltet — grauer Rand im Ruhezustand, offene Kachel jetzt mit rotem Rand und flächig leicht rot eingefärbtem Hintergrund statt der bisherigen uneinheitlichen Farben." },
   { v: "4.10.5", note: "Backup: Export wird jetzt gzip-komprimiert (deutlich kleinere Datei), Import erkennt sowohl komprimierte als auch alte unkomprimierte Backups automatisch. Neu: roter Punkt am 💾-Button, sobald es seit dem letzten Backup ungesicherte Änderungen an Flügen/Feldern gibt — verschwindet nach erfolgreichem Backup oder Import." },
   { v: "4.10.4", note: "Home/Statistik-Kachel: neue Info-Kachel \"X Hike-Flüge\" (nur sichtbar wenn >0). Kleine Info-Kacheln überall leicht verkleinert, damit auch 5 davon eher auf einer Zeile Platz haben." },
   { v: "4.10.3", note: "Höhenprofil: Hike-Bodenprofil kommt jetzt direkt aus den eigenen GPX-Höhenwerten statt der externen Terrain-API — braucht keine Anfrage mehr und der grüne Hike-Track liegt garantiert exakt am Boden. Flug-Teil behält 80 Abtastpunkte, plus ein automatischer Wiederholungsversuch bei Fehlschlag, da der kostenlose Höhendaten-Dienst keine Verfügbarkeits-Garantie bietet." },
