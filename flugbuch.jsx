@@ -2196,6 +2196,15 @@ function flightFieldValue(f, field){
     case "endlon": return f.endPt?.lon||0;
     case "speed": case "kmh": return parseFloat(cf.kmh||0)||0;
     case "rating": case "bewertung": return f.rating||0;
+    case "hikeort": return cf.hikeOrt||"";
+    case "hikestartpunkt": return cf.hikeStartpunkt||"";
+    case "hikestarthoehe": return +(cf.hikeStarthoehe||0)||0;
+    case "hikedauer": return cf.hikeDauer||"";
+    case "hikehoehenmeter": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
+    }
     default: return "";
   }
 }
@@ -2222,7 +2231,7 @@ function evalToken(f, tok){
 
     const numericFields=["dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
       "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
-      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon"];
+      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
     const dateFields=["datum","date"];
     const timeFields=["startzeit","starttime","landezeit","endtime"];
 
@@ -2291,6 +2300,7 @@ const SUBGROUP_FIELDS = [
   { id: "site",    label: "Startplatz" },
   { id: "landung", label: "Landeplatz" },
   { id: "reise",   label: "Reise" },
+  { id: "hikeOrt", label: "Hike-Ort" },
 ];
 
 const SORT_OPTIONS = [
@@ -2399,6 +2409,7 @@ function sortFieldValue(f, sortId) {
     case "reise":    return (cf.reise || "").toLowerCase();
     case "speed":    return parseFloat(cf.kmh || 0) || 0;
     case "rating":   return f.rating || 0;
+    case "hikeOrt":  return (cf.hikeOrt || "").toLowerCase();
     default:         return 0;
   }
 }
@@ -2445,6 +2456,7 @@ function formatSortValue(f, sortId) {
     case "reise":    return cf.reise || "—";
     case "speed":    return cf.kmh ? cf.kmh + " km/h" : "—";
     case "rating":   return f.rating ? "★".repeat(f.rating) : "—";
+    case "hikeOrt":  return cf.hikeOrt || "—";
     default:         return f.durationStr || "—";
   }
 }
@@ -2621,6 +2633,11 @@ const SEARCH_FIELDS = [
   { id: "rating",    label: "Bewertung",      type: "number" },
   { id: "igc",       label: "IGC-Track",      type: "bool" },
   { id: "gpx",       label: "Hike-GPX",       type: "bool" },
+  { id: "hikeort",        label: "Hike-Ort",         type: "text" },
+  { id: "hikestartpunkt", label: "Hike-Startpunkt",  type: "text" },
+  { id: "hikestarthoehe", label: "Hike-Starthöhe (m)", type: "number" },
+  { id: "hikehoehenmeter", label: "Hike-Höhenmeter (m)", type: "number" },
+  { id: "hikedauer",      label: "Hike-Dauer",       type: "text" },
 ];
 const BOOL_OPTIONS = [
   { value: "ja",   label: "Vorhanden" },
