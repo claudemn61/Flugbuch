@@ -2211,6 +2211,13 @@ function evalToken(f, tok){
       const has = !!(f.customFields?.passagier||"").trim();
       return op==="!=" ? !has : has;
     }
+    // igc:ja / igc:nein and gpx:ja / gpx:nein — presence of an imported
+    // IGC flight track resp. a Hike-GPX route, not a value comparison.
+    if(field==="igc" || field==="gpx"){
+      const has = field==="igc" ? (f.track?.length>1) : (f.hikeTrack?.length>1);
+      const want = ["ja","vorhanden","true","1"].includes(raw.toLowerCase());
+      return op==="!=" ? has!==want : has===want;
+    }
     let fv=flightFieldValue(f, field);
 
     const numericFields=["dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
@@ -2612,6 +2619,12 @@ const SEARCH_FIELDS = [
   { id: "rangstrecke", label: "Rang Strecke", type: "number" },
   { id: "pctstrecke", label: "% Strecke",     type: "number" },
   { id: "rating",    label: "Bewertung",      type: "number" },
+  { id: "igc",       label: "IGC-Track",      type: "bool" },
+  { id: "gpx",       label: "Hike-GPX",       type: "bool" },
+];
+const BOOL_OPTIONS = [
+  { value: "ja",   label: "Vorhanden" },
+  { value: "nein", label: "Nicht vorhanden" },
 ];
 const ADV_OPS_NUM = [">=", "<=", "!=", ">", "<", "=", "between"];
 const ADV_OPS_TEXT = [":", "=", "!=", ">", "<", ">=", "<="];
@@ -2763,12 +2776,14 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                     onChange={e=>{
                       const nf = SEARCH_FIELDS.find(f=>f.id===e.target.value);
                       const isNum = nf?.type==="number"||nf?.type==="date"||nf?.type==="time";
-                      updateRow(idx, { field: e.target.value, op: isNum ? "=" : ":", value2: undefined });
+                      const isBool = nf?.type==="bool";
+                      updateRow(idx, { field: e.target.value, op: isNum ? "=" : ":", value2: undefined, value: isBool ? "ja" : "" });
                     }}
                     style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 4px",color:"#e8f4fd",fontSize:12,minWidth:0}}>
                     {SEARCH_FIELDS.map(f=><option key={f.id} value={f.id} style={{background:"#0a1628"}}>{f.label}</option>)}
                   </select>
                   {(() => {
+                    if (fieldDef?.type === "bool") return null;
                     const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
                     const ops = isNumeric ? ADV_OPS_NUM : ADV_OPS_TEXT;
                     return (
@@ -2778,11 +2793,18 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                       </select>
                     );
                   })()}
+                  {fieldDef?.type === "bool" ? (
+                    <select value={row.value||"ja"} onChange={e=>updateRow(idx,{value:e.target.value})}
+                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}}>
+                      {BOOL_OPTIONS.map(o=><option key={o.value} value={o.value} style={{background:"#0a1628"}}>{o.label}</option>)}
+                    </select>
+                  ) : (
                   <input value={row.value==="*"?"":row.value} onChange={e=>updateRow(idx,{value:e.target.value})}
                     placeholder={fieldDef?.anyOption ? "Name, oder \"beliebig\" →" : (row.op==="between" ? "von…" : "Wert…")}
                     disabled={row.value==="*"}
                     list={row.field==="glider" && knownGliders?.length ? "glider-datalist" : undefined}
                     style={{flex:1,minWidth:0,background:row.value==="*"?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
+                  )}
                   {row.op==="between" && (
                     <input value={row.value2||""} onChange={e=>updateRow(idx,{value2:e.target.value})} placeholder="bis…"
                       style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
