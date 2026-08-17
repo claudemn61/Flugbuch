@@ -2482,6 +2482,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         )}
         {isLongest&&<span style={{fontSize:10,flexShrink:0}}>🏆</span>}
         <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
+        {reiseLabel && <span style={{fontSize:10,fontWeight:700,color:"#fcd34d",flexShrink:0}}>{reiseLabel}</span>}
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
         {f.glider && <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flexShrink:2}}>· {f.glider}</span>}
@@ -2495,6 +2496,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
             <span style={{color:"#f87171",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
           )}
+          {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
           <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
       </div>
