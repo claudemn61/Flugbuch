@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.11";
+const APP_VERSION = "4.12";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "4.12", note: "Gr. 1°/Gr. 2° in der Flugliste: die Gruppen lassen sich jetzt nach jedem beliebigen Datenfeld sortieren (nicht mehr nur alphabetisch nach dem Gruppierfeld selbst) — neue Auswahlliste (⇅) neben Gr. 1°/Gr. 2° zeigt alle Sortieren-Felder. Zahlenfelder (Dauer, Distanz, Höhe, Bewertung, …) werden dabei über die Gruppe summiert, Textfelder nehmen den alphabetisch ersten Wert. Gleiches Feld nochmals antippen kehrt die Richtung um (erst absteigend, dann aufsteigend)." },
   { v: "4.11", note: "Flugliste komplett neu strukturiert: statt fester Jahres-Gruppierung + einer Zusatz-Gruppierung jetzt zwei gleichwertige, frei wählbare Gruppierungs-Ebenen (Gr. 1° / Gr. 2°, jeweils inkl. \"Keine\"), beide um Jahr und Bewertung erweitert, jede mit eigener Sortierrichtung und eigenem Alle-ein-/ausklappen. Reihenfolge-Kachel aus der oberen Icon-Zeile entfernt und ins Suchen-Panel verschoben (neben Sortieren); \"alle Jahre\"-Kachel entfällt dadurch (Funktion jetzt in Gr. 1°/Gr. 2°)." },
   { v: "4.10.7", note: "Flugliste: Untergruppen (Gruppieren-Funktion) jetzt sortierbar — neuer ↑↓-Button neben \"Gruppieren\" ordnet die Untergruppen alphabetisch/numerisch auf- oder absteigend. Sortieren- und Gruppieren-Felder um Hike-Ort, Hike-Starthöhe, Hike-Höhenmeter und Hike-Dauer erweitert." },
   { v: "4.10.6", note: "Flugliste: die 7 Icon-Kacheln oben (Import, Backup, Auswahl, Weltkarte, Reihenfolge, alle Jahre, Suchen) einheitlich gestaltet — grauer Rand im Ruhezustand, offene Kachel jetzt mit rotem Rand und flächig leicht rot eingefärbtem Hintergrund statt der bisherigen uneinheitlichen Farben." },

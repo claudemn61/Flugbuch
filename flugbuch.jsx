@@ -2318,6 +2318,7 @@ const GROUP_FIELDS = [
 const SORT_OPTIONS = [
   { id: "number",   label: "Nummer" },
   { id: "date",     label: "Datum" },
+  { id: "jahr",     label: "Jahr" },
   { id: "startTime", label: "Startzeit" },
   { id: "endTime",  label: "Landezeit" },
   { id: "site",     label: "Startplatz" },
@@ -2445,6 +2446,22 @@ function sortFieldValue(f, sortId) {
 function sortSubKeys(keys, dir) {
   const sorted = [...keys].sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}));
   return dir === "desc" ? sorted.reverse() : sorted;
+}
+// Determines how a group of flights (e.g. all flights with the same
+// Schirm, or the same Jahr) is ordered relative to other groups, when the
+// person picks a data field to sort the groups BY (not just alphabetically
+// by the group's own name). Numeric fields (Dauer, Distanz, Höhe, Rating,
+// …) are summed across the group's flights — e.g. "sort Schirm-groups by
+// total flight time". Text fields (Schirm, Startplatz, …) use the
+// alphabetically-first value present in the group, since there's no
+// meaningful numeric aggregate for those.
+function groupOrderValue(groupFlights, fieldId) {
+  if (!groupFlights.length) return 0;
+  const vals = groupFlights.map(f => sortFieldValue(f, fieldId));
+  if (vals.every(v => typeof v === "number")) {
+    return vals.reduce((a,b)=>a+b, 0);
+  }
+  return [...vals].map(String).sort((a,b)=>a.localeCompare(b,"de",{numeric:true,sensitivity:"base"}))[0];
 }
 function sortFlights(flights, sortId, dir) {
   if (!sortId) return flights;
@@ -4301,11 +4318,15 @@ function FlugbuchApp() {
   // same as Schirm/Bewertung/etc. "" means that level is off ("Keine").
   const [group1Id, setGroup1IdRaw] = useState("jahr");
   const [group1Dir, setGroup1DirRaw] = useState("desc");
+  const [group1SortField, setGroup1SortFieldRaw] = useState(""); // "" = nach eigenem Gruppierfeld (Name)
   const [showGroup1Menu, setShowGroup1Menu] = useState(false);
+  const [showGroup1SortMenu, setShowGroup1SortMenu] = useState(false);
   const [collapsed1, setCollapsed1] = useState(new Set());
   const [group2Id, setGroup2IdRaw] = useState("");
   const [group2Dir, setGroup2DirRaw] = useState("asc");
+  const [group2SortField, setGroup2SortFieldRaw] = useState("");
   const [showGroup2Menu, setShowGroup2Menu] = useState(false);
+  const [showGroup2SortMenu, setShowGroup2SortMenu] = useState(false);
   const [collapsed2, setCollapsed2] = useState(new Set());
   // Restores the previously used Suchen/Sortieren/Gruppieren settings on
   // mount — flugbuch.html is a separate page (full navigation, not a
@@ -4323,8 +4344,10 @@ function FlugbuchApp() {
           if (s.sortDir) setSortDirRaw(s.sortDir);
           if (typeof s.group1Id === "string") setGroup1IdRaw(s.group1Id);
           if (s.group1Dir) setGroup1DirRaw(s.group1Dir);
+          if (typeof s.group1SortField === "string") setGroup1SortFieldRaw(s.group1SortField);
           if (typeof s.group2Id === "string") setGroup2IdRaw(s.group2Id);
           if (s.group2Dir) setGroup2DirRaw(s.group2Dir);
+          if (typeof s.group2SortField === "string") setGroup2SortFieldRaw(s.group2SortField);
         }
       } catch (e) { /* nothing stored yet, or storage unavailable — keep defaults */ }
     })();
@@ -4332,7 +4355,7 @@ function FlugbuchApp() {
   const persistListSettings = (patch) => {
     try {
       window.storage.set("flugbuchListSettings", JSON.stringify({
-        filterText, sortId, sortDir, group1Id, group1Dir, group2Id, group2Dir, ...patch,
+        filterText, sortId, sortDir, group1Id, group1Dir, group1SortField, group2Id, group2Dir, group2SortField, ...patch,
       }));
     } catch (e) {}
   };
@@ -4341,8 +4364,10 @@ function FlugbuchApp() {
   const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ sortDir: next }); return next; }); };
   const setGroup1Id = (v) => { setGroup1IdRaw(v); persistListSettings({ group1Id: v }); };
   const setGroup1Dir = (updater) => { setGroup1DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group1Dir: next }); return next; }); };
+  const setGroup1SortField = (v) => { setGroup1SortFieldRaw(v); persistListSettings({ group1SortField: v }); };
   const setGroup2Id = (v) => { setGroup2IdRaw(v); persistListSettings({ group2Id: v }); };
   const setGroup2Dir = (updater) => { setGroup2DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group2Dir: next }); return next; }); };
+  const setGroup2SortField = (v) => { setGroup2SortFieldRaw(v); persistListSettings({ group2SortField: v }); };
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
@@ -5687,8 +5712,12 @@ function FlugbuchApp() {
             const setGroupId = level===1 ? setGroup1Id : setGroup2Id;
             const groupDir = level===1 ? group1Dir : group2Dir;
             const setGroupDir = level===1 ? setGroup1Dir : setGroup2Dir;
+            const sortField = (level===1 ? group1SortField : group2SortField) || groupId;
+            const setSortField = level===1 ? setGroup1SortField : setGroup2SortField;
             const showMenu = level===1 ? showGroup1Menu : showGroup2Menu;
             const setShowMenu = level===1 ? setShowGroup1Menu : setShowGroup2Menu;
+            const showSortM = level===1 ? showGroup1SortMenu : showGroup2SortMenu;
+            const setShowSortM = level===1 ? setShowGroup1SortMenu : setShowGroup2SortMenu;
             const collapsedSet = level===1 ? collapsed1 : collapsed2;
             const setCollapsedSet = level===1 ? setCollapsed1 : setCollapsed2;
             return (
@@ -5699,10 +5728,11 @@ function FlugbuchApp() {
                   <span style={{flexShrink:0,marginLeft:4}}>{showMenu?"▾":"▸"}</span>
                 </button>
                 {groupId && (
-                  <button onClick={()=>setGroupDir(d=>d==="asc"?"desc":"asc")}
-                    title={groupDir==="asc" ? "Gruppen A→Z / aufsteigend" : "Gruppen Z→A / absteigend"}
-                    style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
-                    {groupDir==="asc"?"↑":"↓"}
+                  <button onClick={()=>setShowSortM(s=>!s)}
+                    title="Gruppen sortieren nach…"
+                    style={{flex:"0 0 auto",maxWidth:110,minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortField)?.label||"Name"}</span>
+                    <span style={{flexShrink:0,fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>
                   </button>
                 )}
                 {groupId && (
@@ -5727,7 +5757,7 @@ function FlugbuchApp() {
                       }
                     }}
                     title={collapsedSet.size===0 ? "Alle Gruppen reduzieren" : "Alle Gruppen erweitern"}
-                    style={{flexShrink:0,width:36,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                    style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
                     {collapsedSet.size===0?"➖":"➕"}
                   </button>
                 )}
@@ -5743,6 +5773,25 @@ function FlugbuchApp() {
                         {o.label}
                       </div>
                     ))}
+                  </div>
+                )}
+                {showSortM && (
+                  <div style={{position:"absolute",top:"calc(100% + 4px)",right:36,left:"40%",background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:280,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
+                    <div style={{padding:"4px 10px 6px",fontSize:10,color:"rgba(232,244,253,0.4)",fontWeight:700,textTransform:"uppercase"}}>Gruppen sortieren nach</div>
+                    {SORT_OPTIONS.map(o=>{
+                      const active = o.id===sortField;
+                      return (
+                        <div key={o.id} onClick={()=>{
+                            if (active) { setGroupDir(d=>d==="desc"?"asc":"desc"); }
+                            else { setSortField(o.id===groupId ? "" : o.id); setGroupDir("desc"); }
+                            setShowSortM(false);
+                          }}
+                          style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:active?"#7dd3fc":"rgba(232,244,253,0.75)",background:active?"rgba(14,165,233,0.15)":"transparent"}}>
+                          <span>{o.label}</span>
+                          {active && <span style={{fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -5876,9 +5925,18 @@ function FlugbuchApp() {
             const [lvl, ...rest] = levels;
             if (!lvl.id) return renderLevel(list, rest, prefix, depth);
             const keyOf = f => sortFieldValue(f, lvl.id) || "—";
-            const keys = sortSubKeys([...new Set(list.map(keyOf))], lvl.dir);
-            return keys.map(key => {
+            const rawKeys = [...new Set(list.map(keyOf))];
+            const sortField = lvl.sortField || lvl.id;
+            const scored = rawKeys.map(key => {
               const groupFlights = list.filter(f => keyOf(f) === key);
+              return { key, groupFlights, order: groupOrderValue(groupFlights, sortField) };
+            });
+            const numericOrder = scored.every(g => typeof g.order === "number");
+            scored.sort((a,b) => {
+              const cmp = numericOrder ? (a.order - b.order) : String(a.order).localeCompare(String(b.order), "de", {numeric:true, sensitivity:"base"});
+              return lvl.dir === "desc" ? -cmp : cmp;
+            });
+            return scored.map(({key, groupFlights}) => {
               const collapseKey = prefix + "|" + key;
               const isCollapsed = lvl.collapsed.has(collapseKey);
               const label = groupFlights.length ? formatSortValue(groupFlights[0], lvl.id) : key;
@@ -5925,8 +5983,8 @@ function FlugbuchApp() {
             });
           };
           const levels = [
-            { id: group1Id, dir: group1Dir, collapsed: collapsed1, setCollapsed: setCollapsed1 },
-            { id: group2Id, dir: group2Dir, collapsed: collapsed2, setCollapsed: setCollapsed2 },
+            { id: group1Id, dir: group1Dir, sortField: group1SortField, collapsed: collapsed1, setCollapsed: setCollapsed1 },
+            { id: group2Id, dir: group2Dir, sortField: group2SortField, collapsed: collapsed2, setCollapsed: setCollapsed2 },
           ];
           return renderLevel(filteredFlights, levels, "ROOT", 0);
         })()}
