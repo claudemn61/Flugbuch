@@ -4401,6 +4401,56 @@ function FlugbuchApp() {
   const [showGroup2Menu, setShowGroup2Menu] = useState(false);
   const [showGroup2SortMenu, setShowGroup2SortMenu] = useState(false);
   const [collapsed2, setCollapsed2] = useState(new Set());
+  // 💡 Saved views: named snapshots of the full Suchen/Sortieren/Gruppieren
+  // configuration (filter text, sort field+direction, both grouping levels
+  // incl. their own sort field+direction), so a person can jump straight
+  // back to a particular way of looking at the flight list instead of
+  // rebuilding it each time. Persisted separately from the "last used"
+  // settings in flugbuchListSettings.
+  const [savedViews, setSavedViewsRaw] = useState([]);
+  const [showViewsMenu, setShowViewsMenu] = useState(false);
+  const [viewsMode, setViewsMode] = useState("none"); // "none" | "move" | "delete"
+  const [savingViewName, setSavingViewName] = useState(null); // string while the "Speichern als…" input is open, else null
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("flugbuchSavedViews");
+        if (r && r.value) { const v = JSON.parse(r.value); if (Array.isArray(v)) setSavedViewsRaw(v); }
+      } catch (e) {}
+    })();
+  }, []);
+  const setSavedViews = (updater) => {
+    setSavedViewsRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { window.storage.set("flugbuchSavedViews", JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+  const applyView = (view) => {
+    const c = view.config || {};
+    setFilterTextRaw(c.filterText || "");
+    setSortIdRaw(c.sortId || "number");
+    setSortDirRaw(c.sortDir || "desc");
+    setGroup1IdRaw(c.group1Id || "");
+    setGroup1DirRaw(c.group1Dir || "desc");
+    setGroup1SortFieldRaw(c.group1SortField || "");
+    setGroup2IdRaw(c.group2Id || "");
+    setGroup2DirRaw(c.group2Dir || "asc");
+    setGroup2SortFieldRaw(c.group2SortField || "");
+    persistListSettings({
+      filterText: c.filterText||"", sortId: c.sortId||"number", sortDir: c.sortDir||"desc",
+      group1Id: c.group1Id||"", group1Dir: c.group1Dir||"desc", group1SortField: c.group1SortField||"",
+      group2Id: c.group2Id||"", group2Dir: c.group2Dir||"asc", group2SortField: c.group2SortField||"",
+    });
+    setShowViewsMenu(false);
+  };
+  const saveCurrentAsView = (name) => {
+    const trimmed = (name||"").trim();
+    if (!trimmed) return;
+    const config = { filterText, sortId, sortDir, group1Id, group1Dir, group1SortField, group2Id, group2Dir, group2SortField };
+    setSavedViews(prev => [...prev, { id: "view_"+Date.now(), name: trimmed, config }]);
+    setSavingViewName(null);
+  };
   // Restores the previously used Suchen/Sortieren/Gruppieren settings on
   // mount — flugbuch.html is a separate page (full navigation, not a
   // client-side route), so plain React state always resets to the default
@@ -5768,6 +5818,11 @@ function FlugbuchApp() {
             <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
+            <button onClick={()=>{ setShowViewsMenu(s=>!s); setViewsMode("none"); setSavingViewName(null); }}
+              title="Gespeicherte Darstellungen"
+              style={{flexShrink:0,width:34,height:34,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showViewsMenu?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${showViewsMenu?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,fontSize:16,cursor:"pointer"}}>
+              💡
+            </button>
             <button onClick={()=>setShowSortMenu(s=>!s)}
               style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
@@ -5779,6 +5834,59 @@ function FlugbuchApp() {
               {sortDir==="asc"?"↑":"↓"}
             </button>
           </div>
+
+          {showViewsMenu && (
+            <div style={{marginTop:6,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:340,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              {savingViewName === null ? (
+                <div onClick={()=>setSavingViewName("")}
+                  style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:"#7dd3fc",fontWeight:700}}>
+                  💾 Speichern als…
+                </div>
+              ) : (
+                <div style={{display:"flex",gap:6,padding:"4px 6px 8px"}}>
+                  <input autoFocus value={savingViewName} onChange={e=>setSavingViewName(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") saveCurrentAsView(savingViewName); if(e.key==="Escape") setSavingViewName(null); }}
+                    placeholder="Name der Darstellung…"
+                    style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"7px 10px",color:"#e8f4fd",fontSize:13}} />
+                  <button onClick={()=>saveCurrentAsView(savingViewName)}
+                    style={{flexShrink:0,background:"rgba(74,222,128,0.2)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 12px",color:"#4ade80",fontWeight:700,cursor:"pointer"}}>✓</button>
+                  <button onClick={()=>setSavingViewName(null)}
+                    style={{flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"0 12px",color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>✕</button>
+                </div>
+              )}
+              <div onClick={()=>setViewsMode(m=>m==="move"?"none":"move")}
+                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:viewsMode==="move"?"#7dd3fc":"rgba(232,244,253,0.75)",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"transparent"}}>
+                🔀 Verschieben
+              </div>
+              <div onClick={()=>setViewsMode(m=>m==="delete"?"none":"delete")}
+                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:viewsMode==="delete"?"#f87171":"rgba(232,244,253,0.75)",background:viewsMode==="delete"?"rgba(239,68,68,0.15)":"transparent"}}>
+                🗑 Löschen
+              </div>
+              {savedViews.length > 0 && <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"4px 0"}} />}
+              {savedViews.length === 0 && (
+                <div style={{padding:"10px 12px",fontSize:12,color:"rgba(232,244,253,0.35)",fontStyle:"italic"}}>Noch keine gespeicherten Darstellungen</div>
+              )}
+              {savedViews.map((v, idx) => (
+                <div key={v.id}
+                  onClick={()=>{ if (viewsMode==="none") applyView(v); }}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,fontSize:13,cursor:viewsMode==="none"?"pointer":"default",color:"rgba(232,244,253,0.85)"}}>
+                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.name}</span>
+                  {viewsMode==="move" && (
+                    <>
+                      <button disabled={idx===0} onClick={e=>{ e.stopPropagation(); setSavedViews(prev=>{ const n=[...prev]; [n[idx-1],n[idx]]=[n[idx],n[idx-1]]; return n; }); }}
+                        style={{opacity:idx===0?0.3:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,width:26,height:26,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>↑</button>
+                      <button disabled={idx===savedViews.length-1} onClick={e=>{ e.stopPropagation(); setSavedViews(prev=>{ const n=[...prev]; [n[idx+1],n[idx]]=[n[idx],n[idx+1]]; return n; }); }}
+                        style={{opacity:idx===savedViews.length-1?0.3:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,width:26,height:26,color:"#e8f4fd",cursor:idx===savedViews.length-1?"default":"pointer"}}>↓</button>
+                    </>
+                  )}
+                  {viewsMode==="delete" && (
+                    <button onClick={e=>{ e.stopPropagation(); setSavedViews(prev=>prev.filter(x=>x.id!==v.id)); }}
+                      style={{background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:6,width:26,height:26,color:"#f87171",cursor:"pointer"}}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {[1,2].map(level => {
             const groupId = level===1 ? group1Id : group2Id;
