@@ -2237,7 +2237,7 @@ function evalToken(f, tok){
     }
     let fv=flightFieldValue(f, field);
 
-    const numericFields=["dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
+    const numericFields=["name","titel","dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
       "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
       "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
     const dateFields=["datum","date"];
