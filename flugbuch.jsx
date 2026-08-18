@@ -2577,7 +2577,6 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           )}
           {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
           <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
-          {secondaryText !== "—" && <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>({secondaryText})</span>}
         </div>
       </div>
     );
