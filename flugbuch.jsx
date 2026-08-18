@@ -4561,36 +4561,6 @@ function FlugbuchApp() {
     try { await window.storage.set(`flight:${f.id}`, JSON.stringify(f)); } catch {}
   }, []);
 
-  // Bulk equivalent of the auto-Typ effect in FlightDetail (Biplace/Hike/
-  // "Hike, Biplace"/Solo), for flights whose detail view has never been
-  // opened — without this, they keep showing "—" for Typ everywhere
-  // (Gruppieren, Suchen, Kopieren) until individually visited. Same
-  // protection rule as the single-flight version: a CSV-imported flight
-  // (pdfOnly) that already carries a real Typ value is left untouched
-  // here too, since a bulk run can't show a confirmation per flight —
-  // those are counted and reported instead, for the person to decide
-  // individually (or re-run once each has been opened/confirmed once).
-  const recomputeAllTyp = useCallback(async () => {
-    let updated = 0, skippedCsv = 0;
-    const toSave = [];
-    const next = flights.map(f => {
-      const cf = f.customFields || {};
-      const hasPax = !!(cf.passagier||"").trim();
-      const hasHike = (f.hikeTrack?.length||0) > 1;
-      const computed = hasHike && hasPax ? "Hike, Biplace" : hasHike ? "Hike" : hasPax ? "Biplace" : "Solo";
-      if (cf.typAuto === false || cf.typ === computed) return f;
-      const hasExistingCsvTyp = !!f.pdfOnly && !!cf.typ && cf.typAuto === undefined;
-      if (hasExistingCsvTyp) { skippedCsv++; return f; }
-      const upd = { ...f, customFields: { ...cf, typ: computed, typAuto: true } };
-      toSave.push(upd);
-      updated++;
-      return upd;
-    });
-    await Promise.all(toSave.map(f => saveFlight(f).catch(()=>{})));
-    setFlights(next);
-    setBackupMsg(`✓ Typ bei ${updated} Flügen aktualisiert.` + (skippedCsv ? ` ${skippedCsv} importierte Flüge mit bestehendem Typ übersprungen — im Flugdetail einzeln öffnen zum Entscheiden.` : ""));
-  }, [flights, saveFlight]);
-
   const exportBackup = useCallback(async () => {
     // Include everything stored under "service:*" (Reserve, Schirm) and any
     // future "reisen:*" data automatically, so a single backup restores the
@@ -5460,20 +5430,14 @@ function FlugbuchApp() {
       )}
 
       {showBackupMenu && (
-        <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={exportBackup}
-              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-              ☁️ Backup sichern
-            </button>
-            <button onClick={()=>backupFileRef.current?.click()}
-              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-              ⬆ Backup importieren
-            </button>
-          </div>
-          <button onClick={recomputeAllTyp} title="Setzt Typ (Solo/Biplace/Hike) bei allen noch nie geöffneten Flügen anhand Passagier/Hike-GPX"
-            style={{marginTop:8,width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-            🔄 Typ für alle Flüge berechnen
+        <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
+          <button onClick={exportBackup}
+            style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+            ☁️ Backup sichern
+          </button>
+          <button onClick={()=>backupFileRef.current?.click()}
+            style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+            ⬆ Backup importieren
           </button>
         </div>
       )}
