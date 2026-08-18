@@ -5837,32 +5837,34 @@ function FlugbuchApp() {
 
           {showViewsMenu && (
             <div style={{marginTop:6,background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:340,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
-              {savingViewName === null ? (
-                <div onClick={()=>setSavingViewName("")}
-                  style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:"#7dd3fc",fontWeight:700}}>
-                  💾 Speichern als…
-                </div>
-              ) : (
-                <div style={{display:"flex",gap:6,padding:"4px 6px 8px"}}>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{ setSavingViewName(s=>s===null?"":null); setViewsMode("none"); }}
+                  title="Speichern als…"
+                  style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:savingViewName!==null?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${savingViewName!==null?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.1)"}`}}>
+                  💾
+                </button>
+                <button onClick={()=>{ setViewsMode(m=>m==="move"?"none":"move"); setSavingViewName(null); }}
+                  title="Verschieben"
+                  style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="move"?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
+                  🔀
+                </button>
+                <button onClick={()=>{ setViewsMode(m=>m==="delete"?"none":"delete"); setSavingViewName(null); }}
+                  title="Löschen"
+                  style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="delete"?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="delete"?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`}}>
+                  🗑
+                </button>
+              </div>
+              {savingViewName !== null && (
+                <div style={{display:"flex",gap:6,padding:"8px 0 2px"}}>
                   <input autoFocus value={savingViewName} onChange={e=>setSavingViewName(e.target.value)}
                     onKeyDown={e=>{ if(e.key==="Enter") saveCurrentAsView(savingViewName); if(e.key==="Escape") setSavingViewName(null); }}
                     placeholder="Name der Darstellung…"
                     style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"7px 10px",color:"#e8f4fd",fontSize:13}} />
                   <button onClick={()=>saveCurrentAsView(savingViewName)}
                     style={{flexShrink:0,background:"rgba(74,222,128,0.2)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 12px",color:"#4ade80",fontWeight:700,cursor:"pointer"}}>✓</button>
-                  <button onClick={()=>setSavingViewName(null)}
-                    style={{flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"0 12px",color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>✕</button>
                 </div>
               )}
-              <div onClick={()=>setViewsMode(m=>m==="move"?"none":"move")}
-                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:viewsMode==="move"?"#7dd3fc":"rgba(232,244,253,0.75)",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"transparent"}}>
-                🔀 Verschieben
-              </div>
-              <div onClick={()=>setViewsMode(m=>m==="delete"?"none":"delete")}
-                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:viewsMode==="delete"?"#f87171":"rgba(232,244,253,0.75)",background:viewsMode==="delete"?"rgba(239,68,68,0.15)":"transparent"}}>
-                🗑 Löschen
-              </div>
-              {savedViews.length > 0 && <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"4px 0"}} />}
+              {savedViews.length > 0 && <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"6px 0 4px"}} />}
               {savedViews.length === 0 && (
                 <div style={{padding:"10px 12px",fontSize:12,color:"rgba(232,244,253,0.35)",fontStyle:"italic"}}>Noch keine gespeicherten Darstellungen</div>
               )}
