@@ -2482,6 +2482,7 @@ const ADDITIVE_GROUP_ORDER_FIELDS = new Set([
 ]);
 function groupOrderValue(groupFlights, fieldId) {
   if (!groupFlights.length) return 0;
+  if (fieldId === "anzahl") return groupFlights.length;
   const vals = groupFlights.map(f => sortFieldValue(f, fieldId));
   if (vals.every(v => typeof v === "number")) {
     return ADDITIVE_GROUP_ORDER_FIELDS.has(fieldId) ? vals.reduce((a,b)=>a+b, 0) : Math.min(...vals);
@@ -5784,7 +5785,8 @@ function FlugbuchApp() {
             const setGroupId = level===1 ? setGroup1Id : setGroup2Id;
             const groupDir = level===1 ? group1Dir : group2Dir;
             const setGroupDir = level===1 ? setGroup1Dir : setGroup2Dir;
-            const sortField = (level===1 ? group1SortField : group2SortField) || groupId;
+            const rawSortField = level===1 ? group1SortField : group2SortField;
+            const sortField = rawSortField || groupId;
             const setSortField = level===1 ? setGroup1SortField : setGroup2SortField;
             const showMenu = level===1 ? showGroup1Menu : showGroup2Menu;
             const setShowMenu = level===1 ? setShowGroup1Menu : setShowGroup2Menu;
@@ -5803,7 +5805,7 @@ function FlugbuchApp() {
                   <button onClick={()=>setShowSortM(s=>!s)}
                     title="Gruppen sortieren nach…"
                     style={{flex:"0 0 auto",maxWidth:110,minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
-                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortField)?.label||"Name"}</span>
+                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {!rawSortField ? "Name" : rawSortField==="anzahl" ? "Anzahl" : (SORT_OPTIONS.find(o=>o.id===rawSortField)?.label||"Name")}</span>
                     <span style={{flexShrink:0,fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>
                   </button>
                 )}
@@ -5850,6 +5852,21 @@ function FlugbuchApp() {
                 {showSortM && (
                   <div style={{position:"absolute",top:"calc(100% + 4px)",right:36,left:"40%",background:"#14253a",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,maxHeight:280,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.4)",zIndex:10}}>
                     <div style={{padding:"4px 10px 6px",fontSize:10,color:"rgba(232,244,253,0.4)",fontWeight:700,textTransform:"uppercase"}}>Gruppen sortieren nach</div>
+                    {[{id:"",label:"Name"},{id:"anzahl",label:"Anzahl"}].map(o=>{
+                      const active = o.id==="" ? !rawSortField : o.id===sortField;
+                      return (
+                        <div key={o.id||"name"} onClick={()=>{
+                            if (active) { setGroupDir(d=>d==="desc"?"asc":"desc"); }
+                            else { setSortField(o.id); setGroupDir(o.id===""?"asc":"desc"); }
+                            setShowSortM(false);
+                          }}
+                          style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:active?"#7dd3fc":"rgba(232,244,253,0.75)",background:active?"rgba(14,165,233,0.15)":"transparent",fontStyle:o.id===""?"italic":"normal"}}>
+                          <span>{o.label}</span>
+                          {active && <span style={{fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>}
+                        </div>
+                      );
+                    })}
+                    <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"4px 0"}} />
                     {SORT_OPTIONS.map(o=>{
                       const active = o.id===sortField;
                       return (
