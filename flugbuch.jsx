@@ -2450,16 +2450,41 @@ function sortSubKeys(keys, dir) {
 // Determines how a group of flights (e.g. all flights with the same
 // Schirm, or the same Jahr) is ordered relative to other groups, when the
 // person picks a data field to sort the groups BY (not just alphabetically
-// by the group's own name). Numeric fields (Dauer, Distanz, Höhe, Rating,
-// …) are summed across the group's flights — e.g. "sort Schirm-groups by
-// total flight time". Text fields (Schirm, Startplatz, …) use the
-// alphabetically-first value present in the group, since there's no
-// meaningful numeric aggregate for those.
+// by the group's own name).
+//
+// Only genuinely additive numeric fields — quantities that accumulate per
+// flight, where a group total is a meaningful number (Dauer, Distanz,
+// H.Diff., H.Gew., Entf. S-L, Hike-Höhenmeter, Bewertung) — are SUMMED
+// across the group's flights, e.g. "sort Schirm-groups by total flight
+// time". Field ids here must match SORT_OPTIONS/sortFieldValue exactly
+// (camelCase, e.g. "startAlt" not "startalt") — a first version of this
+// set used the wrong (lowercase, search-syntax) spelling for most of
+// these, so they silently fell through to the non-additive branch below.
+//
+// Everything else numeric is a point-in-time, peak/location, or
+// rank/percentage value, where SUMMING across a group is meaningless —
+// e.g. summing epoch timestamps (Datum) or launch-site elevations
+// (Start müM) across several flights produces a number with no sensible
+// interpretation, and was producing visibly wrong group orderings (a
+// Reise with more flights could sum to a "later" value than an earlier
+// Reise with fewer flights, even though every individual flight in it
+// came first chronologically). This includes: Datum, Jahr, Start-/
+// Landezeit, Max. Höhe (a peak reached, not a distance covered), Start/
+// Landung müM (site elevations), Max.Steigen/Max.Sinken (peak rates), Ø
+// Speed, Hike-Starthöhe (trailhead elevation), Rang/%-Werte, Nummer.
+// These use the MINIMUM value present in the group instead — "the
+// earliest/lowest value in this group" is the sensible representative.
+//
+// Text fields (Schirm, Startplatz, …) use the alphabetically-first value
+// present in the group, since there's no numeric aggregate for those.
+const ADDITIVE_GROUP_ORDER_FIELDS = new Set([
+  "duration", "dist", "hDiff", "hGew", "entfernungSL", "rating", "hikeHoehenmeter",
+]);
 function groupOrderValue(groupFlights, fieldId) {
   if (!groupFlights.length) return 0;
   const vals = groupFlights.map(f => sortFieldValue(f, fieldId));
   if (vals.every(v => typeof v === "number")) {
-    return vals.reduce((a,b)=>a+b, 0);
+    return ADDITIVE_GROUP_ORDER_FIELDS.has(fieldId) ? vals.reduce((a,b)=>a+b, 0) : Math.min(...vals);
   }
   return [...vals].map(String).sort((a,b)=>a.localeCompare(b,"de",{numeric:true,sensitivity:"base"}))[0];
 }
