@@ -4443,6 +4443,7 @@ function FlugbuchApp() {
       group2Id: c.group2Id||"", group2Dir: c.group2Dir||"asc", group2SortField: c.group2SortField||"",
     });
     setShowViewsMenu(false);
+    setSearchRowOpen(false);
   };
   const saveCurrentAsView = (name) => {
     const trimmed = (name||"").trim();
