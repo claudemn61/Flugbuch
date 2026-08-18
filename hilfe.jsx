@@ -29,7 +29,7 @@ const SECTIONS = [
       <h3>1.3 Wo werden die Daten gespeichert?</h3>
       <p>Alle Einträge werden in einem app-eigenen Speicher auf dem jeweiligen Gerät abgelegt. Es gibt keine Cloud-Synchronisation zwischen mehreren Geräten. Für den Umzug auf ein neues Gerät oder als Sicherheitskopie dient die Backup-Funktion (siehe 2.9). <b>Wichtig:</b> Wird der Browser-Cache geleert, gehen gespeicherte Flüge ohne vorheriges Backup verloren.</p>
       <h3>1.4 iPad/Desktop</h3>
-      <p>Ab ca. 768px Bildschirmbreite (iPad, Mac-Browserfenster) wechseln mehrere Seiten automatisch auf ein breiteres Layout: Home zeigt Foto und Kacheln nebeneinander, Flugbuch eine Liste-plus-Detail-Ansicht (wie in Mail-Apps) mit kompakter einzeiliger Flugliste, Statistik alle 5 Badges nebeneinander, Wartung alle Unterkacheln gleichzeitig als feste Spalten statt per Tab. Auf dem iPhone bleibt alles wie gewohnt.</p>
+      <p>Ab ca. 768px Bildschirmbreite (iPad, Mac-Browserfenster) wechseln mehrere Seiten automatisch auf ein breiteres Layout: Home zeigt Foto und Kacheln nebeneinander, Flugbuch eine Liste-plus-Detail-Ansicht (wie in Mail-Apps) mit kompakter einzeiliger Flugliste, Statistik alle Badges nebeneinander, Wartung alle Unterkacheln gleichzeitig als feste Spalten statt per Tab. Auf dem iPhone bleibt alles wie gewohnt.</p>
     </>),
   },
   {
@@ -61,15 +61,13 @@ const SECTIONS = [
         <tr><td><code>passagier:*</code></td><td>beliebiger Passagier (Biplace-Filter)</td></tr>
       </tbody></table>
       <p className="hint">💡 Mehrere Bedingungen kombinierbar, z.B. <code>jahr=2026 dauer&gt;2h</code>.</p>
-      <h3>3.3 Icon-Reihe (7 Buttons)</h3>
+      <h3>3.3 Icon-Reihe (5 Buttons)</h3>
       <ul>
         <li>📥 Import — IGC-Dateien, CSV oder Hike-GPX-Routen. Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>
         <li>☁️ Backup — Datensicherung exportieren/wiederherstellen (gzip-komprimiert, siehe 7.), roter Punkt am Button bei ungesicherten Änderungen</li>
         <li>☑ Auswahl — Mehrfachauswahl von Flügen (z.B. für die Weltkarte, oder Sammel-Bearbeitung/Löschen)</li>
-        <li>🗺️ Weltkarte — siehe 3.6</li>
-        <li>↑/↓ — Sortierrichtung umkehren</li>
-        <li>➖/➕ — alle Jahresgruppen auf einmal ein-/ausklappen</li>
-        <li>🔍 Suchen/Sortieren — blendet die Such- und Sortierfeld-Auswahlzeile ein/aus, um Platz zu sparen</li>
+        <li>🗺️ Weltkarte — siehe 3.7</li>
+        <li>🔍 Suchen/Sortieren — blendet das Such-/Sortier-/Gruppieren-Panel ein/aus (siehe 3.1/3.2), um Platz zu sparen. Darin: Suchen, Sortieren (⇅) mit eigener Richtung (↑↓), sowie die beiden Gruppierungs-Ebenen Gr. 1°/Gr. 2° mit je eigener Richtung und Alle-ein-/ausklappen (+) — diese lagen früher als eigene Kacheln direkt in dieser Icon-Reihe, sind aber ins Panel gewandert.</li>
       </ul>
       <h3>3.4 IGC-Import — was automatisch ausgefüllt wird</h3>
       <ul>
@@ -85,7 +83,7 @@ const SECTIONS = [
       <p>Auf der Karte erscheint die Hike-Route grün gestrichelt, neben dem blauen Flug-Track. Zusätzlich zeigt ein eigenes grünes Hike-Höhenprofil (kompakt, ohne Zoom) die Höhenwerte über der Distanz, direkt über dem normalen Höhenprofil. Die Cine-Wiedergabe kombiniert beide: die Hike-Phase (🥾-Symbol, fixe Ausrichtung) spielt zuerst, pausiert automatisch am Übergang zum Flug, danach läuft die Flug-Phase (🪂) wie gewohnt weiter — beide Profile zeigen dabei live die passende Position.</p>
       <p>In der Flugliste zeigt ein rotes "GPX"-Badge direkt neben dem IGC-Badge, wenn ein Flug eine Hike-Route hat.</p>
       <p>Export als eigene GPX-Datei im Flugdetail ("⬇ Hike", neben "⬇ IGC" und "⬇ GPX"). Löschen über die konsolidierte 🗑-Kachel im Flugdetail, die zwischen IGC-Track, GPX Hike und dem ganzen Flug wählen lässt.</p>
-      <p>Nach erfolgreichem Import erscheint zusätzlich eine "🥾 Hike-Daten"-Kachel direkt über den Flugdaten: Startpunkt (akzeptiert auch Koordinaten, z.B. "46.5, 8.1"), Ort (automatisch per Reverse-Geocoding aus den Koordinaten bestimmt, i.d.R. Dorf/Ortschaft), Starthöhe (automatisch aus den Koordinaten berechnet), Höhenmeter (live berechnet aus Startplatzhöhe minus Starthöhe, kein eigenes Eingabefeld), Dauer, sowie ein frei benennbares "Zusatz"-Feld — dessen Titel selbst antippbar und umbenennbar ist.</p>
+      <p>Nach erfolgreichem Import erscheint zusätzlich eine "🥾 Hike-Daten"-Kachel direkt über den Flugdaten: Startpunkt (akzeptiert auch Koordinaten, z.B. "46.5, 8.1"), Ort (beim Import aus dem Routennamen der GPX-Datei vorbefüllt, falls vorhanden — sonst frei editierbar; automatisches Reverse-Geocoding aus den Koordinaten wurde getestet, aber wegen unzuverlässiger Treffer wieder entfernt), Starthöhe (automatisch aus den Koordinaten des Startpunkts berechnet), Höhenmeter (live berechnet aus Startplatzhöhe minus Starthöhe, kein eigenes Eingabefeld), Dauer, sowie ein frei benennbares "Zusatz"-Feld — dessen Titel selbst antippbar und umbenennbar ist.</p>
       <p>Passt eine IGC-Datei zu keiner Flug-Nr. im Dateinamen, wird zusätzlich nach Datum gegen Flüge ohne GPS-Track abgeglichen. Bei genau einem Treffer wird automatisch zugeordnet; bei mehreren Flügen am selben Tag fragt die App aktiv nach, welchem Flug zugeordnet werden soll.</p>
       <p>Direkt nach dem Feld Gerät/Schirm steht ein optionales Feld "Typ" — erscheint nur bei Inhalt, sonst nur ein dezenter "+ Typ"-Link zum erstmaligen Eintragen. Wird auch beim CSV-Import erkannt (Spalten "Typ", "Type", "Schirmtyp", "Kategorie").</p>
       <p>Im Mehrfachauswahl-Modus lässt sich die Spaltenauswahl/-reihenfolge für "📋 Kopieren" über das ⚙️-Zahnrad daneben frei konfigurieren (an-/abwählen, per ↑/↓ neu anordnen) — praktisch, um die kopierte Tabelle an eine externe Tabellenkalkulation anzupassen.</p>
@@ -151,13 +149,13 @@ function KurzContent() {
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
         <li>Suchen/Sortieren-Panel: Suchen · Sortieren (⇅, alle Datenfelder) · Reihenfolge (↑↓)</li>
         <li>Zwei unabhängige Gruppierungs-Ebenen Gr. 1°/Gr. 2° (Jahr/Schirm/Typ/Startplatz/Landeplatz/Reise/Hike-Ort/Bewertung, je "Keine" wählbar) — Gr. 1° standardmässig Jahr, Gr. 2° standardmässig aus. Gruppen-Reihenfolge frei nach jedem Datenfeld wählbar (⇅, Zahlenfelder summiert, Textfelder alphabetisch), gleiches Feld nochmals antippen kehrt Richtung um; je eigenes Alle-ein-/ausklappen</li>
-        <li>Hike-GPX-Import (🥾, per Datum/Flugnummer/Auswahl zugeordnet), grün auf Karte + eigenes grünes Hike-Höhenprofil, kombinierte Wiedergabe (Hike→Pause→Flug), rotes GPX-Badge in Flugliste, Export "⬇ Hike" im Flugdetail, Löschen über konsolidierte 🗑-Kachel (IGC/GPX Hike/Alles); "🥾 Hike-Daten"-Kachel (Startpunkt/Ort per Reverse-Geocoding/Starthöhe/Höhenmeter berechnet/Dauer/Zusatz mit editierbarem Titel) über den Flugdaten; Statistik: hellgelbe "🥾 Hike"-Kachel nach Passagiere, gruppiert nach Ort</li>
+        <li>Hike-GPX-Import (🥾, per Datum/Flugnummer/Auswahl zugeordnet), grün auf Karte + eigenes grünes Hike-Höhenprofil, kombinierte Wiedergabe (Hike→Pause→Flug), rotes GPX-Badge in Flugliste, Export "⬇ Hike" im Flugdetail, Löschen über konsolidierte 🗑-Kachel (IGC/GPX Hike/Alles); "🥾 Hike-Daten"-Kachel (Startpunkt/Ort aus GPX-Routenname vorbefüllt & frei editierbar/Starthöhe automatisch aus Koordinaten/Höhenmeter berechnet/Dauer/Zusatz mit editierbarem Titel) über den Flugdaten; Statistik: hellgelbe "🥾 Hike"-Kachel, gruppiert nach Ort</li>
         <li>Kacheln im Flugdetail: antippen zum Umkonfigurieren</li>
         <li>Cine-Wiedergabe (▶, Vorschau + Vollbild): 1×-100×, Gleitschirm dreht sich mit; Vollbild zeigt zusätzlich rote Höhenangabe daneben; Karte/Profil springen bei Zoom automatisch mit</li>
         <li>Höhenprofil: 🔍-Button für Zoom 1-8×, springt auf Flugstart; bei Zoom im Profil wischen zum Verschieben, Karte zoomt synchron mit; Flugdauer/Distanz + Höhe an der Mittellinie</li>
       </ul>
       <h3>Statistik</h3>
-      <p>5 Badges: Schirm · Startplätze · Landeplätze · Passagiere · Saison (Jahresübersicht + Rekorde)</p>
+      <p>6 Badges (blendet sich einzeln aus, wenn nicht zutreffend): Schirm · Startplätze · Landeplätze · Passagiere · Hike (gruppiert nach Ort) · Saison (Jahresübersicht + Rekorde)</p>
       <h3>Reisen</h3>
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
       <h3>Wartung</h3>
