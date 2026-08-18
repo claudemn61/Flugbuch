@@ -4661,6 +4661,9 @@ function FlugbuchApp() {
       }
     } catch (e) { console.error("Backup: error collecting service/reisen data:", e); }
 
+    // savedViews (💡) come straight from React state (already the live,
+    // up-to-date value) rather than another window.storage.list() round
+    // trip — same reasoning as flights/customFieldDefs above.
     const payload = {
       exportedAt: new Date().toISOString(),
       flights,
@@ -4668,6 +4671,7 @@ function FlugbuchApp() {
       service: serviceData,
       reisen: reisenData,
       notes: notesData,
+      savedViews,
     };
     const json = JSON.stringify(payload, null, 0);
     const dateStamp = new Date().toISOString().slice(0,10);
@@ -4721,7 +4725,7 @@ function FlugbuchApp() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     markBackedUp();
-  }, [flights, customFieldDefs]);
+  }, [flights, customFieldDefs, savedViews]);
 
   const importBackup = useCallback(async (file) => {
     try {
@@ -4768,6 +4772,11 @@ function FlugbuchApp() {
       }
       if (typeof data.notes === "string" && data.notes) {
         await window.storage.set("settings:notes", data.notes);
+        restoredExtras++;
+      }
+      if (Array.isArray(data.savedViews) && data.savedViews.length) {
+        await window.storage.set("flugbuchSavedViews", JSON.stringify(data.savedViews));
+        setSavedViewsRaw(data.savedViews);
         restoredExtras++;
       }
       const sorted = [...data.flights].sort((a,b)=>
