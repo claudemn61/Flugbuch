@@ -3445,7 +3445,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     // via the discreet "+ Typ" link for entering it the first time, reset
     // whenever the person moves to a different flight.
     const [typRevealed, setTypRevealed] = useState(false);
-    useEffect(() => { setTypRevealed(false); }, [fl.id]);
+    const [confirmTypAuto, setConfirmTypAuto] = useState(null); // computed value pending confirmation, or null
+    useEffect(() => { setTypRevealed(false); setConfirmTypAuto(null); }, [fl.id]);
 
     // Swipe-to-navigate: replaces the small prev/next arrow buttons. Swipe
     // left moves to the next flight in the list (same direction as the old
@@ -3485,6 +3486,31 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
       setSelected(upd);
     };
+    // "Typ" auto-derived from Passagier/Hike-GPX (Biplace / Hike / "Hike,
+    // Biplace" / Solo) but stays freely editable — customFields.typAuto
+    // tracks whether the current value is still the app's own computed one.
+    // A manual edit via the InlineField below (which always sets
+    // typAuto:false) permanently stops the auto-updates for that flight.
+    // New/manually-entered flights (no recognizable CSV origin) and any
+    // flight with no typ at all are safe to auto-manage right away — there
+    // is nothing meaningful to lose. A CSV-imported flight (pdfOnly) that
+    // already carries a real Typ value from that import is different: that
+    // value might be a deliberate, more specific category than this app's
+    // four buckets, so it's never silently overwritten — the person is
+    // asked once via a confirmation dialog, and either choice ("Automatisch"
+    // or "Beibehalten") is then remembered via typAuto for that flight.
+    useEffect(() => {
+      const hasPax = !!(fl.customFields?.passagier||"").trim();
+      const hasHike = (fl.hikeTrack?.length||0) > 1;
+      const computed = hasHike && hasPax ? "Hike, Biplace" : hasHike ? "Hike" : hasPax ? "Biplace" : "Solo";
+      const cf = fl.customFields || {};
+      if (cf.typAuto === false) return;
+      if (cf.typ === computed) return;
+      if (cf.typAuto === true) { saveField({ customFields: { typ: computed, typAuto: true } }); return; }
+      const hasExistingCsvTyp = !!fl.pdfOnly && !!cf.typ;
+      if (hasExistingCsvTyp) { setConfirmTypAuto(computed); }
+      else { saveField({ customFields: { typ: computed, typAuto: true } }); }
+    }, [fl.id, fl.customFields?.passagier, fl.hikeTrack?.length]);
     // Same as saveField, but for fields that feed into Dauer/H.Diff./Ø Speed
     // (start/end time, start/end altitude, distance). For manually-entered
     // flights with no IGC track — where these values aren't already derived
@@ -3911,7 +3937,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             {(fl.customFields?.typ || typRevealed) && (
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v}})} />
+                  <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v, typAuto:false}})} />
                 </div>
                 {!fl.customFields?.typ && (
                   <span onClick={()=>setTypRevealed(false)}
@@ -4056,6 +4082,25 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
                 <button onClick={()=>{ const d=confirmDateChange; setConfirmDateChange(null); saveDateField(d); }}
                   style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Ändern</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmTypAuto !== null && (
+          <div onClick={()=>{ saveField({customFields:{typAuto:false}}); setConfirmTypAuto(null); }}
+            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:24}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:"#14253a",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+              <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Typ automatisch führen?</div>
+              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+                Dieser importierte Flug hat bereits einen Typ: „{fl.customFields?.typ}". Automatisch aus Passagier/Hike-GPX abgeleitet wäre: „{confirmTypAuto}". Soll der Typ ab jetzt automatisch anhand Passagier/Hike-GPX mitgeführt werden (aktueller Wert wird dabei ersetzt)? Diese Wahl gilt nur für diesen Flug und wird gemerkt.
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>{ saveField({customFields:{typAuto:false}}); setConfirmTypAuto(null); }}
+                  style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Beibehalten</button>
+                <button onClick={()=>{ const v=confirmTypAuto; setConfirmTypAuto(null); saveField({customFields:{typ:v, typAuto:true}}); }}
+                  style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Automatisch</button>
               </div>
             </div>
           </div>
@@ -4685,7 +4730,7 @@ function FlugbuchApp() {
       durationStr: "", durationSec: 0,
       totalDist: 0, maxAlt: 0, startAlt: 0, endAlt: 0,
       startPt: null, endPt: null, track: [],
-      customFields: { passagier:"", landung:"" },
+      customFields: { passagier:"", landung:"", typ:"Solo", typAuto:true },
     };
     await saveFlight(newFlight);
     setFlights(prev => [newFlight, ...prev].sort((a,b)=>
@@ -5523,7 +5568,7 @@ function FlugbuchApp() {
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
             if (d.passagier) cfPatch.passagier = d.passagier;
-            if (d.typ) cfPatch.typ = d.typ;
+            if (d.typ) { cfPatch.typ = d.typ; cfPatch.typAuto = false; }
             if (d.reise) cfPatch.reise = d.reise==="__CLEAR__" ? "" : d.reise;
             if (d.hikeStartpunkt) cfPatch.hikeStartpunkt = d.hikeStartpunkt;
             if (d.hikeOrt) cfPatch.hikeOrt = d.hikeOrt;
