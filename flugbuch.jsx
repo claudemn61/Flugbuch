@@ -6135,9 +6135,18 @@ function FlugbuchApp() {
             const keyOf = f => sortFieldValue(f, lvl.id) || "—";
             const rawKeys = [...new Set(list.map(keyOf))];
             const sortField = lvl.sortField || lvl.id;
+            // Sorting by the group's OWN field ("Name", or explicitly picking
+            // the same field the level groups by) must compare the group key
+            // itself directly — every flight in a group shares that exact
+            // value by definition, so running it through groupOrderValue's
+            // aggregate would sum an identical value N times for additive
+            // fields (e.g. a 4★ group with many flights summing higher than
+            // a 5★ group with few, sorting 4★ before 5★). Only a genuinely
+            // different sort-by field needs the cross-flight aggregate.
             const scored = rawKeys.map(key => {
               const groupFlights = list.filter(f => keyOf(f) === key);
-              return { key, groupFlights, order: groupOrderValue(groupFlights, sortField) };
+              const order = sortField === lvl.id ? key : groupOrderValue(groupFlights, sortField);
+              return { key, groupFlights, order };
             });
             const numericOrder = scored.every(g => typeof g.order === "number");
             scored.sort((a,b) => {
