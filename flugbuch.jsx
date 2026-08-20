@@ -5269,7 +5269,7 @@ function FlugbuchApp() {
   const reiseLabels = useMemo(() => computeReiseLabels(flights, reisenNames), [flights, reisenNames]);
   const enrichedSelected = selected ? (flightsWithRanks.find(f=>f.id===selected.id) || selected) : null;
 
-  if (view==="worldmap") return <WorldMapView flights={flights} selectedIds={selectedIds} onBack={()=>setView("list")} />;
+  if (view==="worldmap") return <WorldMapView flights={filteredFlights} selectedIds={selectedIds} onBack={()=>setView("list")} />;
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (view==="detail" && selected && isWide) {
