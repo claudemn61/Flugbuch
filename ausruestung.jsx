@@ -1059,6 +1059,12 @@ function GewichteApp() {
               <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:`4px solid ${cat.color}`,paddingLeft:10,marginBottom:6}}>
                 <span style={{fontSize:14}}>{cat.icon}</span>
                 <span style={{fontSize:13,fontWeight:800,color:cat.color,flex:1}}>{cat.label}</span>
+                {(() => {
+                  const catWeight = allItems.reduce((s,it) => s + (activeSetup.selected[it.id] ? parseKg(it.weight) : 0), 0);
+                  return catWeight > 0 ? (
+                    <span style={{flexShrink:0,fontSize:12,color:"rgba(232,244,253,0.45)"}}>{fmtNum(catWeight)} kg</span>
+                  ) : null;
+                })()}
                 <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
                   style={{flexShrink:0,width:26,height:26,borderRadius:8,fontSize:12,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
                   {editMode ? "✓" : "✏️"}
