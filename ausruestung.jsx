@@ -844,51 +844,56 @@ function GewichteApp() {
     setConfirmDeleteItem(null);
   };
 
-  // Einmalige Testdaten aus dem Numbers-Sheet-Screenshot (erste Spalte,
-  // "Ozone Wisp 2" / "Tandem") — zum Ausprobieren der neuen Gewichte-
-  // Funktion. Legt Positionen + ein Setup "Biplace" an, ohne bestehende
-  // Daten zu berühren; überspringt, falls "Biplace" schon existiert.
-  // Kann nach dem Testen jederzeit wieder gelöscht werden (🗑 am Setup
-  // entfernt nur das Setup, die Positionen bleiben — einzeln über ✕ an
-  // jeder Position löschen falls gewünscht).
-  const seedBiplaceDemo = () => {
-    if (data.setups.some(s => s.name === "Biplace")) return;
+  // Kompletter Positions-Katalog aus dem Numbers-Sheet-Screenshot (alle
+  // Zeilen, nicht nur die Ozone-Wisp-2-Spalte) — unmarkiert in die
+  // jeweilige Kategorie geladen. Bestehende Setups/Auswahlen bleiben
+  // unangetastet; pro Kategorie werden nur Positionen ergänzt, deren Name
+  // dort noch nicht existiert (mehrfaches Antippen erzeugt keine Duplikate).
+  const loadKatalog = () => {
     const mkId = () => "item_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
-    // Angehakt in Spalte "Ozone Wisp 2" des Sheets — zählen ins Setup.
-    const checkedByCat = {
-      schirm:  [{ id: mkId(), name: "Ozone Wisp 2",              weight: "4.55" }],
-      sitz:    [{ id: mkId(), name: "Advance Bipro 3 M o/Res.",  weight: "2.57" }],
-      geraete: [{ id: mkId(), name: "XC-Tracer Maxx",            weight: "0.12" },
-                { id: mkId(), name: "iPhone",                    weight: "0.30" }],
-      kleidung:[{ id: mkId(), name: "Kleidung, Sonstiges",       weight: "0.20" },
-                { id: mkId(), name: "Kleidung inkl. Schuhe schwer", weight: "4.50" }],
-      zubehoer:[{ id: mkId(), name: "Handschuhe etc.",           weight: "0.30" },
-                { id: mkId(), name: "Helm leicht",                weight: "0.36" }],
-      koerpergewicht: [{ id: mkId(), name: "KG Pilot",           weight: "70.00" }],
-    };
-    // Im Sheet vorhanden, für diese Spalte aber NICHT angehakt — als
-    // Positionen mit angelegt, damit sie zum Ausprobieren da sind, aber
-    // zunächst nicht ins Gesamtgewicht des Setups zählen.
-    const uncheckedByCat = {
+    const catalog = {
+      schirm: [
+        ["Niviuk Artik 7P 23", "3.33"], ["Advance XI 23", "3.80"], ["Advance Pi 3/21", "2.55"],
+        ["Gradient BiGolden 3/39", "7.30"], ["Ozone Wisp 2", "4.55"],
+      ],
+      sitz: [
+        ["Advance Bipro 3 M o/Res.", "2.57"], ["VIP light", "1.70"], ["Lightness, SQR 120", "5.24"],
+        ["Strapless 3 Bi", "0.40"], ["Strapless 3 inkl. P.", "0.51"], ["Easiness", "1.50"],
+      ],
+      reserve: [
+        ["SQR Light 2 Tandem 200", "1.90"], ["SQR Light Solo Extern 100", "1.40"],
+      ],
+      packhilfen: [
+        ["Advance Tubebag", "0.30"], ["Advance Compressbag Tube", "0.59"], ["Advance Flatbag ULS", "0.21"],
+        ["Niviuk ZipNkare P S", "0.18"], ["Rucksack Lightpack 3 83l", "0.74"], ["Rucksack Supair 55l", "0.70"],
+        ["Rucksack XPack 32l", "0.43"],
+      ],
+      geraete: [
+        ["XC-Tracer Maxx", "0.12"], ["Funk, Sprechgerät", "0.30"], ["iPhone", "0.30"],
+        ["Powerbank 26800", "0.60"], ["Powerbank 10000", "0.24"],
+      ],
+      kleidung: [
+        ["Kleidung, Sonstiges", "0.20"], ["Kleidung inkl. Schuhe leicht", "2.40"], ["Kleidung inkl. Schuhe schwer", "4.50"],
+        ["Pistenski, Schuhe", "11.53"], ["Tourenski, H.eisen, Fell", "3.46"], ["Tourenschuhe", "2.05"],
+      ],
+      zubehoer: [
+        ["Handschuhe etc.", "0.30"], ["Helm leicht", "0.36"], ["Wanderstöcke", "0.25"],
+        ["Trinken", "1.00"], ["LVS, Schaufel, Sonde", "1.25"],
+      ],
       koerpergewicht: [
-        { id: mkId(), name: "KG Pass. leicht",              weight: "50.00" },
-        { id: mkId(), name: "KG Pass. mittel",               weight: "65.00" },
-        { id: mkId(), name: "KG Pass. schwer",               weight: "90.00" },
-        { id: mkId(), name: "KG ink. Hose, T-Sh, Pully",     weight: "75.00" },
+        ["KG Pilot", "70.00"], ["KG Pass. leicht", "50.00"], ["KG Pass. mittel", "65.00"],
+        ["KG Pass. schwer", "90.00"], ["KG ink. Hose, T-Sh, Pully", "75.00"],
       ],
     };
     const items = { ...data.items };
-    const selected = {};
-    Object.keys(checkedByCat).forEach(catId => {
-      items[catId] = [...items[catId], ...checkedByCat[catId]];
-      checkedByCat[catId].forEach(it => { selected[it.id] = true; });
+    Object.keys(catalog).forEach(catId => {
+      const existingNames = new Set(items[catId].map(it => it.name));
+      const toAdd = catalog[catId]
+        .filter(([name]) => !existingNames.has(name))
+        .map(([name, weight]) => ({ id: mkId(), name, weight }));
+      items[catId] = [...items[catId], ...toAdd];
     });
-    Object.keys(uncheckedByCat).forEach(catId => {
-      items[catId] = [...items[catId], ...uncheckedByCat[catId]];
-    });
-    const setup = { id: "setup_"+Date.now(), name: "Biplace", limit: "180", selected };
-    save({ items, setups: [...data.setups, setup] });
-    setActiveSetupId(setup.id);
+    save({ ...data, items });
   };
 
   const addSetup = () => {
@@ -967,10 +972,14 @@ function GewichteApp() {
           style={{flexShrink:0,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"9px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
           + Setup
         </button>
-        {!data.setups.some(s=>s.name==="Biplace") && (
-          <button onClick={seedBiplaceDemo} title="Lädt die 'Ozone Wisp 2 / Tandem'-Spalte aus dem Sheet als Test-Setup"
-            style={{flexShrink:0,background:"rgba(245,158,11,0.12)",border:"1px dashed rgba(245,158,11,0.35)",borderRadius:20,padding:"9px 14px",color:"#fcd34d",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-            🧪 Testdaten
+        <button onClick={loadKatalog} title="Lädt alle Positionen aus dem Sheet unmarkiert in die Kategorien (keine Duplikate)"
+          style={{flexShrink:0,background:"rgba(245,158,11,0.12)",border:"1px dashed rgba(245,158,11,0.35)",borderRadius:20,padding:"9px 14px",color:"#fcd34d",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+          🧪 Positionen laden
+        </button>
+        {activeSetup && (
+          <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)} title="Aktuelles Setup löschen"
+            style={{flexShrink:0,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,width:38,height:38,color:"#f87171",fontSize:14,cursor:"pointer",marginLeft:"auto"}}>
+            🗑
           </button>
         )}
       </div>
@@ -1002,10 +1011,6 @@ function GewichteApp() {
                 <div style={{fontSize:16,fontWeight:800,color:reserve>=0?"#4ade80":"#f87171"}}>{reserve>=0?"+":""}{reserve.toFixed(1)} kg</div>
               </div>
             )}
-            <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)} title="Setup löschen"
-              style={{flexShrink:0,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer"}}>
-              🗑
-            </button>
           </div>
 
           {/* Kategorien, farblich unterschiedlich hervorgehoben */}
