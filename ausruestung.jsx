@@ -920,6 +920,12 @@ function GewichteApp() {
 
   const totalWeight = activeSetup ? GEWICHTE_CATEGORIES.reduce((sum, cat) =>
     sum + data.items[cat.id].reduce((s,it) => s + (activeSetup.selected[it.id] ? parseKg(it.weight) : 0), 0), 0) : 0;
+  // Rucksackgewicht = Gesamtgewicht abzüglich Körpergewicht(e) und
+  // Kleidung(en) — das, was tatsächlich getragen/gepackt wird, ohne die
+  // Person(en) selbst und die am Körper getragene Kleidung.
+  const bodyAndClothingWeight = activeSetup ? ["koerpergewicht","kleidung"].reduce((sum, catId) =>
+    sum + data.items[catId].reduce((s,it) => s + (activeSetup.selected[it.id] ? parseKg(it.weight) : 0), 0), 0) : 0;
+  const rucksackgewicht = activeSetup ? totalWeight - bodyAndClothingWeight : null;
   // Reserve und Flächenbelastung stammen beide vom im Setup angehakten
   // Schirm (dessen eigenem Gewichtslimite/Proj.-Fläche-Feld) — es gibt
   // keine separate, zweite Limite mehr auf Setup-Ebene.
@@ -1009,6 +1015,9 @@ function GewichteApp() {
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
               <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
+              {rucksackgewicht != null && (
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.35)",marginTop:1}}>Rucksack {rucksackgewicht.toFixed(1)} kg</div>
+              )}
             </div>
             {reserve != null && (
               <div>
