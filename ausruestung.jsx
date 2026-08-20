@@ -918,51 +918,57 @@ function GewichteApp() {
       {/* Setup-Umschalter: tippen auf inaktives Setup wechselt, tippen auf
           bereits aktives öffnet Umbenennen — analog dem Tab-Verhalten in
           Wartung (Schirm/Reserve/Sitz-Slots). */}
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
-        {data.setups.map((s, idx) => {
-          const isActive = s.id===activeSetupId;
-          const isEditing = editingSetupId===s.id;
-          if (setupsMoveMode) {
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{flex:1,minWidth:0,display:"flex",gap:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+          {data.setups.map((s, idx) => {
+            const isActive = s.id===activeSetupId;
+            const isEditing = editingSetupId===s.id;
+            if (setupsMoveMode) {
+              return (
+                <div key={s.id} style={{flexShrink:0,display:"flex",alignItems:"center",gap:2,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"4px 4px 4px 12px"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.8)",whiteSpace:"nowrap",marginRight:4}}>{s.name || "Setup"}</span>
+                  <button disabled={idx===0} onClick={()=>moveSetup(idx,-1)}
+                    style={{opacity:idx===0?0.3:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:14,width:26,height:26,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>◀</button>
+                  <button disabled={idx===data.setups.length-1} onClick={()=>moveSetup(idx,1)}
+                    style={{opacity:idx===data.setups.length-1?0.3:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:14,width:26,height:26,color:"#e8f4fd",cursor:idx===data.setups.length-1?"default":"pointer"}}>▶</button>
+                </div>
+              );
+            }
+            if (isEditing) {
+              return (
+                <input key={s.id} autoFocus value={s.name}
+                  onChange={e=>renameSetup(s.id, e.target.value)}
+                  onBlur={()=>setEditingSetupId(null)}
+                  onKeyDown={e=>{ if(e.key==="Enter") setEditingSetupId(null); }}
+                  style={{flexShrink:0,minWidth:110,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:20,padding:"9px 14px",color:"#e8f4fd",fontSize:13,fontWeight:700,boxSizing:"border-box"}} />
+              );
+            }
             return (
-              <div key={s.id} style={{flexShrink:0,display:"flex",alignItems:"center",gap:2,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"4px 4px 4px 12px"}}>
-                <span style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.8)",whiteSpace:"nowrap",marginRight:4}}>{s.name || "Setup"}</span>
-                <button disabled={idx===0} onClick={()=>moveSetup(idx,-1)}
-                  style={{opacity:idx===0?0.3:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:14,width:26,height:26,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>◀</button>
-                <button disabled={idx===data.setups.length-1} onClick={()=>moveSetup(idx,1)}
-                  style={{opacity:idx===data.setups.length-1?0.3:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:14,width:26,height:26,color:"#e8f4fd",cursor:idx===data.setups.length-1?"default":"pointer"}}>▶</button>
-              </div>
+              <button key={s.id}
+                onClick={()=>{ if (isActive) setEditingSetupId(s.id); else setActiveSetupId(s.id); }}
+                style={{flexShrink:0,background:isActive?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${isActive?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"9px 14px",color:isActive?"#7dd3fc":"rgba(232,244,253,0.7)",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                {s.name || "Setup"}
+              </button>
             );
-          }
-          if (isEditing) {
-            return (
-              <input key={s.id} autoFocus value={s.name}
-                onChange={e=>renameSetup(s.id, e.target.value)}
-                onBlur={()=>setEditingSetupId(null)}
-                onKeyDown={e=>{ if(e.key==="Enter") setEditingSetupId(null); }}
-                style={{flexShrink:0,minWidth:110,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:20,padding:"9px 14px",color:"#e8f4fd",fontSize:13,fontWeight:700,boxSizing:"border-box"}} />
-            );
-          }
-          return (
-            <button key={s.id}
-              onClick={()=>{ if (isActive) setEditingSetupId(s.id); else setActiveSetupId(s.id); }}
-              style={{flexShrink:0,background:isActive?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${isActive?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"9px 14px",color:isActive?"#7dd3fc":"rgba(232,244,253,0.7)",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-              {s.name || "Setup"}
-            </button>
-          );
-        })}
-        <button onClick={addSetup}
-          style={{flexShrink:0,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"9px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-          + Setup
-        </button>
+          })}
+          <button onClick={addSetup}
+            style={{flexShrink:0,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"9px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+            + Setup
+          </button>
+        </div>
+        {/* Verschieben/Löschen ausserhalb des scrollbaren Pill-Bereichs —
+            bleiben immer sichtbar, statt bei vielen/breiten Setup-Pills
+            (v.a. im Verschieben-Modus, wo jede Pille mehr Platz braucht)
+            aus dem sichtbaren Bereich zu rutschen. */}
         {data.setups.length>1 && (
           <button onClick={()=>setSetupsMoveMode(m=>!m)} title="Setups verschieben"
-            style={{flexShrink:0,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"9px 14px",color:setupsMoveMode?"#7dd3fc":"rgba(232,244,253,0.7)",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+            style={{flexShrink:0,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,width:38,height:38,color:setupsMoveMode?"#7dd3fc":"rgba(232,244,253,0.7)",fontSize:15,cursor:"pointer"}}>
             🔀
           </button>
         )}
         {activeSetup && (
           <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)} title="Aktuelles Setup löschen"
-            style={{flexShrink:0,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,width:38,height:38,color:"#f87171",fontSize:14,cursor:"pointer",marginLeft:"auto"}}>
+            style={{flexShrink:0,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:20,width:38,height:38,color:"#f87171",fontSize:14,cursor:"pointer"}}>
             🗑
           </button>
         )}
@@ -978,11 +984,18 @@ function GewichteApp() {
       {activeSetup && (
         <>
           {/* Gewichts-Übersicht für das aktive Setup */}
-          <div style={{marginTop:14,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:120}}>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
-              <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
+          <div style={{marginTop:14,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
+                <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
+              </div>
+              <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
+                style={{flexShrink:0,width:36,height:36,borderRadius:10,fontWeight:700,fontSize:15,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
+                {editMode ? "✓" : "✏️"}
+              </button>
             </div>
+            <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
             <div>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Limite</div>
               <input value={activeSetup.limit ?? ""} onChange={e=>setSetupLimit(activeSetup.id, e.target.value)}
@@ -1001,10 +1014,7 @@ function GewichteApp() {
                 <div style={{fontSize:16,fontWeight:800,color:"#7dd3fc"}}>{flaechenbelastung.toFixed(2)} kg/m²</div>
               </div>
             )}
-            <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
-              style={{flexShrink:0,width:36,height:36,borderRadius:10,fontWeight:700,fontSize:15,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
-              {editMode ? "✓" : "✏️"}
-            </button>
+            </div>
           </div>
 
           {!editMode && GEWICHTE_CATEGORIES.every(cat => !data.items[cat.id].some(it => activeSetup.selected[it.id])) && (
@@ -1051,7 +1061,7 @@ function GewichteApp() {
                   if (!isSchirm) {
                     return (
                       <div key={it.id} style={{display:"flex",alignItems:"center",gap:8,...rowStyle}}>
-                        {Checkbox}
+                        {editMode && Checkbox}
                         {NameInput}
                         <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
                           placeholder="kg" inputMode="decimal"
@@ -1072,7 +1082,7 @@ function GewichteApp() {
                   return (
                     <div key={it.id} style={{display:"flex",flexDirection:"column",gap:6,...rowStyle}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        {Checkbox}
+                        {editMode && Checkbox}
                         {NameInput}
                       </div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingLeft:28,alignItems:"center"}}>
