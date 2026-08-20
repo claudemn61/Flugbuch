@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "4.13";
+const APP_VERSION = "5.0";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.0", note: "Neue Seite \"🎒 Ausrüstung\" ersetzt die bisherige \"Wartung\"-Kachel auf Home. Zwei Tabs: \"⚖️ Ausrüstung, Gewichte\" (neu) und \"🛠️ Wartung\" (unverändert, nur umgezogen von wartung.html). Gewichte: 8 Kategorien (Schirm/Sitz/Reserve/Packhilfen/Geräte/Kleidung/Zubehör/Körpergewicht, farblich unterschieden), frei benennbare/erweiterbare Setups (z.B. Tandem/Solo/H&F) mit je eigener Positions-Auswahl, Gesamtgewicht, Gewichtslimite und Reserve — immer nur ein Setup gleichzeitig sichtbar. Positionsnamen und -gewichte werden manuell erfasst. Alte wartung.html leitet automatisch auf ausruestung.html weiter." },
   { v: "4.13", note: "Flugliste: neue 💡-Kachel zwischen Suchen und Sortieren — gespeicherte Darstellungen der Flugliste (kompletter Suchen/Sortieren/Gr.1°/Gr.2°-Zustand unter einem Namen sicherbar, per Tippen sofort wieder anwendbar). Liste mit \"Speichern als…\" oben, sowie Verschieben- und Löschen-Modus zum Verwalten." },
   { v: "4.12", note: "Gr. 1°/Gr. 2° in der Flugliste: die Gruppen lassen sich jetzt nach jedem beliebigen Datenfeld sortieren (nicht mehr nur alphabetisch nach dem Gruppierfeld selbst) — neue Auswahlliste (⇅) neben Gr. 1°/Gr. 2° zeigt alle Sortieren-Felder. Zahlenfelder (Dauer, Distanz, Höhe, Bewertung, …) werden dabei über die Gruppe summiert, Textfelder nehmen den alphabetisch ersten Wert. Gleiches Feld nochmals antippen kehrt die Richtung um (erst absteigend, dann aufsteigend)." },
   { v: "4.11", note: "Flugliste komplett neu strukturiert: statt fester Jahres-Gruppierung + einer Zusatz-Gruppierung jetzt zwei gleichwertige, frei wählbare Gruppierungs-Ebenen (Gr. 1° / Gr. 2°, jeweils inkl. \"Keine\"), beide um Jahr und Bewertung erweitert, jede mit eigener Sortierrichtung und eigenem Alle-ein-/ausklappen. Reihenfolge-Kachel aus der oberen Icon-Zeile entfernt und ins Suchen-Panel verschoben (neben Sortieren); \"alle Jahre\"-Kachel entfällt dadurch (Funktion jetzt in Gr. 1°/Gr. 2°)." },
@@ -821,8 +822,8 @@ function HomeApp() {
     },
     {
       id: "service",
-      label: "Wartung",
-      icon: "🛠️",
+      label: "Ausrüstung",
+      icon: "🎒",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",
       stats: (() => {
@@ -831,7 +832,7 @@ function HomeApp() {
         const all = [...overdueStats, ...nextReserveStat];
         return all.length ? all : [{ label: "Alles aktuell" }];
       })(),
-      href: "wartung.html",
+      href: "ausruestung.html",
       ready: true,
     },
     {
