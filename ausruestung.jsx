@@ -868,13 +868,6 @@ function GewichteApp() {
       return next;
     });
   };
-  const setSetupLimit = (id, limit) => {
-    setData(prev => {
-      const next = { ...prev, setups: prev.setups.map(s => s.id===id ? {...s, limit} : s) };
-      try { window.storage.set("service:gewichte", JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
-  };
   const toggleItemInSetup = (id, itemId) => {
     const next = { ...data, setups: data.setups.map(s => {
       if (s.id!==id) return s;
@@ -902,12 +895,12 @@ function GewichteApp() {
 
   const totalWeight = activeSetup ? GEWICHTE_CATEGORIES.reduce((sum, cat) =>
     sum + data.items[cat.id].reduce((s,it) => s + (activeSetup.selected[it.id] ? parseKg(it.weight) : 0), 0), 0) : 0;
-  const limit = activeSetup && activeSetup.limit !== "" && activeSetup.limit != null ? parseKg(activeSetup.limit) : null;
-  const reserve = limit != null ? limit - totalWeight : null;
-  // Flächenbelastung = Gesamtgewicht / Proj. Fläche des im Setup
-  // ausgewählten Schirms — nur wenn genau ein Schirm angehakt ist und
-  // dessen Fläche erfasst wurde, sonst ausgeblendet.
+  // Reserve und Flächenbelastung stammen beide vom im Setup angehakten
+  // Schirm (dessen eigenem Gewichtslimite/Proj.-Fläche-Feld) — es gibt
+  // keine separate, zweite Limite mehr auf Setup-Ebene.
   const checkedSchirme = activeSetup ? data.items.schirm.filter(it => activeSetup.selected[it.id]) : [];
+  const schirmLimit = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].weightLimit) : 0;
+  const reserve = schirmLimit > 0 ? schirmLimit - totalWeight : null;
   const schirmArea = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].area) : 0;
   const flaechenbelastung = (schirmArea > 0 && totalWeight > 0) ? totalWeight / schirmArea : null;
 
@@ -983,62 +976,60 @@ function GewichteApp() {
 
       {activeSetup && (
         <>
-          {/* Gewichts-Übersicht für das aktive Setup */}
-          <div style={{marginTop:14,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",gap:12}}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
-                <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
-              </div>
-              <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
-                style={{flexShrink:0,width:36,height:36,borderRadius:10,fontWeight:700,fontSize:15,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
-                {editMode ? "✓" : "✏️"}
-              </button>
-            </div>
-            <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Limite</div>
-              <input value={activeSetup.limit ?? ""} onChange={e=>setSetupLimit(activeSetup.id, e.target.value)}
-                placeholder="—" inputMode="decimal"
-                style={{width:64,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 8px",color:"#e8f4fd",fontSize:14,textAlign:"right",boxSizing:"border-box"}} />
+          {/* Gewichts-Übersicht für das aktive Setup — eine Zeile: Gesamtgewicht,
+              Reserve (aus dem Schirm-Gewichtslimite), Fläch.-Bel. (aus der
+              Schirm-Fläche), ✏️/✓ ganz rechts. Limite steckt nur noch beim
+              Schirm selbst, nicht mehr zusätzlich hier. */}
+          <div style={{marginTop:14,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:14}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
+              <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
             </div>
             {reserve != null && (
               <div>
                 <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Reserve</div>
-                <div style={{fontSize:16,fontWeight:800,color:reserve>=0?"#4ade80":"#f87171"}}>{reserve>=0?"+":""}{reserve.toFixed(1)} kg</div>
+                <div style={{fontSize:16,fontWeight:800,color:reserve>=0?"#4ade80":"#f87171",whiteSpace:"nowrap"}}>{reserve>=0?"+":""}{reserve.toFixed(1)} kg</div>
               </div>
             )}
             {flaechenbelastung != null && (
               <div>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Flächenbelastung</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#7dd3fc"}}>{flaechenbelastung.toFixed(2)} kg/m²</div>
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Fläch.-Bel.</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#7dd3fc",whiteSpace:"nowrap"}}>{flaechenbelastung.toFixed(2)} kg/m²</div>
               </div>
             )}
-            </div>
           </div>
-
-          {!editMode && GEWICHTE_CATEGORIES.every(cat => !data.items[cat.id].some(it => activeSetup.selected[it.id])) && (
-            <div style={{marginTop:20,textAlign:"center",padding:"20px 10px",color:"rgba(232,244,253,0.35)",fontSize:13}}>
-              Noch keine Positionen für "{activeSetup.name}" ausgewählt — ✏️ antippen.
-            </div>
-          )}
 
           {/* Kategorien, farblich unterschiedlich hervorgehoben. Im
               Normalzustand nur die für dieses Setup angehakten Positionen
               (Übersicht) — im Bearbeiten-Modus alle verfügbaren zum
               An-/Abhaken. Kategorien ohne angehakte Position bleiben im
-              Normalzustand ganz ausgeblendet. */}
+              Normalzustand ganz ausgeblendet. Das ✏️/✓-Icon sitzt auf jeder
+              Kategorie-Zeile (statt nur einmal oben) — steuert aber überall
+              denselben globalen editMode: alle Kategorien öffnen/schliessen
+              gemeinsam, das Icon ist nur bequemer erreichbar, egal wo man
+              gerade scrollt. */}
           {GEWICHTE_CATEGORIES.map(cat => {
             const allItems = data.items[cat.id];
             const visibleItems = editMode ? allItems : allItems.filter(it => activeSetup.selected[it.id]);
-            if (!editMode && visibleItems.length === 0) return null;
+            // Der Kategorie-Titel (samt ✏️/✓-Icon) bleibt immer sichtbar,
+            // auch wenn nichts angehakt ist — so weiss man, was es an
+            // Kategorien überhaupt gibt, und das Icon bleibt erreichbar.
+            // Nur die Positionsliste selbst wird bei leerer Auswahl (und
+            // nicht im Bearbeiten-Modus) ausgeblendet.
             return (
             <div key={cat.id} style={{marginTop:16}}>
               <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:`4px solid ${cat.color}`,paddingLeft:10,marginBottom:6}}>
                 <span style={{fontSize:14}}>{cat.icon}</span>
-                <span style={{fontSize:13,fontWeight:800,color:cat.color}}>{cat.label}</span>
+                <span style={{fontSize:13,fontWeight:800,color:cat.color,flex:1}}>{cat.label}</span>
+                <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
+                  style={{flexShrink:0,width:26,height:26,borderRadius:8,fontSize:12,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
+                  {editMode ? "✓" : "✏️"}
+                </button>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {!editMode && visibleItems.length===0 && (
+                  <div style={{fontSize:12,color:"rgba(232,244,253,0.25)",fontStyle:"italic",paddingLeft:2}}>— nichts ausgewählt —</div>
+                )}
                 {visibleItems.map(it => {
                   const checked = !!activeSetup.selected[it.id];
                   const isSchirm = cat.id === "schirm";
