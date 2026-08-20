@@ -864,7 +864,11 @@ function GewichteApp() {
     const id = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
     const baseName = (item.name||"").replace(/\s+2$/, "");
     const copy = { ...item, id, name: baseName ? baseName + " 2" : "" };
-    const next = { ...data, items: { ...data.items, [catId]: [...data.items[catId], copy] } };
+    const list = data.items[catId];
+    const origIdx = list.findIndex(it => it.id === item.id);
+    const newList = [...list];
+    newList.splice(origIdx + 1, 0, copy); // direkt unter dem Original einfügen, nicht ans Ende
+    const next = { ...data, items: { ...data.items, [catId]: newList } };
     if (activeSetup) {
       next.setups = next.setups.map(s => s.id===activeSetup.id ? { ...s, selected: { ...s.selected, [id]: true } } : s);
     }
