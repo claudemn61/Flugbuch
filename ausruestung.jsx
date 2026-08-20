@@ -795,6 +795,15 @@ function parseKg(v) {
   const n = parseFloat(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
+// Anzeige-Formatierung für Gewichtsangaben: max. 2 Dezimalstellen, keine
+// erzwungenen Nachkomma-Nullen (4.5 bleibt "4.5", 4.55 bleibt "4.55").
+// Gibt null zurück wenn kein (gültiger) Wert vorhanden ist.
+function fmtNum(v) {
+  if (v === "" || v == null) return null;
+  const n = parseFloat(String(v).replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  return String(Math.round(n * 100) / 100);
+}
 
 function GewichteApp() {
   const [data, setData] = useState(emptyGewichteData());
@@ -1077,12 +1086,20 @@ function GewichteApp() {
                     return (
                       <div key={it.id} style={{display:"flex",alignItems:"center",gap:8,...rowStyle}}>
                         {editMode && Checkbox}
-                        {NameInput}
-                        <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
-                          placeholder="kg" inputMode="decimal"
-                          style={{width:56,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
-                        {DuplicateBtn}
-                        {DeleteBtn}
+                        {editMode ? NameInput : (
+                          <span style={{flex:1,minWidth:0,color:"#e8f4fd",fontSize:13.5,padding:"4px 0"}}>{it.name}</span>
+                        )}
+                        {editMode ? (
+                          <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
+                            placeholder="kg" inputMode="decimal"
+                            style={{width:56,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
+                        ) : (
+                          fmtNum(it.weight) != null && (
+                            <span style={{flexShrink:0,color:"rgba(232,244,253,0.7)",fontSize:13}}>{fmtNum(it.weight)} kg</span>
+                          )
+                        )}
+                        {editMode && DuplicateBtn}
+                        {editMode && DeleteBtn}
                       </div>
                     );
                   }
@@ -1090,7 +1107,10 @@ function GewichteApp() {
                   // (3.) — alle drei in einer Zeile, wenn kein Platz
                   // untereinander (flexWrap). Fläche/Limite bleiben leer
                   // ausgeblendet ("+ Fläche"/"+ Limite") bis ein Wert
-                  // existiert oder der Link antippt wurde.
+                  // existiert oder der Link antippt wurde. Im Normalzustand
+                  // (nicht editierbar, kein Rahmen) beginnt die Feldzeile
+                  // linksbündig statt unter der (dann versteckten) Checkbox
+                  // eingerückt.
                   const fieldDefs = [
                     { key: "area", unit: "m²", placeholder: "+ Fläche" },
                     { key: "weightLimit", unit: "kg-Lim.", placeholder: "+ Limite" },
@@ -1099,32 +1119,48 @@ function GewichteApp() {
                     <div key={it.id} style={{display:"flex",flexDirection:"column",gap:6,...rowStyle}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {editMode && Checkbox}
-                        {NameInput}
+                        {editMode ? NameInput : (
+                          <span style={{flex:1,minWidth:0,color:"#e8f4fd",fontSize:13.5,padding:"4px 0"}}>{it.name}</span>
+                        )}
                       </div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingLeft:28,alignItems:"center"}}>
-                        <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
-                          placeholder="kg" inputMode="decimal"
-                          style={{width:60,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
-                        {fieldDefs.map(fd => {
-                          const val = it[fd.key] || "";
-                          const show = val !== "" || revealedFields.has(it.id+":"+fd.key);
-                          if (!show) {
+                      {editMode ? (
+                        <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingLeft:28,alignItems:"center"}}>
+                          <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
+                            placeholder="kg" inputMode="decimal"
+                            style={{width:60,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
+                          {fieldDefs.map(fd => {
+                            const val = it[fd.key] || "";
+                            const show = val !== "" || revealedFields.has(it.id+":"+fd.key);
+                            if (!show) {
+                              return (
+                                <button key={fd.key} onClick={()=>revealField(it.id, fd.key)}
+                                  style={{flexShrink:0,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
+                                  {fd.placeholder}
+                                </button>
+                              );
+                            }
                             return (
-                              <button key={fd.key} onClick={()=>revealField(it.id, fd.key)}
-                                style={{flexShrink:0,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
-                                {fd.placeholder}
-                              </button>
+                              <input key={fd.key} value={val} onChange={e=>updateItem(cat.id, it.id, {[fd.key]:e.target.value})}
+                                placeholder={fd.unit} inputMode="decimal"
+                                style={{width:68,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
                             );
-                          }
-                          return (
-                            <input key={fd.key} value={val} onChange={e=>updateItem(cat.id, it.id, {[fd.key]:e.target.value})}
-                              placeholder={fd.unit} inputMode="decimal"
-                              style={{width:68,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
-                          );
-                        })}
-                        <div style={{flex:1}} />
-                        {DeleteBtn}
-                      </div>
+                          })}
+                          <div style={{flex:1}} />
+                          {DeleteBtn}
+                        </div>
+                      ) : (
+                        <div style={{display:"flex",flexWrap:"wrap",gap:14,alignItems:"center"}}>
+                          {fmtNum(it.weight) != null && (
+                            <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>{fmtNum(it.weight)} kg</span>
+                          )}
+                          {fmtNum(it.area) != null && (
+                            <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>{fmtNum(it.area)} m²</span>
+                          )}
+                          {fmtNum(it.weightLimit) != null && (
+                            <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>Lim. {fmtNum(it.weightLimit)} kg</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
