@@ -844,6 +844,53 @@ function GewichteApp() {
     setConfirmDeleteItem(null);
   };
 
+  // Einmalige Testdaten aus dem Numbers-Sheet-Screenshot (erste Spalte,
+  // "Ozone Wisp 2" / "Tandem") — zum Ausprobieren der neuen Gewichte-
+  // Funktion. Legt Positionen + ein Setup "Biplace" an, ohne bestehende
+  // Daten zu berühren; überspringt, falls "Biplace" schon existiert.
+  // Kann nach dem Testen jederzeit wieder gelöscht werden (🗑 am Setup
+  // entfernt nur das Setup, die Positionen bleiben — einzeln über ✕ an
+  // jeder Position löschen falls gewünscht).
+  const seedBiplaceDemo = () => {
+    if (data.setups.some(s => s.name === "Biplace")) return;
+    const mkId = () => "item_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+    // Angehakt in Spalte "Ozone Wisp 2" des Sheets — zählen ins Setup.
+    const checkedByCat = {
+      schirm:  [{ id: mkId(), name: "Ozone Wisp 2",              weight: "4.55" }],
+      sitz:    [{ id: mkId(), name: "Advance Bipro 3 M o/Res.",  weight: "2.57" }],
+      geraete: [{ id: mkId(), name: "XC-Tracer Maxx",            weight: "0.12" },
+                { id: mkId(), name: "iPhone",                    weight: "0.30" }],
+      kleidung:[{ id: mkId(), name: "Kleidung, Sonstiges",       weight: "0.20" },
+                { id: mkId(), name: "Kleidung inkl. Schuhe schwer", weight: "4.50" }],
+      zubehoer:[{ id: mkId(), name: "Handschuhe etc.",           weight: "0.30" },
+                { id: mkId(), name: "Helm leicht",                weight: "0.36" }],
+      koerpergewicht: [{ id: mkId(), name: "KG Pilot",           weight: "70.00" }],
+    };
+    // Im Sheet vorhanden, für diese Spalte aber NICHT angehakt — als
+    // Positionen mit angelegt, damit sie zum Ausprobieren da sind, aber
+    // zunächst nicht ins Gesamtgewicht des Setups zählen.
+    const uncheckedByCat = {
+      koerpergewicht: [
+        { id: mkId(), name: "KG Pass. leicht",              weight: "50.00" },
+        { id: mkId(), name: "KG Pass. mittel",               weight: "65.00" },
+        { id: mkId(), name: "KG Pass. schwer",               weight: "90.00" },
+        { id: mkId(), name: "KG ink. Hose, T-Sh, Pully",     weight: "75.00" },
+      ],
+    };
+    const items = { ...data.items };
+    const selected = {};
+    Object.keys(checkedByCat).forEach(catId => {
+      items[catId] = [...items[catId], ...checkedByCat[catId]];
+      checkedByCat[catId].forEach(it => { selected[it.id] = true; });
+    });
+    Object.keys(uncheckedByCat).forEach(catId => {
+      items[catId] = [...items[catId], ...uncheckedByCat[catId]];
+    });
+    const setup = { id: "setup_"+Date.now(), name: "Biplace", limit: "180", selected };
+    save({ items, setups: [...data.setups, setup] });
+    setActiveSetupId(setup.id);
+  };
+
   const addSetup = () => {
     const s = { id: "setup_"+Date.now(), name: "Neues Setup", limit: "", selected: {} };
     const next = { ...data, setups: [...data.setups, s] };
@@ -920,6 +967,12 @@ function GewichteApp() {
           style={{flexShrink:0,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"9px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
           + Setup
         </button>
+        {!data.setups.some(s=>s.name==="Biplace") && (
+          <button onClick={seedBiplaceDemo} title="Lädt die 'Ozone Wisp 2 / Tandem'-Spalte aus dem Sheet als Test-Setup"
+            style={{flexShrink:0,background:"rgba(245,158,11,0.12)",border:"1px dashed rgba(245,158,11,0.35)",borderRadius:20,padding:"9px 14px",color:"#fcd34d",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+            🧪 Testdaten
+          </button>
+        )}
       </div>
 
       {!activeSetup && (
