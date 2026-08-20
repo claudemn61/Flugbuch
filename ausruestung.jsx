@@ -845,6 +845,22 @@ function GewichteApp() {
     const next = { ...data, items: { ...data.items, [catId]: data.items[catId].map(it => it.id===itemId ? {...it, ...patch} : it) } };
     save(next);
   };
+  // Für Biplace-Setups: bei allen Kategorien ausser Schirm und Reserve
+  // gibt's typischerweise zwei Personen (Pilot + Passagier), die oft
+  // eigene, ähnliche Positionen brauchen (z.B. je eigene Handschuhe). Statt
+  // Name+Gewicht komplett neu einzutippen, dupliziert dieser Button die
+  // Position direkt (Name mit " 2" markiert, im aktiven Setup gleich mit
+  // angehakt) — schneller als jedes Mal "+ Position" von Grund auf.
+  const duplicateItem = (catId, item) => {
+    const id = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+    const baseName = (item.name||"").replace(/\s+2$/, "");
+    const copy = { ...item, id, name: baseName ? baseName + " 2" : "" };
+    const next = { ...data, items: { ...data.items, [catId]: [...data.items[catId], copy] } };
+    if (activeSetup) {
+      next.setups = next.setups.map(s => s.id===activeSetup.id ? { ...s, selected: { ...s.selected, [id]: true } } : s);
+    }
+    save(next);
+  };
   const deleteItem = (catId, itemId) => {
     const next = { ...data, items: { ...data.items, [catId]: data.items[catId].filter(it => it.id!==itemId) } };
     // Also drop the item from every setup's selection, so a deleted
@@ -1033,6 +1049,7 @@ function GewichteApp() {
                 {visibleItems.map(it => {
                   const checked = !!activeSetup.selected[it.id];
                   const isSchirm = cat.id === "schirm";
+                  const isDuplicable = cat.id !== "schirm" && cat.id !== "reserve";
                   const rowStyle = {background:checked?cat.color+"14":"rgba(255,255,255,0.03)",border:`1px solid ${checked?cat.color+"55":"rgba(255,255,255,0.06)"}`,borderRadius:10,padding:"8px 10px"};
                   const Checkbox = (
                     <div onClick={()=>toggleItemInSetup(activeSetup.id, it.id)}
@@ -1044,6 +1061,13 @@ function GewichteApp() {
                     <input value={it.name} onChange={e=>updateItem(cat.id, it.id, {name:e.target.value})}
                       placeholder="Bezeichnung…"
                       style={{flex:1,minWidth:0,background:"transparent",border:"none",color:"#e8f4fd",fontSize:13.5,padding:"4px 0",outline:"none"}} />
+                  );
+                  // Bei Biplace/zwei-Personen-Setups braucht's ausser bei
+                  // Schirm/Reserve oft dieselbe Position zweimal (Pilot +
+                  // Passagier) — Duplizieren statt neu eintippen.
+                  const DuplicateBtn = editMode && isDuplicable && (
+                    <button onClick={()=>duplicateItem(cat.id, it)} title="Position duplizieren (z.B. für Passagier)"
+                      style={{flexShrink:0,background:"rgba(125,211,252,0.1)",border:"1px solid rgba(125,211,252,0.25)",borderRadius:6,width:24,height:24,color:"#7dd3fc",fontSize:12,cursor:"pointer"}}>⎘</button>
                   );
                   const DeleteBtn = (
                     <button onClick={()=>setConfirmDeleteItem({catId:cat.id, itemId:it.id, name: it.name||"diese Position"})}
@@ -1057,6 +1081,7 @@ function GewichteApp() {
                         <input value={it.weight} onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
                           placeholder="kg" inputMode="decimal"
                           style={{width:56,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
+                        {DuplicateBtn}
                         {DeleteBtn}
                       </div>
                     );
