@@ -1153,21 +1153,24 @@ function GewichteApp() {
       {/* Einmaliger, fixer Werkzeugleisten-Block — nicht pro Spalte
           wiederholt, scrollt nicht mit den Setup-Spalten mit. + legt ein
           neues Setup an; 🔀/🗑 schalten je einen Modus um, in dem jede
-          Spalten-Titelzeile darunter ihre eigenen ◀▶ bzw. 🗑 zeigt. */}
+          Spalten-Titelzeile darunter ihre eigenen ◀▶ bzw. 🗑 zeigt. Auf dem
+          iPhone alle drei gleich breit und die ganze Zeilenbreite füllend;
+          auf iPad/Mac ebenfalls alle drei gleich breit, aber kompakt statt
+          über die volle Breite gestreckt. */}
       <div style={{display:"flex",gap:8,marginBottom:14}}>
         <button onClick={addSetup} title="Neues Setup"
-          style={{flexShrink:0,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"8px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           + Setup
         </button>
         {data.setups.length>1 && (
           <button onClick={()=>{ setSetupsMoveMode(m=>!m); setSetupsDeleteMode(false); }} title="Setups verschieben"
-            style={{flexShrink:0,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(14,165,233,0.1)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.5)":"rgba(14,165,233,0.3)"}`,borderRadius:8,width:38,height:38,color:"#7dd3fc",fontSize:15,cursor:"pointer"}}>
+            style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(14,165,233,0.1)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.5)":"rgba(14,165,233,0.3)"}`,borderRadius:8,color:"#7dd3fc",fontSize:15,cursor:"pointer"}}>
             🔀
           </button>
         )}
         {data.setups.length>0 && (
           <button onClick={()=>{ setSetupsDeleteMode(m=>!m); setSetupsMoveMode(false); }} title="Setups löschen"
-            style={{flexShrink:0,background:setupsDeleteMode?"rgba(239,68,68,0.18)":"rgba(239,68,68,0.1)",border:`1px solid ${setupsDeleteMode?"rgba(239,68,68,0.5)":"rgba(239,68,68,0.25)"}`,borderRadius:8,width:38,height:38,color:"#f87171",fontSize:14,cursor:"pointer"}}>
+            style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:setupsDeleteMode?"rgba(239,68,68,0.18)":"rgba(239,68,68,0.1)",border:`1px solid ${setupsDeleteMode?"rgba(239,68,68,0.5)":"rgba(239,68,68,0.25)"}`,borderRadius:8,color:"#f87171",fontSize:14,cursor:"pointer"}}>
             🗑
           </button>
         )}
