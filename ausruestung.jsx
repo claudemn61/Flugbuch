@@ -941,9 +941,13 @@ function GewichteApp() {
 
     return (
       <div key={setup.id} style={{flex:`0 0 ${columnWidth}`,minWidth:0,boxSizing:"border-box"}}>
-        {/* Titel + Aktionen (+ Setup / Verschieben / Löschen) — eine Zeile
-            pro Spalte, scrollt mit den Daten dieser Spalte mit. */}
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+        {/* Titel + Aktionen (+ Setup / Verschieben / Löschen) — bleibt beim
+            horizontalen Durchscrollen der Setups fix stehen (sticky am
+            linken Rand des scrollenden Bereichs), statt mit den Daten
+            dieser Spalte mitzuwandern. Bezieht sich weiterhin klar auf
+            "seine" Spalte, da sie beim Verlassen der Spalte mit ihr
+            verschwindet. */}
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,position:"sticky",left:0,zIndex:2,background:"#051d0e",paddingBottom:2}}>
           {isEditingTitle ? (
             <input autoFocus value={setup.name}
               onChange={e=>renameSetup(setup.id, e.target.value)}
