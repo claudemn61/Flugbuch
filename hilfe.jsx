@@ -39,7 +39,8 @@ const SECTIONS = [
       <h3>2.1 Titelfoto und Titeltext ändern</h3>
       <p>Auf das Foto tippen (ausserhalb des Titeltexts) öffnet die Bildauswahl des Geräts — das Foto wird lokal gespeichert. Auf den Titeltext selbst tippen öffnet stattdessen den Titel-Editor: beliebig viele Textteile, je mit eigener Farbe, sechs Schriftarten zur Auswahl, Schriftgrösse per Regler, mit Live-Vorschau. "Zurücksetzen" stellt "meinflugbuch" in der Standard-Optik wieder her.</p>
       <h3>2.2 Einstellungen (Zahnrad)</h3>
-      <p>Öffnet ein Panel mit: der App-URL (antippen/halten zum Kopieren), ❓ Hilfe (diese Seite), 📁 Log Files (technisches Fehlerprotokoll) und 📝 Notizen (freies App-weites Notizfeld). Die Datensicherung (Backup) liegt nicht hier, sondern im Flugbuch selbst (siehe 3.3).</p>
+      <p>Öffnet ein Panel mit: der App-URL (antippen/halten zum Kopieren), ❓ Hilfe (diese Seite), 🪂 Schirme (Auswahl des Kartenmarkers, siehe unten), 📁 Log Files (technisches Fehlerprotokoll) und 📝 Notizen (freies App-weites Notizfeld). Die Datensicherung (Backup) liegt nicht hier, sondern im Flugbuch selbst (siehe 3.3).</p>
+      <p>🪂 Schirme: 9 Symbol-Varianten für den Referenzpunkt auf der Karte und die Cine-Wiedergabe — "Eigenes Symbol" (frei eintippbarer Buchstabe oder Emoji), ein fixes 🪂-Emoji, sowie 7 selbst fotografierte Schirm-Fotos. Die Auswahl gilt app-weit und wirkt sofort auch auf bereits geöffnete Flugdetails.</p>
     </>),
   },
   {
@@ -146,6 +147,8 @@ const SECTIONS = [
 function KurzContent() {
   return (
     <div className="hilfe-body">
+      <h3>Einstellungen</h3>
+      <p>🪂 Schirme: 9 Kartenmarker-Varianten — "Eigenes Symbol" (Buchstabe/Emoji eintippbar), fixes 🪂-Emoji, 7 Schirm-Fotos; app-weit, sofort wirksam.</p>
       <h3>Flugbuch</h3>
       <ul>
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
