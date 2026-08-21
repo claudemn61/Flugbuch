@@ -810,7 +810,11 @@ function GewichteApp() {
   const [data, setData] = useState(emptyGewichteData());
   const [loaded, setLoaded] = useState(false);
   const [editingSetupId, setEditingSetupId] = useState(null);
-  const [movingSetupId, setMovingSetupId] = useState(null); // Spalte, deren ◀/▶-Verschieben-Modus gerade offen ist
+  // Verschieben/Löschen sind globale Modi (ein einziger Werkzeugleisten-
+  // Block oben, nicht pro Spalte wiederholt) — im aktiven Modus zeigt
+  // jede Spalten-Titelzeile zusätzlich ◀▶ bzw. 🗑 für genau diese Spalte.
+  const [setupsMoveMode, setSetupsMoveMode] = useState(false);
+  const [setupsDeleteMode, setSetupsDeleteMode] = useState(false);
   const [confirmDeleteSetup, setConfirmDeleteSetup] = useState(null);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // { catId, itemId, name }
   // Proj. Fläche / Gewichtslimite (nur bei Schirm-Positionen) sind leer oft
@@ -937,16 +941,15 @@ function GewichteApp() {
     const schirmArea = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].area) : 0;
     const flaechenbelastung = (schirmArea > 0 && totalWeight > 0) ? totalWeight / schirmArea : null;
     const isEditingTitle = editingSetupId === setup.id;
-    const isMoving = movingSetupId === setup.id;
 
     return (
       <div key={setup.id} style={{flex:`0 0 ${columnWidth}`,minWidth:0,boxSizing:"border-box"}}>
-        {/* Titel + Aktionen (+ Setup / Verschieben / Löschen) — bleibt beim
-            horizontalen Durchscrollen der Setups fix stehen (sticky am
-            linken Rand des scrollenden Bereichs), statt mit den Daten
-            dieser Spalte mitzuwandern. Bezieht sich weiterhin klar auf
-            "seine" Spalte, da sie beim Verlassen der Spalte mit ihr
-            verschwindet. */}
+        {/* Titel — bleibt beim horizontalen Durchscrollen der Setups fix
+            stehen (sticky am linken Rand des scrollenden Bereichs), statt
+            mit den Daten dieser Spalte mitzuwandern. Verschwindet erst
+            zusammen mit der eigenen Spalte. Im Verschieben-/Löschen-Modus
+            (über den einmaligen Werkzeugleisten-Block oben ausgelöst)
+            zeigt sie zusätzlich ◀▶ bzw. 🗑 für genau diese Spalte. */}
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,position:"sticky",left:0,zIndex:2,background:"#051d0e",paddingBottom:2}}>
           {isEditingTitle ? (
             <input autoFocus value={setup.name}
@@ -960,26 +963,17 @@ function GewichteApp() {
               {setup.name || "Setup"}
             </div>
           )}
-          {isMoving ? (
+          {setupsMoveMode && (
             <>
               <button disabled={idx===0} onClick={()=>moveSetup(idx,-1)}
                 style={{opacity:idx===0?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>◀</button>
               <button disabled={idx===data.setups.length-1} onClick={()=>moveSetup(idx,1)}
                 style={{opacity:idx===data.setups.length-1?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===data.setups.length-1?"default":"pointer"}}>▶</button>
-              <button onClick={()=>setMovingSetupId(null)} title="Fertig"
-                style={{flexShrink:0,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,width:30,height:30,color:"#4ade80",cursor:"pointer"}}>✓</button>
             </>
-          ) : (
-            <>
-              <button onClick={addSetup} title="Neues Setup"
-                style={{flexShrink:0,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,width:30,height:30,color:"#4ade80",fontSize:16,cursor:"pointer"}}>+</button>
-              {data.setups.length>1 && (
-                <button onClick={()=>setMovingSetupId(setup.id)} title="Verschieben"
-                  style={{flexShrink:0,background:"rgba(14,165,233,0.1)",border:"1px solid rgba(14,165,233,0.3)",borderRadius:8,width:30,height:30,color:"#7dd3fc",fontSize:14,cursor:"pointer"}}>🔀</button>
-              )}
-              <button onClick={()=>setConfirmDeleteSetup(setup.id)} title="Setup löschen"
-                style={{flexShrink:0,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer"}}>🗑</button>
-            </>
+          )}
+          {setupsDeleteMode && (
+            <button onClick={()=>setConfirmDeleteSetup(setup.id)} title="Setup löschen"
+              style={{flexShrink:0,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer"}}>🗑</button>
           )}
         </div>
 
@@ -1156,14 +1150,33 @@ function GewichteApp() {
 
   return (
     <div style={{padding:"14px 16px 40px"}}>
+      {/* Einmaliger, fixer Werkzeugleisten-Block — nicht pro Spalte
+          wiederholt, scrollt nicht mit den Setup-Spalten mit. + legt ein
+          neues Setup an; 🔀/🗑 schalten je einen Modus um, in dem jede
+          Spalten-Titelzeile darunter ihre eigenen ◀▶ bzw. 🗑 zeigt. */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        <button onClick={addSetup} title="Neues Setup"
+          style={{flexShrink:0,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"8px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          + Setup
+        </button>
+        {data.setups.length>1 && (
+          <button onClick={()=>{ setSetupsMoveMode(m=>!m); setSetupsDeleteMode(false); }} title="Setups verschieben"
+            style={{flexShrink:0,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(14,165,233,0.1)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.5)":"rgba(14,165,233,0.3)"}`,borderRadius:8,width:38,height:38,color:"#7dd3fc",fontSize:15,cursor:"pointer"}}>
+            🔀
+          </button>
+        )}
+        {data.setups.length>0 && (
+          <button onClick={()=>{ setSetupsDeleteMode(m=>!m); setSetupsMoveMode(false); }} title="Setups löschen"
+            style={{flexShrink:0,background:setupsDeleteMode?"rgba(239,68,68,0.18)":"rgba(239,68,68,0.1)",border:`1px solid ${setupsDeleteMode?"rgba(239,68,68,0.5)":"rgba(239,68,68,0.25)"}`,borderRadius:8,width:38,height:38,color:"#f87171",fontSize:14,cursor:"pointer"}}>
+            🗑
+          </button>
+        )}
+      </div>
+
       {data.setups.length === 0 ? (
         <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
           <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
-          <div style={{fontSize:14,marginBottom:16}}>Noch kein Setup.</div>
-          <button onClick={addSetup}
-            style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:10,padding:"10px 20px",color:"#4ade80",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-            + Setup
-          </button>
+          <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
         </div>
       ) : (
         <div style={{display:"flex",gap:gap,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8}}>
