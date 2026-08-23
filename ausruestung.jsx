@@ -1010,7 +1010,7 @@ function GewichteApp() {
           const visibleItems = editMode ? allItems : allItems.filter(it => setup.selected[it.id]);
           return (
           <div key={cat.id} style={{marginTop:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:`4px solid ${cat.color}`,paddingLeft:10,marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
               <span style={{fontSize:14}}>{cat.icon}</span>
               <span style={{fontSize:13,fontWeight:800,color:cat.color,flex:1}}>{cat.label}</span>
               {(() => {
