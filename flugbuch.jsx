@@ -3814,7 +3814,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               ))}
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end"}}>
-              {fl.track?.length>1&&<span style={{background:"rgba(30,64,175,0.22)",color:"#60a5fa",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
+              {fl.track?.length>1&&<span style={{background:"rgba(232,244,253,0.18)",color:"rgba(232,244,253,0.75)",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
               <button onClick={()=>gpxDirectFileRef.current?.click()}
                 title="Hike-GPX-Route direkt diesem Flug zuordnen"
@@ -5507,9 +5507,9 @@ function FlugbuchApp() {
           <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)}
             onDrop={e=>{e.preventDefault();setDragOver(false);importIGCFiles(Array.from(e.dataTransfer.files));}}
             onClick={()=>fileRef.current?.click()}
-            style={{flex:1,border:`2px dashed ${dragOver?"#fcd34d":"rgba(245,158,11,0.25)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:dragOver?"rgba(245,158,11,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
+            style={{flex:1,border:`2px dashed ${dragOver?"rgba(232,244,253,0.75)":"rgba(232,244,253,0.22)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:dragOver?"rgba(232,244,253,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
             <div style={{fontSize:15}}>📂</div>
-            <div style={{color:dragOver?"#fcd34d":"rgba(252,211,77,0.5)",fontSize:10}}>
+            <div style={{color:dragOver?"rgba(232,244,253,0.85)":"rgba(232,244,253,0.5)",fontSize:10}}>
               {importProgress ? `⏳ ${importProgress.done}/${importProgress.total}` : importing?"⏳ Importiere…":"IGC"}
             </div>
           </div>
