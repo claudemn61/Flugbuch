@@ -809,10 +809,13 @@ function GewichteApp() {
   const isWide = useIsWide();
   const [data, setData] = useState(emptyGewichteData());
   const [loaded, setLoaded] = useState(false);
+  const [activeSetupId, setActiveSetupId] = useState(null); // nur für iPhone-Tab-Umschalter relevant
   const [editingSetupId, setEditingSetupId] = useState(null);
   // Verschieben/Löschen sind globale Modi (ein einziger Werkzeugleisten-
-  // Block oben, nicht pro Spalte wiederholt) — im aktiven Modus zeigt
-  // jede Spalten-Titelzeile zusätzlich ◀▶ bzw. 🗑 für genau diese Spalte.
+  // Block oben, nicht pro Spalte wiederholt). Auf iPad/Mac zeigt jede
+  // Spalten-Titelzeile im aktiven Modus zusätzlich ◀▶ bzw. 🗑 für genau
+  // diese Spalte; auf dem iPhone wirken sie auf das gerade aktive
+  // (Tab-)Setup.
   const [setupsMoveMode, setSetupsMoveMode] = useState(false);
   const [setupsDeleteMode, setSetupsDeleteMode] = useState(false);
   const [confirmDeleteSetup, setConfirmDeleteSetup] = useState(null);
@@ -837,6 +840,7 @@ function GewichteApp() {
           GEWICHTE_CATEGORIES.forEach(c => { merged.items[c.id] = Array.isArray(parsed.items?.[c.id]) ? parsed.items[c.id] : []; });
           merged.setups = Array.isArray(parsed.setups) ? parsed.setups : [];
           setData(merged);
+          if (merged.setups.length) setActiveSetupId(merged.setups[0].id);
         }
       } catch (e) { console.error("Load error (gewichte):", e); }
       setLoaded(true);
@@ -889,6 +893,7 @@ function GewichteApp() {
     const s = { id: "setup_"+Date.now(), name: "Neues Setup", limit: "", selected: {} };
     const next = { ...data, setups: [...data.setups, s] };
     save(next);
+    setActiveSetupId(s.id);
     setEditingSetupId(s.id);
   };
   const renameSetup = (id, name) => {
@@ -910,6 +915,7 @@ function GewichteApp() {
   const deleteSetup = (id) => {
     const next = { ...data, setups: data.setups.filter(s => s.id!==id) };
     save(next);
+    if (activeSetupId===id) setActiveSetupId(next.setups[0]?.id || null);
     setConfirmDeleteSetup(null);
   };
   const moveSetup = (idx, dir) => {
@@ -922,14 +928,7 @@ function GewichteApp() {
 
   if (!loaded) return null;
 
-  // Auf iPad/Mac passen 4 Setup-Spalten nebeneinander in die Breite (mit
-  // seitlichem Scrollen bei mehr Setups); auf dem iPhone ist jede Spalte
-  // so breit wie der Bildschirm — "alle Setups offen", nur seitlich
-  // durchscrollbar statt per Umschalter zu wechseln.
-  const gap = 14;
-  const columnWidth = isWide ? `calc((100% - ${gap*3}px) / 4)` : "100%";
-
-  const renderColumn = (setup, idx) => {
+  const computeSetupStats = (setup) => {
     const totalWeight = GEWICHTE_CATEGORIES.reduce((sum, cat) =>
       sum + data.items[cat.id].reduce((s,it) => s + (setup.selected[it.id] ? parseKg(it.weight) : 0), 0), 0);
     const bodyAndClothingWeight = ["koerpergewicht","kleidung"].reduce((sum, catId) =>
@@ -940,46 +939,16 @@ function GewichteApp() {
     const reserve = schirmLimit > 0 ? schirmLimit - totalWeight : null;
     const schirmArea = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].area) : 0;
     const flaechenbelastung = (schirmArea > 0 && totalWeight > 0) ? totalWeight / schirmArea : null;
-    const isEditingTitle = editingSetupId === setup.id;
+    return { totalWeight, rucksackgewicht, reserve, flaechenbelastung };
+  };
 
+  // Der eigentliche Karten-Inhalt (Gewichts-Übersicht + Kategorien) ist auf
+  // iPad/Mac und iPhone identisch — nur die Titel-/Umschalt-Mechanik
+  // darüber unterscheidet sich (Titelzeile pro Spalte vs. Tab-Leiste).
+  const renderCardBody = (setup) => {
+    const { totalWeight, rucksackgewicht, reserve, flaechenbelastung } = computeSetupStats(setup);
     return (
-      <div key={setup.id} style={{flex:`0 0 ${columnWidth}`,minWidth:0,boxSizing:"border-box"}}>
-        {/* Titel — bleibt beim horizontalen Durchscrollen der Setups fix
-            stehen (sticky am linken Rand des scrollenden Bereichs), statt
-            mit den Daten dieser Spalte mitzuwandern. Verschwindet erst
-            zusammen mit der eigenen Spalte. Im Verschieben-/Löschen-Modus
-            (über den einmaligen Werkzeugleisten-Block oben ausgelöst)
-            zeigt sie zusätzlich ◀▶ bzw. 🗑 für genau diese Spalte. */}
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,position:"sticky",left:0,zIndex:2,background:"#051d0e",paddingBottom:2}}>
-          {isEditingTitle ? (
-            <input autoFocus value={setup.name}
-              onChange={e=>renameSetup(setup.id, e.target.value)}
-              onBlur={()=>setEditingSetupId(null)}
-              onKeyDown={e=>{ if(e.key==="Enter") setEditingSetupId(null); }}
-              style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:15,fontWeight:800,boxSizing:"border-box"}} />
-          ) : (
-            <div onClick={()=>setEditingSetupId(setup.id)}
-              style={{flex:1,minWidth:0,fontSize:15,fontWeight:800,color:"#7dd3fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>
-              {setup.name || "Setup"}
-            </div>
-          )}
-          {setupsMoveMode && (
-            <>
-              <button disabled={idx===0} onClick={()=>moveSetup(idx,-1)}
-                style={{opacity:idx===0?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>◀</button>
-              <button disabled={idx===data.setups.length-1} onClick={()=>moveSetup(idx,1)}
-                style={{opacity:idx===data.setups.length-1?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===data.setups.length-1?"default":"pointer"}}>▶</button>
-            </>
-          )}
-          {setupsDeleteMode && (
-            <button onClick={()=>setConfirmDeleteSetup(setup.id)} title="Setup löschen"
-              style={{flexShrink:0,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer"}}>🗑</button>
-          )}
-        </div>
-
-        {/* Gewichts-Übersicht: Gesamtgewicht, Reserve (aus dem Schirm-
-            Gewichtslimite), Fläch.-Bel. (aus der Schirm-Fläche), ✏️/✓ ganz
-            rechts. Limite steckt nur beim Schirm selbst. */}
+      <>
         <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
@@ -1000,11 +969,6 @@ function GewichteApp() {
           )}
         </div>
 
-        {/* Kategorien, farblich unterschiedlich hervorgehoben. Im
-            Normalzustand nur die für dieses Setup angehakten Positionen
-            (Übersicht) — im Bearbeiten-Modus alle verfügbaren zum
-            An-/Abhaken. Kategorien ohne angehakte Position bleiben im
-            Normalzustand ganz ausgeblendet. */}
         {GEWICHTE_CATEGORIES.map(cat => {
           const allItems = data.items[cat.id];
           const visibleItems = editMode ? allItems : allItems.filter(it => setup.selected[it.id]);
@@ -1032,11 +996,6 @@ function GewichteApp() {
                 const checked = !!setup.selected[it.id];
                 const isSchirm = cat.id === "schirm";
                 const isDuplicable = cat.id !== "schirm" && cat.id !== "reserve";
-                // Farbige Umrahmung/Füllung für angehakte Positionen gibt's
-                // nur im Bearbeiten-Modus (dort hilft sie beim schnellen
-                // Erkennen was ausgewählt ist); im Normalzustand sind ja
-                // ohnehin nur die angehakten Positionen sichtbar — eine
-                // zusätzliche Einfärbung wäre redundant, daher schlicht.
                 const rowStyle = editMode
                   ? {background:checked?cat.color+"14":"rgba(255,255,255,0.03)",border:`1px solid ${checked?cat.color+"55":"rgba(255,255,255,0.06)"}`,borderRadius:10,padding:"8px 10px"}
                   : {background:"transparent",border:"none",borderRadius:10,padding:"4px 0"};
@@ -1051,9 +1010,6 @@ function GewichteApp() {
                     placeholder="Bezeichnung…"
                     style={{flex:1,minWidth:0,background:"transparent",border:"none",color:"#e8f4fd",fontSize:13.5,padding:"4px 0",outline:"none"}} />
                 );
-                // Bei Biplace/zwei-Personen-Setups braucht's ausser bei
-                // Schirm/Reserve oft dieselbe Position zweimal (Pilot +
-                // Passagier) — Duplizieren statt neu eintippen.
                 const DuplicateBtn = editMode && isDuplicable && (
                   <button onClick={()=>duplicateItem(cat.id, it, setup.id)} title="Position duplizieren (z.B. für Passagier)"
                     style={{flexShrink:0,background:"rgba(125,211,252,0.1)",border:"1px solid rgba(125,211,252,0.25)",borderRadius:6,width:24,height:24,color:"#7dd3fc",fontSize:12,cursor:"pointer"}}>⎘</button>
@@ -1083,11 +1039,6 @@ function GewichteApp() {
                     </div>
                   );
                 }
-                // Schirm: Gewicht (1.), Proj. Fläche (2.), Gewichtslimite
-                // (3.) — alle drei in einer Zeile, wenn kein Platz
-                // untereinander (flexWrap). Fläche/Limite bleiben leer
-                // ausgeblendet ("+ Fläche"/"+ Limite") bis ein Wert
-                // existiert oder der Link antippt wurde.
                 const fieldDefs = [
                   { key: "area", unit: "m²", placeholder: "+ Fläche" },
                   { key: "weightLimit", unit: "kg-Lim.", placeholder: "+ Limite" },
@@ -1151,19 +1102,124 @@ function GewichteApp() {
           </div>
           );
         })}
+      </>
+    );
+  };
+
+  // ── iPad/Mac: alle Setups nebeneinander, flexibel wie SlotColumnsView
+  // (Reserve/Schirm/Sitz) — kein fixes 4er-Limit, jede Spalte teilt sich
+  // den verfügbaren Platz, bei Bedarf seitliches Scrollen. ──────────────
+  const renderWide = () => (
+    <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 0 20px"}}>
+      {data.setups.map((setup, idx) => {
+        const isEditingTitle = editingSetupId === setup.id;
+        return (
+          <div key={setup.id} style={{flex:"1 1 0",minWidth:280,display:"flex",flexDirection:"column",gap:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+              {isEditingTitle ? (
+                <input autoFocus value={setup.name}
+                  onChange={e=>renameSetup(setup.id, e.target.value)}
+                  onBlur={()=>setEditingSetupId(null)}
+                  onKeyDown={e=>{ if(e.key==="Enter") setEditingSetupId(null); }}
+                  style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:15,fontWeight:800,boxSizing:"border-box"}} />
+              ) : (
+                <div onClick={()=>setEditingSetupId(setup.id)}
+                  style={{flex:1,minWidth:0,fontSize:15,fontWeight:800,color:"#7dd3fc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>
+                  {setup.name || "Setup"}
+                </div>
+              )}
+              {setupsMoveMode && (
+                <>
+                  <button disabled={idx===0} onClick={()=>moveSetup(idx,-1)}
+                    style={{opacity:idx===0?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===0?"default":"pointer"}}>◀</button>
+                  <button disabled={idx===data.setups.length-1} onClick={()=>moveSetup(idx,1)}
+                    style={{opacity:idx===data.setups.length-1?0.3:1,flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,width:30,height:30,color:"#e8f4fd",cursor:idx===data.setups.length-1?"default":"pointer"}}>▶</button>
+                </>
+              )}
+              {setupsDeleteMode && (
+                <button onClick={()=>setConfirmDeleteSetup(setup.id)} title="Setup löschen"
+                  style={{flexShrink:0,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer"}}>🗑</button>
+              )}
+            </div>
+            {renderCardBody(setup)}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ── iPhone: Tab-Umschalter (wie Reserve/Schirm/Sitz), nur das aktive
+  // Setup sichtbar. ─────────────────────────────────────────────────────
+  const renderNarrow = () => {
+    const activeSetup = data.setups.find(s => s.id===activeSetupId) || data.setups[0] || null;
+    const activeIdx = activeSetup ? data.setups.findIndex(s => s.id===activeSetup.id) : -1;
+    return (
+      <div>
+        {/* Tabs: tap an inactive tab to switch to it; tap the already-
+            active tab again to rename it — gleiches Verhalten wie bei
+            Reserve/Schirm/Sitz. */}
+        <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4,overflowX:"auto"}}>
+          {data.setups.map(s => {
+            const isActive = activeSetup && s.id===activeSetup.id;
+            const isEditing = editingSetupId===s.id;
+            const tabStyle = {
+              flex:"1 1 0",minWidth:70,padding:"9px 6px",borderRadius:9,border:"none",
+              fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+              background: isActive ? "rgba(125,211,252,0.22)" : "transparent",
+              color: isActive ? "#7dd3fc" : "rgba(232,244,253,0.5)",
+            };
+            if (isEditing) {
+              return (
+                <input key={s.id} autoFocus value={s.name}
+                  onChange={e=>renameSetup(s.id, e.target.value)}
+                  onBlur={()=>setEditingSetupId(null)}
+                  onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                  style={{...tabStyle, cursor:"text", outline:"none"}} />
+              );
+            }
+            return (
+              <button key={s.id}
+                onClick={()=> isActive ? setEditingSetupId(s.id) : setActiveSetupId(s.id)}
+                style={{...tabStyle, cursor:"pointer"}}>
+                {s.name || "Setup"}
+              </button>
+            );
+          })}
+        </div>
+
+        {(setupsMoveMode || setupsDeleteMode) && activeSetup && (
+          <div style={{display:"flex",gap:8,marginBottom:14}}>
+            {setupsMoveMode && (
+              <>
+                <button disabled={activeIdx===0} onClick={()=>moveSetup(activeIdx,-1)}
+                  style={{opacity:activeIdx===0?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===0?"default":"pointer"}}>◀ Nach links</button>
+                <button disabled={activeIdx===data.setups.length-1} onClick={()=>moveSetup(activeIdx,1)}
+                  style={{opacity:activeIdx===data.setups.length-1?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===data.setups.length-1?"default":"pointer"}}>Nach rechts ▶</button>
+              </>
+            )}
+            {setupsDeleteMode && (
+              <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)}
+                style={{flex:1,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px",color:"#f87171",fontWeight:700,cursor:"pointer"}}>🗑 "{activeSetup.name}" löschen</button>
+            )}
+          </div>
+        )}
+
+        {activeSetup ? renderCardBody(activeSetup) : (
+          <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
+            <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
+            <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <div style={{padding:"14px 16px 40px"}}>
-      {/* Einmaliger, fixer Werkzeugleisten-Block — nicht pro Spalte
-          wiederholt, scrollt nicht mit den Setup-Spalten mit. + legt ein
-          neues Setup an; 🔀/🗑 schalten je einen Modus um, in dem jede
-          Spalten-Titelzeile darunter ihre eigenen ◀▶ bzw. 🗑 zeigt. Auf dem
-          iPhone alle drei gleich breit und die ganze Zeilenbreite füllend;
-          auf iPad/Mac ebenfalls alle drei gleich breit, aber kompakt statt
-          über die volle Breite gestreckt. */}
+      {/* Einmaliger, fixer Werkzeugleisten-Block — + legt ein neues Setup
+          an; 🔀/🗑 schalten je einen Modus um. Auf dem iPhone alle drei
+          gleich breit und die ganze Zeilenbreite füllend; auf iPad/Mac
+          ebenfalls alle drei gleich breit, aber kompakt. */}
       <div style={{display:"flex",gap:8,marginBottom:14}}>
         <button onClick={addSetup} title="Neues Setup"
           style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
@@ -1188,11 +1244,7 @@ function GewichteApp() {
           <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
           <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
         </div>
-      ) : (
-        <div style={{display:"flex",gap:gap,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8}}>
-          {data.setups.map((s, idx) => renderColumn(s, idx))}
-        </div>
-      )}
+      ) : isWide ? renderWide() : renderNarrow()}
 
       {confirmDeleteSetup && (
         <div onClick={()=>setConfirmDeleteSetup(null)}
