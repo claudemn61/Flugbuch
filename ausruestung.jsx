@@ -1032,7 +1032,14 @@ function GewichteApp() {
                 const checked = !!setup.selected[it.id];
                 const isSchirm = cat.id === "schirm";
                 const isDuplicable = cat.id !== "schirm" && cat.id !== "reserve";
-                const rowStyle = {background:checked?cat.color+"14":"rgba(255,255,255,0.03)",border:`1px solid ${checked?cat.color+"55":"rgba(255,255,255,0.06)"}`,borderRadius:10,padding:"8px 10px"};
+                // Farbige Umrahmung/Füllung für angehakte Positionen gibt's
+                // nur im Bearbeiten-Modus (dort hilft sie beim schnellen
+                // Erkennen was ausgewählt ist); im Normalzustand sind ja
+                // ohnehin nur die angehakten Positionen sichtbar — eine
+                // zusätzliche Einfärbung wäre redundant, daher schlicht.
+                const rowStyle = editMode
+                  ? {background:checked?cat.color+"14":"rgba(255,255,255,0.03)",border:`1px solid ${checked?cat.color+"55":"rgba(255,255,255,0.06)"}`,borderRadius:10,padding:"8px 10px"}
+                  : {background:"transparent",border:"none",borderRadius:10,padding:"4px 0"};
                 const Checkbox = (
                   <div onClick={()=>toggleItemInSetup(setup.id, it.id)}
                     style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${checked?cat.color:"rgba(232,244,253,0.3)"}`,background:checked?cat.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
