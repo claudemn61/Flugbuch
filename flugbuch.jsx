@@ -2611,19 +2611,19 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
         {reiseLabel && <span style={{fontSize:10,fontWeight:700,color:"#fcd34d",flexShrink:0}}>{reiseLabel}</span>}
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
-        <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
+        <span style={{fontSize:11,color:"#f87171",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
         {f.glider && <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flexShrink:2}}>· {f.glider}</span>}
         <span style={{flexShrink:0,marginLeft:6,display:"flex",alignItems:"center",gap:4}}>
           {f.pdfOnly&&<span style={{background:"rgba(139,92,246,0.18)",color:"#c4b5fd",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700}}>CSV</span>}
-          {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
-          {f.hikeTrack?.length>1&&<span style={{background:"rgba(239,68,68,0.22)",color:"#f87171",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(248,113,113,0.5)"}}>GPX</span>}
+          {f.track?.length>1&&<span style={{background:"rgba(65,105,225,0.22)",color:"#4169e1",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(65,105,225,0.5)"}}>IGC</span>}
+          {f.hikeTrack?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>GPX</span>}
           {pax&&<span style={{border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤 {pax}</span>}
         </span>
         <span style={{flex:1}} />
         <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
           {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist} km</span> : null}
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
-            <span style={{color:"#f87171",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
+            <span style={{color:"#4ade80",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
           )}
           {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
           <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
@@ -2650,13 +2650,13 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           <span style={{fontSize:10,fontWeight:700,color:"#fcd34d",minWidth:26,flexShrink:0}}>{reiseLabel||""}</span>
           <span style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
             {f.pdfOnly&&<span style={{background:"rgba(139,92,246,0.18)",color:"#c4b5fd",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700}}>CSV</span>}
-            {f.track?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>IGC</span>}
-            {f.hikeTrack?.length>1&&<span style={{background:"rgba(239,68,68,0.22)",color:"#f87171",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(248,113,113,0.5)"}}>GPX</span>}
+            {f.track?.length>1&&<span style={{background:"rgba(65,105,225,0.22)",color:"#4169e1",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(65,105,225,0.5)"}}>IGC</span>}
+            {f.hikeTrack?.length>1&&<span style={{background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>GPX</span>}
             {pax&&<span style={{border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤 {pax}</span>}
           </span>
         </div>
         <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",display:"flex",alignItems:"baseline",whiteSpace:"nowrap",overflow:"hidden"}}>
-          <span style={{flexShrink:0}}>{f.date} · {f.site||"—"}</span>
+          <span style={{flexShrink:0}}>{f.date} · <span style={{color:"#f87171"}}>{f.site||"—"}</span></span>
           {f.glider && <span style={{overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>&nbsp;· {f.glider}</span>}
         </div>
       </div>
@@ -2664,7 +2664,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         <div style={{fontSize:13,fontWeight:600,color:"#7dd3fc",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
           {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
-            <span style={{color:"#f87171",fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:54,display:"inline-block",verticalAlign:"bottom"}}>🥾{f.customFields.hikeDauer}</span>
+            <span style={{color:"#4ade80",fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:54,display:"inline-block",verticalAlign:"bottom"}}>🥾{f.customFields.hikeDauer}</span>
           )}
           <span>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
