@@ -3696,7 +3696,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(16px + env(safe-area-inset-top, 0px)) 16px 10px"}}>
           {!hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer"}}>←</button>}
           {hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 14px",color:"rgba(232,244,253,0.6)",fontSize:13,cursor:"pointer"}}>✕ Liste</button>}
-          <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
             {fl.track?.length > 1 && (
               <button onClick={()=>{
                 const t = fl.track;
@@ -3726,38 +3726,44 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               style={{background:"rgba(232,244,253,0.1)",border:"1px solid rgba(232,244,253,0.25)",borderRadius:16,padding:"4px 8px",color:"rgba(232,244,253,0.75)",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ IGC</button>
             )}
             {fl.track?.length>1 && (
-              <button onClick={()=>{
-                  const gpx = buildGpxFromFlight(fl);
-                  if (gpx) {
-                    const blob = new Blob([gpx], { type: "application/gpx+xml" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${fl?.name || "flug"}.gpx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                  }
-                }}
-                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:16,padding:"4px 8px",color:"#4ade80",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ GPX</button>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                <button onClick={()=>{
+                    const gpx = buildGpxFromFlight(fl);
+                    if (gpx) {
+                      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${fl?.name || "flug"}.gpx`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }
+                  }}
+                  style={{background:"rgba(232,244,253,0.1)",border:"1px solid rgba(232,244,253,0.25)",borderRadius:16,padding:"4px 8px",color:"rgba(232,244,253,0.75)",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ GPX</button>
+                <span style={{fontSize:9,color:"rgba(232,244,253,0.4)"}}>Flug</span>
+              </div>
             )}
             {fl.hikeTrack?.length>1 && (
-              <button onClick={()=>{
-                  const gpx = buildHikeGpxFromFlight(fl);
-                  if (gpx) {
-                    const blob = new Blob([gpx], { type: "application/gpx+xml" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${fl?.name || "flug"}_hike.gpx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                  }
-                }}
-                style={{background:"rgba(134,239,172,0.15)",border:"1px solid rgba(134,239,172,0.3)",borderRadius:16,padding:"4px 8px",color:"#86efac",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ Hike</button>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                <button onClick={()=>{
+                    const gpx = buildHikeGpxFromFlight(fl);
+                    if (gpx) {
+                      const blob = new Blob([gpx], { type: "application/gpx+xml" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${fl?.name || "flug"}_hike.gpx`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }
+                  }}
+                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:16,padding:"4px 8px",color:"#4ade80",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ GPX</button>
+                <span style={{fontSize:9,color:"#4ade80"}}>Hike</span>
+              </div>
             )}
             <div style={{position:"relative"}}>
               <button onClick={()=>setShowDeleteMenu(s=>!s)}
