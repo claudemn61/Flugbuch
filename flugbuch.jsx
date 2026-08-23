@@ -3816,11 +3816,13 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end"}}>
               {fl.track?.length>1&&<span style={{background:"rgba(232,244,253,0.18)",color:"rgba(232,244,253,0.75)",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
-              <button onClick={()=>gpxDirectFileRef.current?.click()}
-                title="Hike-GPX-Route direkt diesem Flug zuordnen"
-                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
-                🥾 Import
-              </button>
+              {!(fl.hikeTrack?.length>1) && (
+                <button onClick={()=>gpxDirectFileRef.current?.click()}
+                  title="Hike-GPX-Route direkt diesem Flug zuordnen"
+                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
+                  🥾 Import
+                </button>
+              )}
               <input ref={gpxDirectFileRef} type="file" accept=".gpx" multiple style={{display:"none"}}
                 onChange={async e=>{
                   const files = Array.from(e.target.files||[]);
