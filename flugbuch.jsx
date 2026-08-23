@@ -3723,7 +3723,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}
-              style={{background:"rgba(245,158,11,0.15)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:16,padding:"4px 8px",color:"#fcd34d",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ IGC</button>
+              style={{background:"rgba(232,244,253,0.1)",border:"1px solid rgba(232,244,253,0.25)",borderRadius:16,padding:"4px 8px",color:"rgba(232,244,253,0.75)",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>⬇ IGC</button>
             )}
             {fl.track?.length>1 && (
               <button onClick={()=>{
@@ -3818,7 +3818,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
               <button onClick={()=>gpxDirectFileRef.current?.click()}
                 title="Hike-GPX-Route direkt diesem Flug zuordnen"
-                style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
+                style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
                 🥾 Import
               </button>
               <input ref={gpxDirectFileRef} type="file" accept=".gpx" multiple style={{display:"none"}}
