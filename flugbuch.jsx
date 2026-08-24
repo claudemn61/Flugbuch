@@ -2203,6 +2203,8 @@ function flightFieldValue(f, field){
     case "passagier": case "pax": return cf.passagier||"";
     case "reise": return cf.reise||"";
     case "jahr": case "year": return f.year||"";
+    case "monat": return f.month ? MONTH_NAMES_DE[+f.month-1] || "" : "";
+    case "std": { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h) : ""; }
     case "datum": case "date": return f.date||"";
     case "startzeit": case "starttime": return f.startTime||"";
     case "landezeit": case "endtime": return f.endTime||"";
@@ -2328,8 +2330,11 @@ function evalToken(f, tok){
 // Distanz, Dauer) would just create one tiny group per flight.
 // Used for both Gr. 1° and Gr. 2° (same field list in both, "Keine" added
 // separately in the dropdown UI itself).
+const MONTH_NAMES_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 const GROUP_FIELDS = [
   { id: "jahr",    label: "Jahr" },
+  { id: "monat",   label: "Monat" },
+  { id: "std",     label: "Std." },
   { id: "glider",  label: "Schirm" },
   { id: "typ",     label: "Typ" },
   { id: "site",    label: "Startplatz" },
@@ -2459,6 +2464,8 @@ function sortFieldValue(f, sortId) {
     }
     case "hikeDauer": return (cf.hikeDauer || "").toLowerCase();
     case "jahr":     return f.year || 0;
+    case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
+    case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? h : -1; }
     default:         return 0;
   }
 }
@@ -2565,6 +2572,8 @@ function formatSortValue(f, sortId) {
     }
     case "hikeDauer": return cf.hikeDauer || "—";
     case "jahr":     return f.year ? String(f.year) : "—";
+    case "monat":    return f.month ? MONTH_NAMES_DE[+f.month-1] || "—" : "—";
+    case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h).padStart(2,"0")+"–"+String((h+1)%24).padStart(2,"0")+" Uhr" : "—"; }
     default:         return f.durationStr || "—";
   }
 }
