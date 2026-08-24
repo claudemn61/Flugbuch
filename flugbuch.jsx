@@ -3376,7 +3376,7 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
         <div onClick={()=>setCoordChoice(null)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:250,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:"#14253a",borderRadius:16,padding:"18px 20px",maxWidth:340,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+            style={{background:"#14253a",borderRadius:16,padding:"18px 20px",maxWidth:340,width:"100%",maxHeight:"80vh",overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)"}}>
             <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Mehrere Koordinaten für "{coordChoice.name}"</div>
             <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Welche soll für diesen Flug gelten?</div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
