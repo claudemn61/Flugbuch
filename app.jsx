@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.1.2";
+const APP_VERSION = "5.1.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.1.3", note: "Massenbearbeitung (markierte Flüge, ✎ Bearbeiten) um alle bisher fehlenden Datenfelder erweitert: Startzeit, Landezeit, Start müM, Landung müM, Max. Höhe, Distanz, Ø Speed, Max.Steigen, Max.Sinken, H.Gew. sowie alle frei definierten eigenen Felder. Dauer, H.Diff. und Ø Speed werden dabei wie bei der Einzel-Bearbeitung automatisch neu berechnet, wenn die zugrundeliegenden Werte (Zeiten/Höhen/Distanz) geändert werden." },
   { v: "5.1.2", note: "Import-Panel: IGC-Icon 📂 → 🪂. Flug-Detail: separater \"🥾 Import\"-Button zum direkten Zuordnen einer Hike-GPX-Route entfernt (Doppelspurigkeit zum Import-Panel in der Liste) — dort steht nur noch das GPX-Badge, wenn eine Route bereits zugeordnet ist." },
   { v: "5.1.1", note: "Flugliste: Farben der Badges/Angaben getauscht — Startplatz jetzt rot (zuvor GPX-Farbe), GPX-Badge und Hike-Dauer jetzt grün (zuvor IGC-Farbe), IGC-Badge jetzt königsblau." },
   { v: "5.1", note: "Einstellungen ▸ Schirme: Modelle \"Orange/Türkis\" und \"Navy/Gelbgrün\" entfernt. Dafür zwei neue Symbol-Optionen ganz vorne: \"Eigenes Symbol\" (frei eintippbarer Buchstabe/Emoji) und ein fixes 🪂-Emoji. Beide werden wie die Foto-Varianten als Kartenmarker (Referenzpunkt, Cine-Wiedergabe) verwendet." },

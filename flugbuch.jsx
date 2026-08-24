@@ -5707,6 +5707,10 @@ function FlugbuchApp() {
       {bulkEditOpen && (() => {
         const chosenCount = selectedIds.size;
         const hasHikeInSelection = flights.some(f => selectedIds.has(f.id) && f.hikeTrack?.length>1);
+        // Nur manuell erfassbare Zusatzfelder anbieten — Formel-Felder sind
+        // automatisch berechnet und würden durch eine Massen-Bearbeitung
+        // ohnehin gleich wieder überschrieben.
+        const manualCustomFieldDefs = customFieldDefs.filter(d => !d.formula && d.id!=="passagier" && d.id!=="typ");
         const applyBulkEdit = async () => {
           const d = bulkEditData;
           let updated = flights.map(f => {
@@ -5717,16 +5721,70 @@ function FlugbuchApp() {
             if (d.glider) patch.glider = d.glider;
             if (d.rating) patch.rating = d.rating;
             if (d.notes) patch.notes = d.notes;
+            if (d.maxAlt) patch.maxAlt = +d.maxAlt;
+            if (d.totalDist) patch.totalDist = parseFloat(d.totalDist)||0;
+            if (d.startAlt) patch.startAlt = +d.startAlt;
+            if (d.endAlt) patch.endAlt = +d.endAlt;
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
             if (d.passagier) cfPatch.passagier = d.passagier;
             if (d.typ) { cfPatch.typ = d.typ; cfPatch.typAuto = false; }
             if (d.reise) cfPatch.reise = d.reise==="__CLEAR__" ? "" : d.reise;
+            if (d.startTime) cfPatch.startTime = d.startTime;
+            if (d.endTime) cfPatch.endTime = d.endTime;
+            if (d.kmh) cfPatch.kmh = d.kmh;
+            if (d.maxSteigen) cfPatch.maxSteigen = d.maxSteigen;
+            if (d.maxSinken) cfPatch.maxSinken = d.maxSinken;
+            if (d.hGew) cfPatch.hGew = d.hGew;
             if (d.hikeStartpunkt) cfPatch.hikeStartpunkt = d.hikeStartpunkt;
             if (d.hikeOrt) cfPatch.hikeOrt = d.hikeOrt;
             if (d.hikeStarthoehe) cfPatch.hikeStarthoehe = d.hikeStarthoehe;
             if (d.hikeDauer) cfPatch.hikeDauer = d.hikeDauer;
             if (d.hikeZusatzValue) cfPatch.hikeZusatzValue = d.hikeZusatzValue;
+            manualCustomFieldDefs.forEach(fd => { if (d[fd.id]) cfPatch[fd.id] = d[fd.id]; });
+            // startTime/endTime und die Höhen-/Distanz-Felder haben sowohl
+            // ein "echtes" Datenfeld (startAlt/endAlt/maxAlt/totalDist) als
+            // auch ein paralleles customFields-Pendant (msa/ml/hm/distKm),
+            // das an anderer Stelle als Fallback gelesen wird (siehe
+            // saveComputedField im Detail) — beide zusammen setzen, damit
+            // die Massen-Bearbeitung sich exakt wie die Einzel-Bearbeitung
+            // verhält.
+            if (d.startTime) patch.startTime = d.startTime;
+            if (d.endTime) patch.endTime = d.endTime;
+            if (d.startAlt) cfPatch.msa = d.startAlt;
+            if (d.endAlt) cfPatch.ml = d.endAlt;
+            if (d.maxAlt) cfPatch.hm = d.maxAlt;
+            if (d.totalDist) cfPatch.distKm = d.totalDist;
+            // Dauer, H.Diff. und Ø Speed werden bei der Einzel-Bearbeitung
+            // live aus Startzeit/Landezeit bzw. Start-/Landehöhe/Distanz
+            // neu berechnet (siehe saveComputedField oben in DetailContent)
+            // — dasselbe hier, damit die Massen-Bearbeitung nicht zu
+            // veralteten/inkonsistenten Werten führt.
+            const newStartTime = d.startTime || f.startTime;
+            const newEndTime = d.endTime || f.endTime;
+            let newDurationSec = f.durationSec;
+            if ((d.startTime || d.endTime) && newStartTime && newEndTime) {
+              const dateForCalc = d.date || f.date || f.rawDate;
+              const startTs = parseDateToTs(dateForCalc, newStartTime);
+              const endTs = parseDateToTs(dateForCalc, newEndTime);
+              let diffSec = Math.round((endTs - startTs) / 1000);
+              if (diffSec < 0) diffSec += 24*3600; // landing past midnight
+              if (diffSec > 0) {
+                newDurationSec = diffSec;
+                patch.durationSec = diffSec;
+                const h = Math.floor(diffSec/3600), m = Math.floor((diffSec%3600)/60);
+                patch.durationStr = `${h}h ${String(m).padStart(2,"0")}m`;
+              }
+            }
+            if (d.startAlt || d.endAlt) {
+              const startAltNum = +(d.startAlt || f.startAlt) || 0;
+              const endAltNum = +(d.endAlt || f.endAlt) || 0;
+              if (startAltNum && endAltNum) cfPatch.hDiff = String(Math.abs(startAltNum - endAltNum));
+            }
+            if (d.totalDist && !d.kmh && newDurationSec > 0) {
+              const distNum = parseFloat(d.totalDist);
+              if (distNum > 0) cfPatch.kmh = (distNum / (newDurationSec / 3600)).toFixed(1);
+            }
             return { ...f, ...patch, customFields: { ...(f.customFields||{}), ...cfPatch } };
           });
           // A date change can shift where these flights (and everyone
@@ -5759,8 +5817,18 @@ function FlugbuchApp() {
               <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{chosenCount} Flüge bearbeiten</div>
               <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:16}}>Leer gelassene Felder bleiben unverändert. Ausgefüllte Felder werden auf alle {chosenCount} ausgewählten Flüge übertragen.</div>
               {field("Datum (z.B. 24.06.2026)", "date")}
+              {field("Startzeit", "startTime", { placeholder: "unverändert lassen (hh:mm)" })}
+              {field("Landezeit", "endTime", { placeholder: "unverändert lassen (hh:mm)" })}
               {field("Startplatz", "site")}
               {field("Landeplatz", "landung")}
+              {field("Start müM", "startAlt", { placeholder: "unverändert lassen (m)" })}
+              {field("Landung müM", "endAlt", { placeholder: "unverändert lassen (m)" })}
+              {field("Max. Höhe", "maxAlt", { placeholder: "unverändert lassen (m)" })}
+              {field("Distanz", "totalDist", { placeholder: "unverändert lassen (km)" })}
+              {field("Ø Speed", "kmh", { placeholder: "unverändert lassen (km/h)" })}
+              {field("Max.Steigen", "maxSteigen", { placeholder: "unverändert lassen (m/s)" })}
+              {field("Max.Sinken", "maxSinken", { placeholder: "unverändert lassen (m/s)" })}
+              {field("H.Gew.", "hGew", { placeholder: "unverändert lassen (m)" })}
               {field("Schirm", "glider")}
               {field("Typ", "typ")}
               {field("Passagier", "passagier")}
@@ -5780,6 +5848,10 @@ function FlugbuchApp() {
                 {field("Starthöhe", "hikeStarthoehe", { placeholder: "unverändert lassen (m)" })}
                 {field("Dauer", "hikeDauer")}
                 {field("Zusatz", "hikeZusatzValue")}
+              </>)}
+              {manualCustomFieldDefs.length>0 && (<>
+                <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",margin:"4px 0 10px"}}>Eigene Felder</div>
+                {manualCustomFieldDefs.map(fd => <span key={fd.id}>{field(fd.name, fd.id)}</span>)}
               </>)}
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:6}}>Bewertung</div>
