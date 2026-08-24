@@ -935,18 +935,27 @@ function GewichteApp() {
       sum + data.items[catId].reduce((s,it) => s + (setup.selected[it.id] ? parseKg(it.weight) : 0), 0), 0);
     const rucksackgewicht = totalWeight - bodyAndClothingWeight;
     const checkedSchirme = data.items.schirm.filter(it => setup.selected[it.id]);
-    const schirmLimit = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].weightLimit) : 0;
-    const reserve = schirmLimit > 0 ? schirmLimit - totalWeight : null;
+    // Gewichtslimite ist jetzt ein Range (min/max) statt eines einzelnen
+    // Werts. Reserve bleibt weiterhin "Abstand zum Maximum" (wie bisher);
+    // zusätzlich zeigt rangePercent, wo das Gesamtgewicht prozentual
+    // innerhalb dieses Ranges liegt (0% = Min, 100% = Max, kann auch
+    // ausserhalb liegen).
+    const schirmLimitMin = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].weightLimitMin) : 0;
+    const schirmLimitMax = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].weightLimitMax) : 0;
+    const reserve = schirmLimitMax > 0 ? schirmLimitMax - totalWeight : null;
+    const rangePercent = (schirmLimitMax > schirmLimitMin && schirmLimitMin > 0)
+      ? ((totalWeight - schirmLimitMin) / (schirmLimitMax - schirmLimitMin)) * 100
+      : null;
     const schirmArea = checkedSchirme.length === 1 ? parseKg(checkedSchirme[0].area) : 0;
     const flaechenbelastung = (schirmArea > 0 && totalWeight > 0) ? totalWeight / schirmArea : null;
-    return { totalWeight, rucksackgewicht, reserve, flaechenbelastung };
+    return { totalWeight, rucksackgewicht, reserve, rangePercent, flaechenbelastung };
   };
 
   // Der eigentliche Karten-Inhalt (Gewichts-Übersicht + Kategorien) ist auf
   // iPad/Mac und iPhone identisch — nur die Titel-/Umschalt-Mechanik
   // darüber unterscheidet sich (Titelzeile pro Spalte vs. Tab-Leiste).
   const renderCardBody = (setup) => {
-    const { totalWeight, rucksackgewicht, reserve, flaechenbelastung } = computeSetupStats(setup);
+    const { totalWeight, rucksackgewicht, reserve, rangePercent, flaechenbelastung } = computeSetupStats(setup);
     return (
       <>
         <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
@@ -959,6 +968,9 @@ function GewichteApp() {
             <div>
               <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:2}}>Reserve</div>
               <div style={{fontSize:16,fontWeight:800,color:reserve>=0?"#4ade80":"#f87171",whiteSpace:"nowrap"}}>{reserve>=0?"+":""}{reserve.toFixed(1)} kg</div>
+              {rangePercent != null && (
+                <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:1}}>{rangePercent>=0?"":""}{rangePercent.toFixed(0)}% der Range</div>
+              )}
             </div>
           )}
           {flaechenbelastung != null && (
@@ -1041,8 +1053,9 @@ function GewichteApp() {
                 }
                 const fieldDefs = [
                   { key: "area", unit: "m²", placeholder: "+ Fläche" },
-                  { key: "weightLimit", unit: "kg-Lim.", placeholder: "+ Limite" },
                 ];
+                const limitVal = (it.weightLimitMin||"") + (it.weightLimitMax||"");
+                const limitShow = limitVal !== "" || revealedFields.has(it.id+":weightLimit");
                 return (
                   <div key={it.id} style={{display:"flex",flexDirection:"column",gap:6,...rowStyle}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1073,6 +1086,26 @@ function GewichteApp() {
                               style={{width:68,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
                           );
                         })}
+                        {/* Gewichtslimite als Range (min/max) statt einem
+                            einzelnen Wert — beide Felder werden gemeinsam
+                            über einen "+ Limite"-Link eingeblendet. */}
+                        {!limitShow ? (
+                          <button onClick={()=>revealField(it.id, "weightLimit")}
+                            style={{flexShrink:0,background:"transparent",border:"1px dashed rgba(255,255,255,0.15)",borderRadius:8,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
+                            + Limite
+                          </button>
+                        ) : (
+                          <div style={{display:"flex",alignItems:"center",gap:4}}>
+                            <input value={it.weightLimitMin||""} onChange={e=>updateItem(cat.id, it.id, {weightLimitMin:e.target.value})}
+                              placeholder="min" inputMode="decimal"
+                              style={{width:52,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
+                            <span style={{color:"rgba(232,244,253,0.35)",fontSize:12}}>–</span>
+                            <input value={it.weightLimitMax||""} onChange={e=>updateItem(cat.id, it.id, {weightLimitMax:e.target.value})}
+                              placeholder="max" inputMode="decimal"
+                              style={{width:52,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 6px",color:"#e8f4fd",fontSize:13,textAlign:"right",boxSizing:"border-box"}} />
+                            <span style={{color:"rgba(232,244,253,0.35)",fontSize:11}}>kg-Lim.</span>
+                          </div>
+                        )}
                         <div style={{flex:1}} />
                         {DeleteBtn}
                       </div>
@@ -1084,8 +1117,8 @@ function GewichteApp() {
                         {fmtNum(it.area) != null && (
                           <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>{fmtNum(it.area)} m²</span>
                         )}
-                        {fmtNum(it.weightLimit) != null && (
-                          <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>Lim. {fmtNum(it.weightLimit)} kg</span>
+                        {(fmtNum(it.weightLimitMin) != null || fmtNum(it.weightLimitMax) != null) && (
+                          <span style={{color:"rgba(232,244,253,0.7)",fontSize:13}}>Lim. {fmtNum(it.weightLimitMin) ?? "?"}–{fmtNum(it.weightLimitMax) ?? "?"} kg</span>
                         )}
                       </div>
                     )}
