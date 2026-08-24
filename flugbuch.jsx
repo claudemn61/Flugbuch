@@ -3673,7 +3673,6 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     // remove (IGC track / Hike-GPX / whole flight) instead of separate
     // buttons for each.
     const [showDeleteMenu, setShowDeleteMenu] = useState(false);
-    const gpxDirectFileRef = useRef(null);
     const [confirmDeleteKind, setConfirmDeleteKind] = useState(null); // null | "igc" | "gpxhike" | "all"
     const deleteTrack = async () => {
       const upd = { ...fl, track: [] };
@@ -3822,32 +3821,6 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end"}}>
               {fl.track?.length>1&&<span style={{background:"rgba(232,244,253,0.18)",color:"rgba(232,244,253,0.75)",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
-              {!(fl.hikeTrack?.length>1) && (
-                <button onClick={()=>gpxDirectFileRef.current?.click()}
-                  title="Hike-GPX-Route direkt diesem Flug zuordnen"
-                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
-                  🥾 Import
-                </button>
-              )}
-              <input ref={gpxDirectFileRef} type="file" accept=".gpx" multiple style={{display:"none"}}
-                onChange={async e=>{
-                  const files = Array.from(e.target.files||[]);
-                  e.target.value = "";
-                  if (!files.length) return;
-                  for (const file of files) {
-                    const text = await file.text();
-                    const { points, name } = parseGpxTrack(text);
-                    if (points.length) {
-                      const cf = { ...(fl.customFields||{}) };
-                      if (!cf.hikeStartpunkt) cf.hikeStartpunkt = `${points[0].lat.toFixed(5)}, ${points[0].lon.toFixed(5)}`;
-                      if (!cf.hikeOrt && name) cf.hikeOrt = name;
-                      const upd = { ...fl, hikeTrack: points, customFields: cf };
-                      await saveFlight(upd);
-                      setFlights(p=>p.map(f=>f.id===upd.id?upd:f));
-                      setSelected(upd);
-                    }
-                  }
-                }} />
               <button onClick={()=>window.open("https://www.xcontest.org/world/en/my-flights/","_blank")}
                 title="XContest — Meine Flüge"
                 style={{background:"rgba(245,158,11,0.18)",border:"1px solid rgba(245,158,11,0.4)",color:"#fcd34d",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
@@ -5516,7 +5489,7 @@ function FlugbuchApp() {
             onDrop={e=>{e.preventDefault();setDragOver(false);importIGCFiles(Array.from(e.dataTransfer.files));}}
             onClick={()=>fileRef.current?.click()}
             style={{flex:1,border:`2px dashed ${dragOver?"rgba(232,244,253,0.75)":"rgba(232,244,253,0.22)"}`,borderRadius:10,padding:"10px 8px",textAlign:"center",background:dragOver?"rgba(232,244,253,0.08)":"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
-            <div style={{fontSize:15}}>📂</div>
+            <div style={{fontSize:15}}>🪂</div>
             <div style={{color:dragOver?"rgba(232,244,253,0.85)":"rgba(232,244,253,0.5)",fontSize:10}}>
               {importProgress ? `⏳ ${importProgress.done}/${importProgress.total}` : importing?"⏳ Importiere…":"IGC"}
             </div>

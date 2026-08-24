@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.1.1";
+const APP_VERSION = "5.1.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.1.2", note: "Import-Panel: IGC-Icon 📂 → 🪂. Flug-Detail: separater \"🥾 Import\"-Button zum direkten Zuordnen einer Hike-GPX-Route entfernt (Doppelspurigkeit zum Import-Panel in der Liste) — dort steht nur noch das GPX-Badge, wenn eine Route bereits zugeordnet ist." },
   { v: "5.1.1", note: "Flugliste: Farben der Badges/Angaben getauscht — Startplatz jetzt rot (zuvor GPX-Farbe), GPX-Badge und Hike-Dauer jetzt grün (zuvor IGC-Farbe), IGC-Badge jetzt königsblau." },
   { v: "5.1", note: "Einstellungen ▸ Schirme: Modelle \"Orange/Türkis\" und \"Navy/Gelbgrün\" entfernt. Dafür zwei neue Symbol-Optionen ganz vorne: \"Eigenes Symbol\" (frei eintippbarer Buchstabe/Emoji) und ein fixes 🪂-Emoji. Beide werden wie die Foto-Varianten als Kartenmarker (Referenzpunkt, Cine-Wiedergabe) verwendet." },
   { v: "5.0", note: "Neue Seite \"🎒 Ausrüstung\" ersetzt die bisherige \"Wartung\"-Kachel auf Home. Zwei Tabs: \"⚖️ Ausrüstung, Gewichte\" (neu) und \"🛠️ Wartung\" (unverändert, nur umgezogen von wartung.html). Gewichte: 8 Kategorien (Schirm/Sitz/Reserve/Packhilfen/Geräte/Kleidung/Zubehör/Körpergewicht, farblich unterschieden), frei benennbare/erweiterbare Setups (z.B. Tandem/Solo/H&F) mit je eigener Positions-Auswahl, Gesamtgewicht, Gewichtslimite und Reserve — immer nur ein Setup gleichzeitig sichtbar. Positionsnamen und -gewichte werden manuell erfasst. Alte wartung.html leitet automatisch auf ausruestung.html weiter." },
