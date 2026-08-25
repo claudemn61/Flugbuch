@@ -2407,6 +2407,7 @@ function parseDateToTs(d, timeStr) {
 function computeSearchStats(flights) {
   if (!flights.length) return [];
   const fmtDur = (sec) => { const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60); return `${h}h ${String(m).padStart(2,"0")}m`; };
+  const shortDate = (d) => String(d||"").replace(/(\d{2})\.(\d{2})\.\d{2}(\d{2})$/, "$1.$2.$3"); // 24.06.2026 -> 24.06.26
   const totalSec = flights.reduce((s,f)=>s+(f.durationSec||0),0);
   const totalDist = flights.reduce((s,f)=>s+(f.totalDist||0),0);
   const withDur = flights.filter(f=>f.durationSec>0);
@@ -2422,17 +2423,17 @@ function computeSearchStats(flights) {
   const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
   return [
     { label: "Flüge", value: String(flights.length) },
-    { label: "Ges.Dauer", value: totalSec>0 ? fmtDur(totalSec) : "—" },
+    { label: "Gesamtzeit", value: totalSec>0 ? fmtDur(totalSec) : "—" },
     { label: "Ges.Distanz", value: totalDist>0 ? totalDist.toFixed(1)+" km" : "—" },
     { label: "Ø Dauer", value: withDur.length ? fmtDur(Math.round(totalSec/withDur.length)) : "—" },
     { label: "Ø Distanz", value: withDist.length ? (totalDist/withDist.length).toFixed(1)+" km" : "—" },
-    { label: "Längster", value: longest ? (longest.durationStr||fmtDur(longest.durationSec)) : "—" },
-    { label: "Weitester", value: farthest ? farthest.totalDist.toFixed(1)+" km" : "—" },
-    { label: "Max.Höhe", value: highest ? highest.maxAlt+" m" : "—" },
+    { label: "max. Dauer", value: longest ? `${longest.durationStr||fmtDur(longest.durationSec)} (${longest.name})` : "—" },
+    { label: "max. km", value: farthest ? `${farthest.totalDist.toFixed(1)} km (${farthest.name})` : "—" },
+    { label: "max. Höhe", value: highest ? `${highest.maxAlt} m (${highest.name})` : "—" },
     { label: "Startplätze", value: String(sites.size) },
     { label: "Schirme", value: String(gliders.size) },
     { label: "Ø Bewertung", value: avgRating!=null ? avgRating.toFixed(1)+" ★" : "—" },
-    { label: "Zeitraum", value: dated.length ? `${dated[0].f.date}–${dated[dated.length-1].f.date}` : "—" },
+    { label: "Zeitraum", value: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—" },
   ];
 }
 
@@ -6310,7 +6311,7 @@ function FlugbuchApp() {
           {showSearchStats && filteredFlights.length>0 && (
             <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 10px"}}>
               {computeSearchStats(filteredFlights).map(s => (
-                <div key={s.label} style={{fontSize:10,lineHeight:"15px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",gridColumn:s.label==="Zeitraum"?"1 / -1":"auto"}}>
+                <div key={s.label} style={{fontSize:10,lineHeight:"15px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                   <span style={{color:"rgba(232,244,253,0.4)"}}>{s.label}: </span>
                   <span style={{color:"rgba(232,244,253,0.75)",fontWeight:600}}>{s.value}</span>
                 </div>
