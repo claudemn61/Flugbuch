@@ -137,6 +137,7 @@ const SECTIONS = [
       <p>Über den 💾-Button im Flugbuch oder die Einstellungen kann der komplette Datenbestand (Flüge, Wartung, Ausrüstungsgewichte, Reisen, Notizen) als Datei exportiert und auf einem anderen Gerät oder nach einem Neustart wieder eingespielt werden. Regelmässige Backups werden empfohlen.</p>
       <p>Der Export wird automatisch gzip-komprimiert (Dateiendung <code>.json.gz</code>) — deutlich kleiner als reines JSON. Der Import erkennt sowohl komprimierte als auch ältere, unkomprimierte <code>.json</code>-Backups automatisch, unabhängig vom Dateinamen.</p>
       <p>Ein roter Punkt am 💾-Button zeigt an, dass es seit dem letzten Backup ungesicherte Änderungen an Flügen oder Feld-Definitionen gibt. Er verschwindet nach einem erfolgreichen Export oder Import. Änderungen, die ausschliesslich in Wartung, Ausrüstungsgewichten, Reisen oder Notizen gemacht werden, lösen den Hinweis nicht aus.</p>
+      <p>iOS/Safari kann die App bei wenig Speicher jederzeit unerwartet beenden — beim nächsten Öffnen landet man dadurch normalerweise auf Home, egal welcher Flug gerade offen war. Die App merkt sich laufend, welcher Flug/welche Ansicht zuletzt offen war (inkl. Scroll-Position) und springt nach einem solchen unerwarteten Neustart automatisch dorthin zurück, statt auf der Startseite zu bleiben. Bewusstes Antippen von 🏠 führt weiterhin ganz normal nach Home. Unsicherte Text-Eingaben in einem offenen Bearbeiten-Formular können dabei nicht wiederhergestellt werden, nur dass die richtige Ansicht wieder aufgeht.</p>
     </>),
   },
 ];
@@ -190,6 +191,7 @@ function HilfeApp() {
     } else if (window.history.length > 1) {
       window.history.back();
     } else {
+      try { localStorage.setItem("fb_explicitHome", "1"); } catch (e) {}
       window.location.href = "index.html";
     }
   };

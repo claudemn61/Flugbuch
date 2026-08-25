@@ -1,5 +1,14 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
+// Setzt ein Flag, das index.html liest (und sofort wieder löscht), um ein
+// bewusstes Antippen von 🏠 von einem ungewollten Neustart (der iOS
+// erzwingt und immer auf Home landet) zu unterscheiden — nur im zweiten
+// Fall soll automatisch zurück zu Flugbuch gesprungen werden.
+function goHome() {
+  try { localStorage.setItem("fb_explicitHome", "1"); } catch (e) {}
+  window.location.href = "index.html";
+}
+
 // ── IGC Parser ─────────────────────────────────────────────────────────────
 // Set by FlightProfile while its zoom level is above 1×, checked by the
 // swipe-between-flights handler further down so a horizontal drag inside a
@@ -399,7 +408,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   return (
     <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(20px + env(safe-area-inset-top, 0px)) 16px 14px",borderBottom:"1px solid rgba(100,180,255,0.1)",marginBottom:12}}>
-        <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
+        <button onClick={goHome} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
           🏠
         </button>
@@ -4368,6 +4377,64 @@ function FlugbuchApp() {
   const flightsWithRanks = useMemo(() => attachComputedRanks(flights), [flights]);
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState("list"); // list|detail|edit|season
+  // ── Zustand für ungewollte Neustarts merken (iOS/Safari kann die Seite
+  // bei wenig Speicher jederzeit beenden — beim nächsten Öffnen landet man
+  // dann normalerweise auf Home, auch mitten in der Bearbeitung eines
+  // Fluges). Läuft in zwei Teilen zusammen:
+  // 1. Hier: laufend "welcher Flug/welche Ansicht/wie weit gescrollt" in
+  //    localStorage sichern (synchron, überlebt auch ein plötzliches Ende).
+  // 2. index.html (app.jsx): erkennt beim Start, ob es sich um einen
+  //    ungewollten Neustart handelt (kein bewusstes 🏠-Antippen) und
+  //    leitet dann automatisch mit ?restore=1 hierher weiter.
+  // Absichtliches 🏠-Antippen setzt vorher "fb_explicitHome", das
+  // index.html prüft und danach löscht — dann bleibt Home einfach Home.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("fb_lastState");
+      const prev = raw ? JSON.parse(raw) : {};
+      localStorage.setItem("fb_lastState", JSON.stringify({ ...prev, view, selectedId: selected?.id || null, ts: Date.now() }));
+    } catch (e) {}
+  }, [view, selected?.id]);
+  useEffect(() => {
+    let t = null;
+    const onScroll = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        try {
+          const raw = localStorage.getItem("fb_lastState");
+          const prev = raw ? JSON.parse(raw) : {};
+          localStorage.setItem("fb_lastState", JSON.stringify({ ...prev, scrollY: window.scrollY, ts: Date.now() }));
+        } catch (e) {}
+      }, 250);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); clearTimeout(t); };
+  }, []);
+  // Wiederherstellung: nur wenn explizit über ?restore=1 angefordert (von
+  // index.html gesetzt) — bei ganz normalem Aufruf von flugbuch.html soll
+  // sich nichts automatisch öffnen/scrollen.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (!flights.length) return; // warten bis Flüge geladen sind
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("restore") !== "1") { restoredRef.current = true; return; }
+    restoredRef.current = true;
+    try {
+      const raw = localStorage.getItem("fb_lastState");
+      if (!raw) return;
+      const st = JSON.parse(raw);
+      if ((st.view === "detail" || st.view === "edit") && st.selectedId) {
+        const f = flights.find(fl => fl.id === st.selectedId);
+        if (f) { setSelected(f); setView(st.view); }
+      }
+      if (typeof st.scrollY === "number") {
+        setTimeout(() => window.scrollTo(0, st.scrollY), 60);
+      }
+    } catch (e) {}
+    // URL wieder sauber machen, ohne die Seite neu zu laden.
+    window.history.replaceState({}, "", "flugbuch.html");
+  }, [flights]);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [igcResult, setIgcResult] = useState(null);
@@ -5375,7 +5442,7 @@ function FlugbuchApp() {
       {/* Header */}
       <div style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
-        <button onClick={()=>{window.location.href="index.html";}} title="Zur Startseite"
+        <button onClick={goHome} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
           🏠
         </button>

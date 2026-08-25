@@ -31,6 +31,30 @@
 <div id="root"></div>
 
 <script>
+  // Ungewollter Neustart-Check: läuft VOR allem anderen (React noch nicht
+  // geladen), damit kein sichtbares Aufblitzen der Home-Seite entsteht.
+  // iOS/Safari kann diese Seite jederzeit beenden (z.B. bei wenig
+  // Speicher); beim nächsten Öffnen landet man dann unweigerlich hier auf
+  // index.html, egal wo man vorher war. War das kein bewusstes Antippen
+  // von 🏠 (dann wäre "fb_explicitHome" gesetzt) und liegt ein kürzlich
+  // gespeicherter Flugbuch-Zustand vor, direkt dorthin zurückspringen.
+  (function () {
+    try {
+      const explicit = localStorage.getItem("fb_explicitHome");
+      if (explicit) { localStorage.removeItem("fb_explicitHome"); return; }
+      const raw = localStorage.getItem("fb_lastState");
+      if (!raw) return;
+      const st = JSON.parse(raw);
+      const ageMs = Date.now() - (st.ts || 0);
+      const twelveHours = 12 * 3600 * 1000;
+      if ((st.view === "detail" || st.view === "edit") && st.selectedId && ageMs < twelveHours) {
+        window.location.replace("flugbuch.html?restore=1");
+      }
+    } catch (e) {}
+  })();
+</script>
+
+<script>
   // Storage backed by IndexedDB (much higher quota than localStorage — often
   // 50MB+ vs. ~5-10MB shared across the whole origin). Falls back to
   // localStorage automatically if IndexedDB is unavailable for any reason.
