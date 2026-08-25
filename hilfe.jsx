@@ -64,6 +64,7 @@ const SECTIONS = [
       </tbody></table>
       <p className="hint">💡 Mehrere Bedingungen kombinierbar, z.B. <code>jahr=2026 dauer&gt;2h</code>.</p>
       <p>Der aufklappbare Zeilen-Baukasten (Tippen ins Suchfeld) bietet dieselben Bedingungen per Dropdown statt Freitext. Jede Zeile ab der zweiten hat einen eigenen antippbaren UND/ODER-Schalter zur vorherigen Zeile — Verknüpfungen dürfen gemischt werden (z.B. Zeile 1 UND Zeile 2 ODER Zeile 3), UND bindet dabei stärker als ODER, genau wie im Freitext.</p>
+      <p>Für Fälle, wo das nicht reicht (z.B. "Dauer über 2h UND (Schirm A ODER Schirm B)"), gibt es echte Klammerung: ein "( )"-Kästchen an jeder Zeile — ab zwei benachbart markierten Zeilen entsteht eine Klammer-Gruppe, sichtbar als violette Linie am linken Rand dieser Zeilen. Im Freitext lässt sich dieselbe Klammerung auch direkt eintippen, z.B. <code>dauer&gt;2h UND (schirm:XI ODER schirm:Artik)</code>.</p>
       <p>Bei aktiver Suche steht neben der Trefferzahl ein aufklappbares Statistik-Feld (▸/▾) mit Kennzahlen zur gefundenen Auswahl: Gesamtdauer/-distanz, Ø Dauer/Distanz, längster/weitester Flug, Max. Höhe, Anzahl Startplätze/Schirme, Ø Bewertung, Zeitraum.</p>
       <h3>3.3 Icon-Reihe (5 Buttons)</h3>
       <ul>

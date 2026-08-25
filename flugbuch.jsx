@@ -2731,29 +2731,80 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
   );
 }
 
+// Splits a query string into tokens: parentheses, && / ||  (after
+// normalising UND/ODER/AND/OR to those), and atomic terms (field:value,
+// field>value, +word, -word, quoted phrases, bare words) — same atomic-term
+// pattern the old flat matcher used, just now feeding a real parser below
+// instead of a single flat OR-of-AND split.
+function tokenizeQuery(q) {
+  const s = q.trim()
+    .replace(/\s+(UND|AND)\s+/gi, " && ")
+    .replace(/\s+(ODER|OR)\s+/gi, " || ")
+    .replace(/&&/g, " && ").replace(/\|\|/g, " || ");
+  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]*"|\S+/gi;
+  const tokens = [];
+  let m;
+  while ((m = re.exec(s))) {
+    let t = m[0];
+    if (t !== "(" && t !== ")" && t !== "&&" && t !== "||") t = t.replace(/^"(.*)"$/, "$1");
+    tokens.push(t);
+  }
+  return tokens;
+}
+
+// Real recursive-descent parser (the standard technique for any search
+// syntax with parentheses — same shape as a SQL WHERE-clause or GitHub/
+// Lucene query parser): builds a small AND/OR tree instead of the old flat
+// "split on || then on &&" pass, so explicit "(...)" grouping is possible.
+// Grammar:  Expr := AndTerm (|| AndTerm)*
+//           AndTerm := Atom (&& Atom)*
+//           Atom := '(' Expr ')'  |  Leaf
+// UND still binds tighter than ODER outside of parentheses, exactly as
+// before — parentheses are additive, not a behaviour change for anyone who
+// never uses them.
+function parseQueryTokens(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+  function parseExpr() {
+    let node = parseAndTerm();
+    while (peek() === "||") { next(); node = { type: "or", left: node, right: parseAndTerm() }; }
+    return node;
+  }
+  function parseAndTerm() {
+    let node = parseAtom();
+    while (peek() === "&&") { next(); node = { type: "and", left: node, right: parseAtom() }; }
+    return node;
+  }
+  function parseAtom() {
+    if (peek() === "(") {
+      next();
+      const node = parseExpr();
+      if (peek() === ")") next(); // tolerate a missing closing paren rather than erroring out
+      return node;
+    }
+    const tok = next();
+    if (tok === undefined) return { type: "true" };
+    if (tok.startsWith("+")) return { type: "leaf", term: tok.slice(1), negate: false };
+    if (tok.startsWith("-")) return { type: "leaf", term: tok.slice(1), negate: true };
+    return { type: "leaf", term: tok, negate: false };
+  }
+  return parseExpr();
+}
+function evalAst(f, node) {
+  switch (node.type) {
+    case "or":  return evalAst(f, node.left) || evalAst(f, node.right);
+    case "and": return evalAst(f, node.left) && evalAst(f, node.right);
+    case "leaf": { const r = evalToken(f, node.term); return node.negate ? !r : r; }
+    default: return true;
+  }
+}
 function matchFlights(flights, q){
   if(!q||!q.trim()) return flights;
-  // Normalise operators
-  let s=q.trim()
-    .replace(/\s+(UND|AND)\s+/gi," && ")
-    .replace(/\s+(ODER|OR)\s+/gi," || ")
-    .replace(/&&/g," && ").replace(/\|\|/g," || ");
-  // Split into OR groups, each OR group split into AND terms
-  const orGroups=s.split(/\s*\|\|\s*/);
-  return flights.filter(f=>{
-    return orGroups.some(group=>{
-      const andTerms=group.split(/\s*&&\s*/).flatMap(t=>{
-        // also split on spaces but keep field:val / quoted together
-        return t.match(/(?:[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]+"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]+"|\S+)/gi)||[];
-      }).map(t=>t.replace(/^"(.*)"$/,"$1"));
-      if(!andTerms.length) return true;
-      return andTerms.every(term=>{
-        if(term.startsWith("+")) return evalToken(f, term.slice(1));
-        if(term.startsWith("-")) return !evalToken(f, term.slice(1));
-        return evalToken(f, term);
-      });
-    });
-  });
+  const tokens = tokenizeQuery(q);
+  if (!tokens.length) return flights;
+  const ast = parseQueryTokens(tokens);
+  return flights.filter(f => evalAst(f, ast));
 }
 
 // ── ADVANCED SEARCH (macOS-Finder-style, multiple combinable criteria) ────
@@ -2842,6 +2893,30 @@ const TILE_FIELD_OPTIONS = [
 ];
 const DEFAULT_TILE_KEYS = ["duration","maxAlt","distanz","startAlt","endAlt","hDiff","maxSinken","maxSteigen","speed"];
 
+// Findet zusammenhängende Läufe von >=2 benachbarten "grouped"-Zeilen —
+// die werden mit runder Klammer umschlossen (im Text UND als sichtbare
+// Klammer-Linie im Baukasten). Ein einzeln markiertes Kästchen ohne
+// Nachbarn hat noch keine Wirkung — erst ab zwei benachbarten Häkchen
+// entsteht eine Gruppe, das hält die Bedienung auf ein einziges Kästchen
+// pro Zeile reduziert statt zwei separate Start/Ende-Knöpfe.
+function computeGroupRuns(rows) {
+  const startSet = new Set(), endSet = new Set(), inSet = new Set();
+  let runStart = null;
+  const closeRun = (end) => {
+    if (runStart !== null && end - runStart >= 1) {
+      startSet.add(runStart); endSet.add(end);
+      for (let k = runStart; k <= end; k++) inSet.add(k);
+    }
+    runStart = null;
+  };
+  rows.forEach((r, i) => {
+    if (r.grouped) { if (runStart === null) runStart = i; }
+    else { closeRun(i-1); }
+  });
+  closeRun(rows.length - 1);
+  return { startSet, endSet, inSet };
+}
+
 function buildAdvancedQuery(rows) {
   // Values containing whitespace must be quoted — the query tokenizer
   // (matchFlights/evalToken) splits on spaces outside quotes, so an
@@ -2854,10 +2929,6 @@ function buildAdvancedQuery(rows) {
     const op = r.op || (isNumeric ? "=" : ":");
     if (op === "between") {
       if (r.value2 === "" || r.value2 == null) return `${r.field}>=${String(r.value).trim()}`;
-      // Joined with && so this pair always stays a unit even when the
-      // outer rows are combined with OR — the query engine splits on ||
-      // first, so an && inside one row's own part never gets separated
-      // from its partner by an OR elsewhere in the query.
       return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
     }
     return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
@@ -2865,57 +2936,71 @@ function buildAdvancedQuery(rows) {
   const validRows = rows.filter(r => r.value !== "" && r.value != null);
   if (!validRows.length) return "";
   // Each row (after the first) carries its OWN combinator relative to the
-  // previous row — not one global switch for everything. Consecutive
-  // AND-rows are grouped into one OR-group (AND binds tighter than OR,
-  // same precedence as the plain-text search box), a new OR-row starts a
-  // fresh group — so "A UND B ODER C" becomes "(A && B) || C".
-  const groups = [rowToStr(validRows[0])];
-  for (let i = 1; i < validRows.length; i++) {
-    const s = rowToStr(validRows[i]);
-    if (validRows[i].combinator === "OR") groups.push(s);
-    else groups[groups.length-1] += " && " + s;
-  }
-  return groups.join(" || ");
+  // previous row, and rows checked "gruppiert" (2+ in a row) get wrapped
+  // in real parentheses — the query engine now has a proper parser
+  // (tokenizeQuery/parseQueryTokens) that understands "(", ")", so
+  // "A UND (B ODER C)" can be built and evaluated exactly as written,
+  // rather than relying only on UND-binds-tighter-als-ODER precedence.
+  const { startSet, endSet } = computeGroupRuns(validRows);
+  let out = "";
+  validRows.forEach((r, i) => {
+    if (i > 0) out += r.combinator === "OR" ? " || " : " && ";
+    if (startSet.has(i)) out += "( ";
+    out += rowToStr(r);
+    if (endSet.has(i)) out += " )";
+  });
+  return out;
 }
 
-function newSearchRow() { return { field: "site", op: ":", value: "", combinator: "AND" }; }
+function newSearchRow() { return { field: "site", op: ":", value: "", combinator: "AND", grouped: false }; }
+
+function parseTermToken(tok) {
+  const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+  if (!m) return null;
+  const field = m[1].toLowerCase();
+  if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
+  const op = m[2] === "≠" ? "!=" : m[2];
+  const value = m[3].trim().replace(/^"(.*)"$/, "$1");
+  return { field, op, value };
+}
 
 // Reconstructs the row-builder's rows from a query string — used when the
 // search panel is reopened after being hidden, so a previously built
-// multi-row search reappears as those same rows (each with its own
-// UND/ODER relative to the previous row) instead of just the raw
-// filterText string the person would otherwise have to decode by eye to
-// edit further.
+// multi-row search reappears as those same rows (incl. UND/ODER per row
+// and any "(...)" grouping) instead of just the raw filterText string the
+// person would otherwise have to decode by eye to edit further. Only
+// single-level nesting round-trips exactly, matching what the row builder
+// itself can produce — deeper hand-typed nesting collapses onto one level.
 function parseQueryToRows(query) {
   if (!query || !query.trim()) return [newSearchRow()];
-  const orGroups = query.split(/\s*\|\|\s*/);
+  const tokens = tokenizeQuery(query);
+  if (!tokens.length) return [newSearchRow()];
   const rows = [];
-  for (let g = 0; g < orGroups.length; g++) {
-    const andTerms = orGroups[g].split(/\s*&&\s*/);
-    const parsedTerms = andTerms.map(part => {
-      const m = part.trim().match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
-      if (!m) return null;
-      const field = m[1].toLowerCase();
-      if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
-      const op = m[2] === "≠" ? "!=" : m[2];
-      const value = m[3].trim().replace(/^"(.*)"$/, "$1");
-      return { field, op, value };
-    });
-    if (parsedTerms.some(p => !p)) return [newSearchRow()];
+  let pendingCombinator = "AND";
+  let depth = 0;
+  let i = 0;
+  while (i < tokens.length) {
+    const tok = tokens[i];
+    if (tok === "&&") { pendingCombinator = "AND"; i++; continue; }
+    if (tok === "||") { pendingCombinator = "OR"; i++; continue; }
+    if (tok === "(") { depth++; i++; continue; }
+    if (tok === ")") { depth = Math.max(0, depth-1); i++; continue; }
+    const parsed = parseTermToken(tok);
+    if (!parsed) return [newSearchRow()];
+    const combinator = rows.length ? pendingCombinator : "AND";
+    const grouped = depth > 0;
     // Merge a "between" pair back into one row — buildAdvancedQuery always
-    // emits these as two consecutive same-field >=/<= entries joined by &&
-    // within one OR-group.
-    for (let i = 0; i < parsedTerms.length; i++) {
-      const cur = parsedTerms[i], next = parsedTerms[i+1];
-      const isFirstInQuery = rows.length === 0;
-      const combinator = isFirstInQuery ? "AND" : (i === 0 ? "OR" : "AND");
-      if (next && cur.field === next.field && cur.op === ">=" && next.op === "<=") {
-        rows.push({ field: cur.field, op: "between", value: cur.value, value2: next.value, combinator });
-        i++;
-      } else {
-        rows.push({ ...cur, combinator });
+    // emits these as two consecutive same-field >=/<= entries joined by &&.
+    if (parsed.op === ">=" && tokens[i+1] === "&&") {
+      const next2 = parseTermToken(tokens[i+2]);
+      if (next2 && next2.field === parsed.field && next2.op === "<=") {
+        rows.push({ field: parsed.field, op: "between", value: parsed.value, value2: next2.value, combinator, grouped });
+        i += 3;
+        continue;
       }
     }
+    rows.push({ ...parsed, combinator, grouped });
+    i++;
   }
   return rows.length ? rows : [newSearchRow()];
 }
@@ -2959,10 +3044,19 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
       {advOpen && (
         <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(92vw, 420px)",zIndex:2000,background:"#0f1f36",boxShadow:"0 12px 32px rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:10}}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {rows.map((row, idx) => {
+            {(() => {
+              const { startSet, endSet, inSet } = computeGroupRuns(rows);
+              return rows.map((row, idx) => {
               const fieldDef = SEARCH_FIELDS.find(f=>f.id===row.field);
+              const grouped = inSet.has(idx);
               return (
-                <div key={idx} style={{display:"flex",gap:6,alignItems:"center"}}>
+                <div key={idx} style={{
+                  display:"flex",gap:6,alignItems:"center",
+                  borderLeft: grouped ? "2px solid rgba(167,139,250,0.6)" : "2px solid transparent",
+                  borderTopLeftRadius: startSet.has(idx) ? 6 : 0,
+                  borderBottomLeftRadius: endSet.has(idx) ? 6 : 0,
+                  paddingLeft: 4, marginLeft: -2,
+                }}>
                   {idx===0 ? (
                     <span style={{minWidth:34,flexShrink:0}} />
                   ) : (
@@ -2972,6 +3066,11 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                       {row.combinator==="OR"?"ODER":"UND"}
                     </button>
                   )}
+                  <button onClick={()=>updateRow(idx,{grouped: !row.grouped})}
+                    title="Mit Nachbar-Zeile(n) klammern — ab 2 benachbart markierten Zeilen entsteht eine Klammer-Gruppe"
+                    style={{fontSize:12,fontWeight:900,width:20,flexShrink:0,background:row.grouped?"rgba(167,139,250,0.22)":"rgba(255,255,255,0.05)",border:`1px solid ${row.grouped?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,borderRadius:6,padding:"3px 0",color:row.grouped?"#a78bfa":"rgba(232,244,253,0.35)",cursor:"pointer"}}>
+                    ( )
+                  </button>
                   <select value={row.field}
                     onChange={e=>{
                       const nf = SEARCH_FIELDS.find(f=>f.id===e.target.value);
@@ -3019,7 +3118,8 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                   <button onClick={()=>removeRow(idx)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.35)",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0}}>✕</button>
                 </div>
               );
-            })}
+              });
+            })()}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
             <button onClick={addRow} style={{background:"rgba(125,211,252,0.12)",border:"1px solid rgba(125,211,252,0.3)",borderRadius:8,padding:"5px 10px",color:"#7dd3fc",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Zeile</button>
