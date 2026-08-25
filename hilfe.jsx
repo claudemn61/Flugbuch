@@ -63,6 +63,8 @@ const SECTIONS = [
         <tr><td><code>passagier:*</code></td><td>beliebiger Passagier (Biplace-Filter)</td></tr>
       </tbody></table>
       <p className="hint">💡 Mehrere Bedingungen kombinierbar, z.B. <code>jahr=2026 dauer&gt;2h</code>.</p>
+      <p>Der aufklappbare Zeilen-Baukasten (Tippen ins Suchfeld) bietet dieselben Bedingungen per Dropdown statt Freitext. Jede Zeile ab der zweiten hat einen eigenen antippbaren UND/ODER-Schalter zur vorherigen Zeile — Verknüpfungen dürfen gemischt werden (z.B. Zeile 1 UND Zeile 2 ODER Zeile 3), UND bindet dabei stärker als ODER, genau wie im Freitext.</p>
+      <p>Bei aktiver Suche steht neben der Trefferzahl ein aufklappbares Statistik-Feld (▸/▾) mit Kennzahlen zur gefundenen Auswahl: Gesamtdauer/-distanz, Ø Dauer/Distanz, längster/weitester Flug, Max. Höhe, Anzahl Startplätze/Schirme, Ø Bewertung, Zeitraum.</p>
       <h3>3.3 Icon-Reihe (5 Buttons)</h3>
       <ul>
         <li>📥 Import — IGC-Dateien, CSV oder Hike-GPX-Routen. Erkennt Kopfzeilen und ordnet Spalten flexibel zu (auch bei abweichender Reihenfolge/Bezeichnung, deutsch oder englisch) — ohne erkennbare Kopfzeile gilt das feste Spaltenformat dieser App.</li>

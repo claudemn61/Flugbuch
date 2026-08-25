@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.2";
+const APP_VERSION = "5.2.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.2.1", note: "Suchen-Baukasten: jede Zeile hat jetzt ihre eigene UND/ODER-Verknüpfung zur vorherigen Zeile (antippbar), statt einem einzigen Schalter für alle Zeilen — gemischte Verknüpfungen wie \"A UND B ODER C\" lassen sich damit erstmals per Baukasten statt nur per Freitext bauen. Ausserdem: bei aktiver Suche neben \"X Treffer\" ein aufklappbares Statistik-Feld (Gesamtdauer/-distanz, Ø Dauer/Distanz, längster/weitester Flug, Max. Höhe, Anzahl Startplätze/Schirme, Ø Bewertung, Zeitraum) über genau die gefundene Auswahl." },
   { v: "5.2", note: "Flugbuch: Zustand (offener Flug/Ansicht, Scroll-Position) wird laufend gesichert. Beendet iOS die App unerwartet (z.B. wegen Speicherdruck) und man öffnet sie danach neu, springt Home jetzt automatisch zurück zur zuletzt offenen Flug-Detailansicht statt stur auf der Startseite zu landen — bewusstes Antippen von 🏠 bleibt davon unberührt und führt weiterhin ganz normal nach Home." },
   { v: "5.1.4", note: "Ausrüstung ▸ Gewichte ▸ Schirm: \"Gewichtslimite\" ist jetzt ein Range (min/max) statt eines einzelnen Werts. Neu in der Gesamtgewicht-Kachel unter Reserve: klein und grau der prozentuale Anteil innerhalb dieser Range (0% = Min, 100% = Max, kann auch ausserhalb liegen)." },
   { v: "5.1.3", note: "Massenbearbeitung (markierte Flüge, ✎ Bearbeiten) um alle bisher fehlenden Datenfelder erweitert: Startzeit, Landezeit, Start müM, Landung müM, Max. Höhe, Distanz, Ø Speed, Max.Steigen, Max.Sinken, H.Gew. sowie alle frei definierten eigenen Felder. Dauer, H.Diff. und Ø Speed werden dabei wie bei der Einzel-Bearbeitung automatisch neu berechnet, wenn die zugrundeliegenden Werte (Zeiten/Höhen/Distanz) geändert werden." },

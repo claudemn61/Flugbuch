@@ -2400,6 +2400,42 @@ function parseDateToTs(d, timeStr) {
   return new Date(+yy, +mm - 1, +dd, hh, min, sec).getTime();
 }
 
+// Kompakte Statistik über eine (Such-)Ergebnismenge — bewusst breit
+// gestreut über Dauer/Distanz/Höhe/Bewertung/Vielfalt, nicht nur die
+// naheliegenden Summen, damit die Auswahl auch für "wie war diese
+// Teilmenge insgesamt" auf einen Blick nützlich ist.
+function computeSearchStats(flights) {
+  if (!flights.length) return [];
+  const fmtDur = (sec) => { const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60); return `${h}h ${String(m).padStart(2,"0")}m`; };
+  const totalSec = flights.reduce((s,f)=>s+(f.durationSec||0),0);
+  const totalDist = flights.reduce((s,f)=>s+(f.totalDist||0),0);
+  const withDur = flights.filter(f=>f.durationSec>0);
+  const withDist = flights.filter(f=>f.totalDist>0);
+  const longest = withDur.length ? withDur.reduce((a,b)=> b.durationSec>a.durationSec?b:a) : null;
+  const farthest = withDist.length ? withDist.reduce((a,b)=> b.totalDist>a.totalDist?b:a) : null;
+  const withMaxAlt = flights.filter(f=>f.maxAlt>0);
+  const highest = withMaxAlt.length ? withMaxAlt.reduce((a,b)=> b.maxAlt>a.maxAlt?b:a) : null;
+  const sites = new Set(flights.map(f=>f.site).filter(Boolean));
+  const gliders = new Set(flights.map(f=>f.glider).filter(Boolean));
+  const rated = flights.filter(f=>f.rating>0);
+  const avgRating = rated.length ? rated.reduce((s,f)=>s+f.rating,0)/rated.length : null;
+  const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
+  return [
+    { label: "Flüge", value: String(flights.length) },
+    { label: "Gesamtdauer", value: totalSec>0 ? fmtDur(totalSec) : "—" },
+    { label: "Gesamtdistanz", value: totalDist>0 ? totalDist.toFixed(1)+" km" : "—" },
+    { label: "Ø Dauer", value: withDur.length ? fmtDur(Math.round(totalSec/withDur.length)) : "—" },
+    { label: "Ø Distanz", value: withDist.length ? (totalDist/withDist.length).toFixed(1)+" km" : "—" },
+    { label: "Längster Flug", value: longest ? `${longest.durationStr||fmtDur(longest.durationSec)} (${longest.name})` : "—" },
+    { label: "Weitester Flug", value: farthest ? `${farthest.totalDist.toFixed(1)} km (${farthest.name})` : "—" },
+    { label: "Max. Höhe", value: highest ? `${highest.maxAlt} m (${highest.name})` : "—" },
+    { label: "Startplätze", value: String(sites.size) },
+    { label: "Schirme", value: String(gliders.size) },
+    { label: "Ø Bewertung", value: avgRating!=null ? avgRating.toFixed(1)+" ★" : "—" },
+    { label: "Zeitraum", value: dated.length ? `${dated[0].f.date} – ${dated[dated.length-1].f.date}` : "—" },
+  ];
+}
+
 // Computes "Reise-Nr./Reise-Flug-Nr." (e.g. "21/4") for every flight tagged
 // with a Reise. Trip numbering matches the Reisen page: trips are numbered
 // by the manually-saved order (reisen:names, which doubles as the display
@@ -2805,66 +2841,82 @@ const TILE_FIELD_OPTIONS = [
 ];
 const DEFAULT_TILE_KEYS = ["duration","maxAlt","distanz","startAlt","endAlt","hDiff","maxSinken","maxSteigen","speed"];
 
-function buildAdvancedQuery(rows, combine) {
+function buildAdvancedQuery(rows) {
   // Values containing whitespace must be quoted — the query tokenizer
   // (matchFlights/evalToken) splits on spaces outside quotes, so an
   // unquoted "field:Advance Pi 23" silently became three unrelated terms
   // ("field:Advance", "Pi", "23") that essentially never all matched.
   const quoteIfNeeded = v => /\s/.test(v) ? `"${v}"` : v;
-  const parts = rows
-    .filter(r => r.value !== "" && r.value != null)
-    .map(r => {
-      const fieldDef = SEARCH_FIELDS.find(f => f.id === r.field);
-      const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
-      const op = r.op || (isNumeric ? "=" : ":");
-      if (op === "between") {
-        if (r.value2 === "" || r.value2 == null) return `${r.field}>=${String(r.value).trim()}`;
-        // Joined with && so this pair always stays a unit even when the
-        // outer rows are combined with OR — the query engine splits on ||
-        // first, so an && inside one row's own part never gets separated
-        // from its partner by an OR elsewhere in the query.
-        return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
-      }
-      return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
-    });
-  if (!parts.length) return "";
-  return parts.join(combine === "OR" ? " || " : " && ");
+  const rowToStr = (r) => {
+    const fieldDef = SEARCH_FIELDS.find(f => f.id === r.field);
+    const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
+    const op = r.op || (isNumeric ? "=" : ":");
+    if (op === "between") {
+      if (r.value2 === "" || r.value2 == null) return `${r.field}>=${String(r.value).trim()}`;
+      // Joined with && so this pair always stays a unit even when the
+      // outer rows are combined with OR — the query engine splits on ||
+      // first, so an && inside one row's own part never gets separated
+      // from its partner by an OR elsewhere in the query.
+      return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
+    }
+    return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
+  };
+  const validRows = rows.filter(r => r.value !== "" && r.value != null);
+  if (!validRows.length) return "";
+  // Each row (after the first) carries its OWN combinator relative to the
+  // previous row — not one global switch for everything. Consecutive
+  // AND-rows are grouped into one OR-group (AND binds tighter than OR,
+  // same precedence as the plain-text search box), a new OR-row starts a
+  // fresh group — so "A UND B ODER C" becomes "(A && B) || C".
+  const groups = [rowToStr(validRows[0])];
+  for (let i = 1; i < validRows.length; i++) {
+    const s = rowToStr(validRows[i]);
+    if (validRows[i].combinator === "OR") groups.push(s);
+    else groups[groups.length-1] += " && " + s;
+  }
+  return groups.join(" || ");
 }
 
-function newSearchRow() { return { field: "site", op: ":", value: "" }; }
+function newSearchRow() { return { field: "site", op: ":", value: "", combinator: "AND" }; }
 
-// Reconstructs the row-builder's rows/combine from a query string — used
-// when the search panel is reopened after being hidden, so a previously
-// built multi-row search reappears as those same rows instead of just the
-// raw filterText string the person would otherwise have to decode by eye
-// to edit further.
+// Reconstructs the row-builder's rows from a query string — used when the
+// search panel is reopened after being hidden, so a previously built
+// multi-row search reappears as those same rows (each with its own
+// UND/ODER relative to the previous row) instead of just the raw
+// filterText string the person would otherwise have to decode by eye to
+// edit further.
 function parseQueryToRows(query) {
-  if (!query || !query.trim()) return { rows: [newSearchRow()], combine: "AND" };
-  const combine = query.includes(" || ") ? "OR" : "AND";
-  const parts = query.split(combine === "OR" ? / \|\| / : / && /);
-  const parsed = parts.map(part => {
-    const m = part.trim().match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
-    if (!m) return null;
-    const field = m[1].toLowerCase();
-    if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
-    const op = m[2] === "≠" ? "!=" : m[2];
-    const value = m[3].trim().replace(/^"(.*)"$/, "$1");
-    return { field, op, value };
-  });
-  if (parsed.some(p => !p)) return { rows: [newSearchRow()], combine: "AND" };
-  // Merge a "between" pair back into one row — buildAdvancedQuery always
-  // emits these as two consecutive same-field >=/<= entries joined by &&.
+  if (!query || !query.trim()) return [newSearchRow()];
+  const orGroups = query.split(/\s*\|\|\s*/);
   const rows = [];
-  for (let i = 0; i < parsed.length; i++) {
-    const cur = parsed[i], next = parsed[i+1];
-    if (combine === "AND" && next && cur.field === next.field && cur.op === ">=" && next.op === "<=") {
-      rows.push({ field: cur.field, op: "between", value: cur.value, value2: next.value });
-      i++;
-    } else {
-      rows.push(cur);
+  for (let g = 0; g < orGroups.length; g++) {
+    const andTerms = orGroups[g].split(/\s*&&\s*/);
+    const parsedTerms = andTerms.map(part => {
+      const m = part.trim().match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+      if (!m) return null;
+      const field = m[1].toLowerCase();
+      if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
+      const op = m[2] === "≠" ? "!=" : m[2];
+      const value = m[3].trim().replace(/^"(.*)"$/, "$1");
+      return { field, op, value };
+    });
+    if (parsedTerms.some(p => !p)) return [newSearchRow()];
+    // Merge a "between" pair back into one row — buildAdvancedQuery always
+    // emits these as two consecutive same-field >=/<= entries joined by &&
+    // within one OR-group.
+    for (let i = 0; i < parsedTerms.length; i++) {
+      const cur = parsedTerms[i], next = parsedTerms[i+1];
+      const isFirstInQuery = rows.length === 0;
+      const combinator = isFirstInQuery ? "AND" : (i === 0 ? "OR" : "AND");
+      if (next && cur.field === next.field && cur.op === ">=" && next.op === "<=") {
+        rows.push({ field: cur.field, op: "between", value: cur.value, value2: next.value, combinator });
+        i++;
+      } else {
+        rows.push({ ...cur, combinator });
+      }
     }
   }
-  return { rows: rows.length ? rows : [newSearchRow()], combine };
+  return rows.length ? rows : [newSearchRow()];
 }
 
 // Collapsed: a single search line (existing behaviour). Expanding it reveals
@@ -2879,15 +2931,11 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
   // panel to flicker open/closed on every keystroke. Closing only happens
   // via the explicit ✓ button below.
   const [advOpen, setAdvOpen] = useState(false);
-  const [{ rows, combine }, setRowState] = useState(() => parseQueryToRows(filterText));
-  const setRows = (nextRows) => setRowState(s => ({ ...s, rows: nextRows }));
-  const setCombine = (nextCombine) => setRowState(s => ({ ...s, combine: nextCombine }));
+  const [rows, setRows] = useState(() => parseQueryToRows(filterText));
 
-  const applyRows = (nextRows, nextCombine) => {
+  const applyRows = (nextRows) => {
     setRows(nextRows);
-    const useCombine = nextCombine || combine;
-    if (nextCombine) setCombine(nextCombine);
-    setFilterText(buildAdvancedQuery(nextRows, useCombine));
+    setFilterText(buildAdvancedQuery(nextRows));
   };
   const updateRow = (idx, patch) => applyRows(rows.map((r,i)=> i===idx ? {...r, ...patch} : r));
   const addRow = () => applyRows([...rows, newSearchRow()]);
@@ -2914,9 +2962,15 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
               const fieldDef = SEARCH_FIELDS.find(f=>f.id===row.field);
               return (
                 <div key={idx} style={{display:"flex",gap:6,alignItems:"center"}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#7dd3fc",minWidth:34,textAlign:"center",flexShrink:0}}>
-                    {idx===0 ? "" : (combine==="OR"?"ODER":"UND")}
-                  </span>
+                  {idx===0 ? (
+                    <span style={{minWidth:34,flexShrink:0}} />
+                  ) : (
+                    <button onClick={()=>updateRow(idx,{combinator: row.combinator==="OR"?"AND":"OR"})}
+                      title="Verknüpfung zur vorherigen Zeile umschalten"
+                      style={{fontSize:10,fontWeight:700,minWidth:34,textAlign:"center",flexShrink:0,background:row.combinator==="OR"?"rgba(251,191,36,0.18)":"rgba(125,211,252,0.15)",border:`1px solid ${row.combinator==="OR"?"rgba(251,191,36,0.4)":"rgba(125,211,252,0.35)"}`,borderRadius:6,padding:"3px 2px",color:row.combinator==="OR"?"#fbbf24":"#7dd3fc",cursor:"pointer"}}>
+                      {row.combinator==="OR"?"ODER":"UND"}
+                    </button>
+                  )}
                   <select value={row.field}
                     onChange={e=>{
                       const nf = SEARCH_FIELDS.find(f=>f.id===e.target.value);
@@ -2968,16 +3022,8 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
             <button onClick={addRow} style={{background:"rgba(125,211,252,0.12)",border:"1px solid rgba(125,211,252,0.3)",borderRadius:8,padding:"5px 10px",color:"#7dd3fc",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Zeile</button>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              {rows.length>1 && (
-                <div style={{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:8,padding:2}}>
-                  <button onClick={()=>applyRows(rows,"AND")} style={{background:combine==="AND"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"4px 10px",color:combine==="AND"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:11,fontWeight:700,cursor:"pointer"}}>UND</button>
-                  <button onClick={()=>applyRows(rows,"OR")} style={{background:combine==="OR"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRadius:6,padding:"4px 10px",color:combine==="OR"?"#7dd3fc":"rgba(232,244,253,0.5)",fontSize:11,fontWeight:700,cursor:"pointer"}}>ODER</button>
-                </div>
-              )}
-              <button onClick={()=>setAdvOpen(false)} title="Schliessen"
-                style={{background:"rgba(34,197,94,0.18)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:8,width:30,height:30,color:"#4ade80",fontSize:14,fontWeight:900,cursor:"pointer",flexShrink:0}}>✓</button>
-            </div>
+            <button onClick={()=>setAdvOpen(false)} title="Schliessen"
+              style={{background:"rgba(34,197,94,0.18)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:8,width:30,height:30,color:"#4ade80",fontSize:14,fontWeight:900,cursor:"pointer",flexShrink:0}}>✓</button>
           </div>
         </div>
       )}
@@ -4376,6 +4422,7 @@ function FlugbuchApp() {
   // derived, not real saved data.
   const flightsWithRanks = useMemo(() => attachComputedRanks(flights), [flights]);
   const [selected, setSelected] = useState(null);
+  const [showSearchStats, setShowSearchStats] = useState(false);
   const [view, setView] = useState("list"); // list|detail|edit|season
   // ── Zustand für ungewollte Neustarts merken (iOS/Safari kann die Seite
   // bei wenig Speicher jederzeit beenden — beim nächsten Öffnen landet man
@@ -6254,8 +6301,22 @@ function FlugbuchApp() {
       </div>
 
       {filterText.trim() && (
-        <div style={{padding:"0 16px 8px",fontSize:12,color:"rgba(232,244,253,0.45)"}}>
-          {filteredFlights.length} Treffer
+        <div style={{padding:"0 16px 8px"}}>
+          <div onClick={()=>setShowSearchStats(s=>!s)}
+            style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"rgba(232,244,253,0.45)",cursor:"pointer",width:"fit-content"}}>
+            <span>{filteredFlights.length} Treffer</span>
+            {filteredFlights.length>0 && <span style={{fontSize:9}}>{showSearchStats?"▾":"▸"}</span>}
+          </div>
+          {showSearchStats && filteredFlights.length>0 && (
+            <div style={{marginTop:6,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"10px 12px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 14px"}}>
+              {computeSearchStats(filteredFlights).map(s => (
+                <div key={s.label} style={{fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  <span style={{color:"rgba(232,244,253,0.4)"}}>{s.label}: </span>
+                  <span style={{color:"rgba(232,244,253,0.75)",fontWeight:600}}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
