@@ -6409,12 +6409,12 @@ function FlugbuchApp() {
             {filteredFlights.length>0 && <span style={{fontSize:9}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
           {showSearchStats && filteredFlights.length>0 && (
-            <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"0.85fr 1.15fr",columnGap:10,rowGap:2}}>
+            <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3}}>
               {computeSearchStats(filteredFlights).map(s => (
-                <React.Fragment key={s.label}>
-                  <div style={{fontSize:10,lineHeight:"16px",color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</div>
-                  <div style={{fontSize:11,lineHeight:"16px",color:"rgba(232,244,253,0.8)",fontWeight:600,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.value}</div>
-                </React.Fragment>
+                <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:6,minWidth:0}}>
+                  <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
+                  <span style={{fontSize:11,color:"rgba(232,244,253,0.8)",fontWeight:600,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}}>{s.value}</span>
+                </div>
               ))}
             </div>
           )}
