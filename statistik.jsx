@@ -1072,26 +1072,35 @@ function SchirmTimeline({ flights }) {
                             </div>
                           </td>
                           <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
-                          {yearCols.map(y => {
+                          {yearCols.map((y, yi) => {
                             const count = g.years.get(y);
                             // Der Balken läuft durchgehend über die ganze
                             // Nutzungsspanne (since–until), auch in Jahren
-                            // ohne Flug dazwischen — nur die Zahl zeigt an,
-                            // ob in diesem konkreten Jahr geflogen wurde.
+                            // ohne Flug dazwischen — die Zahl im Balken zeigt
+                            // an, ob und wie oft in diesem Jahr geflogen wurde.
                             const active = y >= g.since && y <= g.until;
                             const barGradient = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+                            // Durchgehender statt segmentierter Balken: kein
+                            // Rand-Abstand/keine Rundung zwischen benachbarten
+                            // aktiven Jahren — nur die beiden äusseren Enden
+                            // der Nutzungsspanne (since/until) werden gerundet.
+                            const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
+                            const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
                             return (
-                              <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,color:active?textColor:"transparent",fontWeight:700}}>
+                              <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700}}>
                                 {active && (
-                                  // Nur noch ein halbhoher Balken statt voller
-                                  // Zellfarbe, mit leichtem Verlauf + Schatten
-                                  // für einen plastischen (3D) statt flachen Look.
-                                  <div style={{position:"absolute",top:"50%",left:2,right:2,height:9,transform:"translateY(-50%)",borderRadius:3,
+                                  // Höherer, plastischer (3D) Balken statt
+                                  // flacher Zellfarbe — Verlauf + Schatten für
+                                  // einen leicht gewölbten Look.
+                                  <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:14,transform:"translateY(-50%)",
+                                    borderRadius:0,
+                                    borderTopLeftRadius:isFirstActive?4:0,borderBottomLeftRadius:isFirstActive?4:0,
+                                    borderTopRightRadius:isLastActive?4:0,borderBottomRightRadius:isLastActive?4:0,
                                     background:`linear-gradient(to bottom, rgba(255,255,255,0.45), rgba(255,255,255,0) 45%, rgba(0,0,0,0.25)), ${barGradient}`,
                                     opacity:count?1:0.35,
                                     boxShadow:"inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 1px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25)"}} />
                                 )}
-                                <span style={{position:"relative"}}>{count||(active?"·":"")}</span>
+                                <span style={{position:"relative",color:active?"#fff":"transparent",textShadow:active?"0 1px 2px rgba(0,0,0,0.6)":"none"}}>{count||(active?"·":"")}</span>
                               </td>
                             );
                           })}
