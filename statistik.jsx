@@ -1001,7 +1001,7 @@ function SchirmTimeline({ flights }) {
   const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
   let colorIdx = 0;
   if (!loaded) return null;
-  const NAME_COL_W = 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
+  const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
   return (
     <div style={{margin:"0 16px 14px"}}>
@@ -1079,10 +1079,19 @@ function SchirmTimeline({ flights }) {
                             // ohne Flug dazwischen — nur die Zahl zeigt an,
                             // ob in diesem konkreten Jahr geflogen wurde.
                             const active = y >= g.since && y <= g.until;
-                            const bg = !active ? "transparent" : (c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1);
+                            const barGradient = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
                             return (
-                              <td key={y} style={{textAlign:"center",padding:"4px 6px",background:bg,opacity:active?(count?1:0.4):1,color:active?textColor:"transparent",fontWeight:700}}>
-                                {count||(active?"·":"")}
+                              <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,color:active?textColor:"transparent",fontWeight:700}}>
+                                {active && (
+                                  // Nur noch ein halbhoher Balken statt voller
+                                  // Zellfarbe, mit leichtem Verlauf + Schatten
+                                  // für einen plastischen (3D) statt flachen Look.
+                                  <div style={{position:"absolute",top:"50%",left:2,right:2,height:9,transform:"translateY(-50%)",borderRadius:3,
+                                    background:`linear-gradient(to bottom, rgba(255,255,255,0.45), rgba(255,255,255,0) 45%, rgba(0,0,0,0.25)), ${barGradient}`,
+                                    opacity:count?1:0.35,
+                                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 1px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25)"}} />
+                                )}
+                                <span style={{position:"relative"}}>{count||(active?"·":"")}</span>
                               </td>
                             );
                           })}
