@@ -3074,7 +3074,7 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                       const isBool = nf?.type==="bool";
                       updateRow(idx, { field: e.target.value, op: isNum ? "=" : ":", value2: undefined, value: isBool ? "ja" : "" });
                     }}
-                    style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 4px",color:"#e8f4fd",fontSize:12,minWidth:0}}>
+                    style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 2px",color:"#e8f4fd",fontSize:12,width:84,flexShrink:0}}>
                     {SEARCH_FIELDS.map(f=><option key={f.id} value={f.id} style={{background:"#0a1628"}}>{f.label}</option>)}
                   </select>
                   {(() => {
@@ -3107,7 +3107,7 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                   {fieldDef?.anyOption && (
                     <button onClick={()=>updateRow(idx,{value: row.value==="*" ? "" : "*"})}
                       title="Beliebiger Passagier (Biplace-Flüge)"
-                      style={{background:row.value==="*"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:row.value==="*"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                      style={{background:row.value==="*"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 5px",color:row.value==="*"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
                       beliebig
                     </button>
                   )}
