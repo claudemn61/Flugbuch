@@ -2418,11 +2418,9 @@ function computeSearchStats(flights) {
   const highest = withMaxAlt.length ? withMaxAlt.reduce((a,b)=> b.maxAlt>a.maxAlt?b:a) : null;
   const sites = new Set(flights.map(f=>f.site).filter(Boolean));
   const gliders = new Set(flights.map(f=>f.glider).filter(Boolean));
-  const rated = flights.filter(f=>f.rating>0);
-  const avgRating = rated.length ? rated.reduce((s,f)=>s+f.rating,0)/rated.length : null;
   const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
   return [
-    { label: "Flüge", value: String(flights.length) },
+    { label: "Zeitraum", value: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—" },
     { label: "Gesamtzeit", value: totalSec>0 ? fmtDur(totalSec) : "—" },
     { label: "Ges.Distanz", value: totalDist>0 ? totalDist.toFixed(1)+" km" : "—" },
     { label: "Ø Dauer", value: withDur.length ? fmtDur(Math.round(totalSec/withDur.length)) : "—" },
@@ -2432,8 +2430,6 @@ function computeSearchStats(flights) {
     { label: "max. Höhe", value: highest ? `${highest.maxAlt} m (${highest.name})` : "—" },
     { label: "Startplätze", value: String(sites.size) },
     { label: "Schirme", value: String(gliders.size) },
-    { label: "Ø Bewertung", value: avgRating!=null ? avgRating.toFixed(1)+" ★" : "—" },
-    { label: "Zeitraum", value: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—" },
   ];
 }
 
@@ -6405,7 +6401,7 @@ function FlugbuchApp() {
         <div style={{padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
-            <span>{filteredFlights.length} Treffer</span>
+            <span>{filteredFlights.length} Flüge</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
           {showSearchStats && filteredFlights.length>0 && (
