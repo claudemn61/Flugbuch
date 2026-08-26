@@ -109,7 +109,7 @@ const SECTIONS = [
     body: () => (<>
       <p>Sechs farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
       <ul>
-        <li>🪂 Schirm (blau) — Flüge, Flugzeit, Distanz, Bewertungen je Fluggerät</li>
+        <li>🪂 Schirm (blau) — Flüge, Flugzeit, Distanz, Bewertungen je Fluggerät. Beim Öffnen zusätzlich eine Zeitleisten-Grafik oberhalb der Liste: eine Zeile pro Schirm, eine Spalte pro Jahr (horizontal scrollbar, Schirm-Name und Startjahr bleiben fixiert), Zelle = Anzahl Flüge dieses Jahr. Farblich nach Kategorie gruppiert (Standard/Tandem/Leicht) — automatisch aus dem Typ (Solo/Biplace/Hike) der jeweiligen Flüge abgeleitet, kein manuelles Zuordnen nötig. Eigenes Suchfeld darüber (gleicher Zeilen-Baukasten wie im Flugbuch, inkl. UND/ODER/Klammern) filtert, welche Flüge in die Zeitleiste einfliessen. Im ✏️-Bearbeiten-Modus: Balkenfarbe pro Schirm frei wählbar (auch zweifarbig als Verlauf), Reihenfolge innerhalb der Kategorie per ▲▼ verschiebbar — beides wird gespeichert.</li>
         <li>🛫 Startplätze (grün)</li>
         <li>🛬 Landeplätze (orange)</li>
         <li>👤 Passagiere (violett) — erster/letzter Flug je Person, Bewertungen. Blendet sich aus, wenn kein Flug im ganzen Flugbuch einen Passagier hat.</li>

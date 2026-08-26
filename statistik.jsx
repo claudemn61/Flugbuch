@@ -10,21 +10,498 @@ function useIsWide() {
   return isWide;
 }
 
+
+function parseDurToSec(s){
+  if(s==null) return 0;
+  s=String(s).trim();
+  let m=s.match(/^(\d+):(\d{2}):(\d{2})$/); if(m) return +m[1]*3600+ +m[2]*60+ +m[3];
+  m=s.match(/^(\d+):(\d{2})$/); if(m) return +m[1]*3600+ +m[2]*60;
+  m=s.match(/^(\d+(?:[.,]\d+)?)\s*h(?:\s*(\d+)\s*m)?$/i); if(m) return Math.round((+m[1].replace(",","."))*3600)+(m[2]?+m[2]*60:0);
+  m=s.match(/^(\d+)\s*m(?:in)?$/i); if(m) return +m[1]*60;
+  m=s.match(/^(\d+(?:[.,]\d+)?)$/); if(m) return Math.round(+m[1].replace(",",".")*3600); // bare number => hours
+  return 0;
+}
+
+function flightFieldValue(f, field){
+  const cf=f.customFields||{};
+  switch(field){
+    case "name": case "titel": return f.name||"";
+    case "site": case "start": case "startplatz": return f.site||"";
+    case "landung": case "landeplatz": return cf.landung||"";
+    case "schirm": case "glider": case "gerät": case "geraet": return f.glider||"";
+    case "typ": case "type": return cf.typ||"";
+    case "pilot": return f.pilot||"";
+    case "passagier": case "pax": return cf.passagier||"";
+    case "reise": return cf.reise||"";
+    case "jahr": case "year": return f.year||"";
+    case "monat": return f.month ? MONTH_NAMES_DE[+f.month-1] || "" : "";
+    case "std": { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h) : ""; }
+    case "datum": case "date": return f.date||"";
+    case "startzeit": case "starttime": return f.startTime||"";
+    case "landezeit": case "endtime": return f.endTime||"";
+    case "kommentar": case "comment": return f.comment||"";
+    case "bemerkung": case "notes": case "notiz": return f.notes||"";
+    case "dauer": case "duration": return (f.durationSec||parseDurToSec(f.durationStr))/3600; // hours (number)
+    case "distanz": case "dist": case "km": return f.totalDist||parseFloat(cf.distKm||cf.dk||0)||0;
+    case "höhe": case "hoehe": case "maxhöhe": case "maxhoehe": case "alt": return f.maxAlt||+(cf.hMax||cf.hm||0)||0;
+    case "startalt": return f.startAlt||+(cf.msa||0)||0;
+    case "endalt": return f.endAlt||+(cf.ml||0)||0;
+    case "hdiff": return +(cf.hDiff||0)||0;
+    case "maxsteigen": return +(cf.maxSteigen||0)||0;
+    case "maxsinken": return +(cf.maxSinken||0)||0;
+    case "hgew": return +(cf.hGew||0)||0;
+    case "entfernungsl": return f.entfernungSL||0;
+    case "rangdauer": return f.rangDauer||0;
+    case "pctdauer": return f.pctDauer||0;
+    case "rangstrecke": return f.rangStrecke||0;
+    case "pctstrecke": return f.pctStrecke||0;
+    case "startlat": return f.startPt?.lat||0;
+    case "startlon": return f.startPt?.lon||0;
+    case "endlat": return f.endPt?.lat||0;
+    case "endlon": return f.endPt?.lon||0;
+    case "speed": case "kmh": return parseFloat(cf.kmh||0)||0;
+    case "rating": case "bewertung": return f.rating||0;
+    case "hikeort": return cf.hikeOrt||"";
+    case "hikestartpunkt": return cf.hikeStartpunkt||"";
+    case "hikestarthoehe": return +(cf.hikeStarthoehe||0)||0;
+    case "hikedauer": return cf.hikeDauer||"";
+    case "hikehoehenmeter": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
+    }
+    default: return "";
+  }
+}
+
+function evalToken(f, tok){
+  // comparison field op value — now also accepts != (not equal)
+  let m=tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+  if(m){
+    const field=m[1].toLowerCase(), op=(m[2]==="≠"?"!=":m[2]), raw=m[3].trim().replace(/^"(.*)"$/, "$1");
+    // "passagier:*" (or pax:*) means "any passenger at all" — for finding
+    // biplace flights regardless of who the passenger was, rather than
+    // matching a specific name.
+    if((field==="passagier"||field==="pax") && raw==="*"){
+      const has = !!(f.customFields?.passagier||"").trim();
+      return op==="!=" ? !has : has;
+    }
+    // igc:ja / igc:nein and gpx:ja / gpx:nein — presence of an imported
+    // IGC flight track resp. a Hike-GPX route, not a value comparison.
+    if(field==="igc" || field==="gpx"){
+      const has = field==="igc" ? (f.track?.length>1) : (f.hikeTrack?.length>1);
+      const want = ["ja","vorhanden","true","1"].includes(raw.toLowerCase());
+      return op==="!=" ? has!==want : has===want;
+    }
+    let fv=flightFieldValue(f, field);
+
+    const numericFields=["name","titel","dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
+      "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
+      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
+    const dateFields=["datum","date"];
+    const timeFields=["startzeit","starttime","landezeit","endtime"];
+
+    if(numericFields.includes(field)){
+      let cmp = field==="dauer"||field==="duration" ? parseDurToSec(raw)/3600 : parseFloat(raw.replace(",","."));
+      fv = parseFloat(fv)||0;
+      if(isNaN(cmp)) return true;
+      if(op===">") return fv>cmp;
+      if(op==="<") return fv<cmp;
+      if(op===">=") return fv>=cmp;
+      if(op==="<=") return fv<=cmp;
+      if(op==="!=") return Math.abs(fv-cmp)>=0.0001;
+      return Math.abs(fv-cmp)<0.0001;
+    }
+    if(dateFields.includes(field)){
+      // Chronological comparison (not string comparison — "05.01.2026" must
+      // sort after "12.01.2025" despite being alphabetically earlier).
+      const cmp = parseDateToTs(raw);
+      const fvTs = parseDateToTs(fv);
+      if(!cmp) return true;
+      if(op===">") return fvTs>cmp;
+      if(op==="<") return fvTs<cmp;
+      if(op===">=") return fvTs>=cmp;
+      if(op==="<=") return fvTs<=cmp;
+      if(op==="!=") return fvTs!==cmp;
+      return fvTs===cmp;
+    }
+    if(timeFields.includes(field)){
+      const toSec = t => { const m2=String(t).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m2?(+m2[1]*3600+ +m2[2]*60+ +(m2[3]||0)):null; };
+      const cmp = toSec(raw), fvSec = toSec(fv);
+      if(cmp==null) return true;
+      if(fvSec==null) return false;
+      if(op===">") return fvSec>cmp;
+      if(op==="<") return fvSec<cmp;
+      if(op===">=") return fvSec>=cmp;
+      if(op==="<=") return fvSec<=cmp;
+      if(op==="!=") return fvSec!==cmp;
+      return fvSec===cmp;
+    }
+    // text fields: ":" (default) means contains; "=" means exact match;
+    // "!=" means does NOT contain; >/</>=/<= compare alphabetically
+    // (locale-aware, so names/places sort the way a person would expect).
+    const fvStr = String(fv), rawStr = raw;
+    if(op===":") return fvStr.toLowerCase().includes(rawStr.toLowerCase());
+    if(op==="=") return fvStr.toLowerCase() === rawStr.toLowerCase();
+    if(op==="!=") return !fvStr.toLowerCase().includes(rawStr.toLowerCase());
+    const cmpAlpha = fvStr.localeCompare(rawStr, "de", {sensitivity:"base"});
+    if(op===">") return cmpAlpha>0;
+    if(op==="<") return cmpAlpha<0;
+    if(op===">=") return cmpAlpha>=0;
+    if(op==="<=") return cmpAlpha<=0;
+    return fvStr.toLowerCase().includes(rawStr.toLowerCase());
+  }
+  // plain word => search across all text
+  const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
+  return hay.includes(tok.toLowerCase());
+}
+
+const MONTH_NAMES_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function tokenizeQuery(q) {
+  const s = q.trim()
+    .replace(/\s+(UND|AND)\s+/gi, " && ")
+    .replace(/\s+(ODER|OR)\s+/gi, " || ")
+    .replace(/&&/g, " && ").replace(/\|\|/g, " || ");
+  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]*"|\S+/gi;
+  const tokens = [];
+  let m;
+  while ((m = re.exec(s))) {
+    let t = m[0];
+    if (t !== "(" && t !== ")" && t !== "&&" && t !== "||") t = t.replace(/^"(.*)"$/, "$1");
+    tokens.push(t);
+  }
+  return tokens;
+}
+
+function parseQueryTokens(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+  function parseExpr() {
+    let node = parseAndTerm();
+    while (peek() === "||") { next(); node = { type: "or", left: node, right: parseAndTerm() }; }
+    return node;
+  }
+  function parseAndTerm() {
+    let node = parseAtom();
+    while (peek() === "&&") { next(); node = { type: "and", left: node, right: parseAtom() }; }
+    return node;
+  }
+  function parseAtom() {
+    if (peek() === "(") {
+      next();
+      const node = parseExpr();
+      if (peek() === ")") next(); // tolerate a missing closing paren rather than erroring out
+      return node;
+    }
+    const tok = next();
+    if (tok === undefined) return { type: "true" };
+    if (tok.startsWith("+")) return { type: "leaf", term: tok.slice(1), negate: false };
+    if (tok.startsWith("-")) return { type: "leaf", term: tok.slice(1), negate: true };
+    return { type: "leaf", term: tok, negate: false };
+  }
+  return parseExpr();
+}
+
+function evalAst(f, node) {
+  switch (node.type) {
+    case "or":  return evalAst(f, node.left) || evalAst(f, node.right);
+    case "and": return evalAst(f, node.left) && evalAst(f, node.right);
+    case "leaf": { const r = evalToken(f, node.term); return node.negate ? !r : r; }
+    default: return true;
+  }
+}
+
+function matchFlights(flights, q){
+  if(!q||!q.trim()) return flights;
+  const tokens = tokenizeQuery(q);
+  if (!tokens.length) return flights;
+  const ast = parseQueryTokens(tokens);
+  return flights.filter(f => evalAst(f, ast));
+}
+
+const SEARCH_FIELDS = [
+  { id: "name",      label: "Name/Titel",     type: "text" },
+  { id: "site",      label: "Startplatz",     type: "text" },
+  { id: "landung",   label: "Landeplatz",     type: "text" },
+  { id: "glider",    label: "Schirm",         type: "text" },
+  { id: "typ",       label: "Typ",            type: "text" },
+  { id: "pilot",     label: "Pilot",          type: "text" },
+  { id: "passagier", label: "Passagier",      type: "text", anyOption: true },
+  { id: "reise",     label: "Reise",          type: "text" },
+  { id: "datum",     label: "Datum",          type: "date" },
+  { id: "startzeit", label: "Startzeit",      type: "time" },
+  { id: "landezeit", label: "Landezeit",      type: "time" },
+  { id: "jahr",      label: "Jahr",           type: "number" },
+  { id: "bemerkung", label: "Bemerkung",      type: "text" },
+  { id: "dauer",     label: "Dauer (h)",      type: "number" },
+  { id: "distanz",   label: "Distanz (km)",   type: "number" },
+  { id: "hoehe",     label: "Max. Höhe (m)",  type: "number" },
+  { id: "startalt",  label: "Start müM",      type: "number" },
+  { id: "endalt",    label: "Landung müM",    type: "number" },
+  { id: "hdiff",     label: "H.Diff. (m)",    type: "number" },
+  { id: "speed",     label: "Ø Speed (km/h)", type: "number" },
+  { id: "maxsteigen", label: "Max.Steigen (m/s)", type: "number" },
+  { id: "maxsinken", label: "Max.Sinken (m/s)", type: "number" },
+  { id: "hgew",      label: "H.Gew. (m)",     type: "number" },
+  { id: "entfernungsl", label: "Entf. S-L (km)", type: "number" },
+  { id: "startlat",  label: "Start Lat",      type: "number" },
+  { id: "startlon",  label: "Start Lon",      type: "number" },
+  { id: "endlat",    label: "Landung Lat",    type: "number" },
+  { id: "endlon",    label: "Landung Lon",    type: "number" },
+  { id: "rangdauer", label: "Rang Dauer",     type: "number" },
+  { id: "pctdauer",  label: "% Dauer",        type: "number" },
+  { id: "rangstrecke", label: "Rang Strecke", type: "number" },
+  { id: "pctstrecke", label: "% Strecke",     type: "number" },
+  { id: "rating",    label: "Bewertung",      type: "number" },
+  { id: "igc",       label: "IGC-Track",      type: "bool" },
+  { id: "gpx",       label: "Hike-GPX",       type: "bool" },
+  { id: "hikeort",        label: "Hike-Ort",         type: "text" },
+  { id: "hikestartpunkt", label: "Hike-Startpunkt",  type: "text" },
+  { id: "hikestarthoehe", label: "Hike-Starthöhe (m)", type: "number" },
+  { id: "hikehoehenmeter", label: "Hike-Höhenmeter (m)", type: "number" },
+  { id: "hikedauer",      label: "Hike-Dauer",       type: "text" },
+];
+const BOOL_OPTIONS = [
+  { value: "ja",   label: "Vorhanden" },
+  { value: "nein", label: "Nicht vorhanden" },
+];
+const ADV_OPS_NUM = [">=", "<=", "!=", ">", "<", "=", "between"];
+const ADV_OPS_TEXT = [":", "=", "!=", ">", "<", ">=", "<="];
+function computeGroupRuns(rows) {
+  const startSet = new Set(), endSet = new Set(), inSet = new Set();
+  let runStart = null;
+  const closeRun = (end) => {
+    if (runStart !== null && end - runStart >= 1) {
+      startSet.add(runStart); endSet.add(end);
+      for (let k = runStart; k <= end; k++) inSet.add(k);
+    }
+    runStart = null;
+  };
+  rows.forEach((r, i) => {
+    if (r.grouped) { if (runStart === null) runStart = i; }
+    else { closeRun(i-1); }
+  });
+  closeRun(rows.length - 1);
+  return { startSet, endSet, inSet };
+}
+
+function buildAdvancedQuery(rows) {
+  // Values containing whitespace must be quoted — the query tokenizer
+  // (matchFlights/evalToken) splits on spaces outside quotes, so an
+  // unquoted "field:Advance Pi 23" silently became three unrelated terms
+  // ("field:Advance", "Pi", "23") that essentially never all matched.
+  const quoteIfNeeded = v => /\s/.test(v) ? `"${v}"` : v;
+  const rowToStr = (r) => {
+    const fieldDef = SEARCH_FIELDS.find(f => f.id === r.field);
+    const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
+    const op = r.op || (isNumeric ? "=" : ":");
+    if (op === "between") {
+      if (r.value2 === "" || r.value2 == null) return `${r.field}>=${String(r.value).trim()}`;
+      return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
+    }
+    return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
+  };
+  const validRows = rows.filter(r => r.value !== "" && r.value != null);
+  if (!validRows.length) return "";
+  // Each row (after the first) carries its OWN combinator relative to the
+  // previous row, and rows checked "gruppiert" (2+ in a row) get wrapped
+  // in real parentheses — the query engine now has a proper parser
+  // (tokenizeQuery/parseQueryTokens) that understands "(", ")", so
+  // "A UND (B ODER C)" can be built and evaluated exactly as written,
+  // rather than relying only on UND-binds-tighter-als-ODER precedence.
+  const { startSet, endSet } = computeGroupRuns(validRows);
+  let out = "";
+  validRows.forEach((r, i) => {
+    if (i > 0) out += r.combinator === "OR" ? " || " : " && ";
+    if (startSet.has(i)) out += "( ";
+    out += rowToStr(r);
+    if (endSet.has(i)) out += " )";
+  });
+  return out;
+}
+
+function newSearchRow() { return { field: "site", op: ":", value: "", combinator: "AND", grouped: false }; }
+
+function parseTermToken(tok) {
+  const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+  if (!m) return null;
+  const field = m[1].toLowerCase();
+  if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
+  const op = m[2] === "≠" ? "!=" : m[2];
+  const value = m[3].trim().replace(/^"(.*)"$/, "$1");
+  return { field, op, value };
+}
+
+function parseQueryToRows(query) {
+  if (!query || !query.trim()) return [newSearchRow()];
+  const tokens = tokenizeQuery(query);
+  if (!tokens.length) return [newSearchRow()];
+  const rows = [];
+  let pendingCombinator = "AND";
+  let depth = 0;
+  let i = 0;
+  while (i < tokens.length) {
+    const tok = tokens[i];
+    if (tok === "&&") { pendingCombinator = "AND"; i++; continue; }
+    if (tok === "||") { pendingCombinator = "OR"; i++; continue; }
+    if (tok === "(") { depth++; i++; continue; }
+    if (tok === ")") { depth = Math.max(0, depth-1); i++; continue; }
+    const parsed = parseTermToken(tok);
+    if (!parsed) return [newSearchRow()];
+    const combinator = rows.length ? pendingCombinator : "AND";
+    const grouped = depth > 0;
+    // Merge a "between" pair back into one row — buildAdvancedQuery always
+    // emits these as two consecutive same-field >=/<= entries joined by &&.
+    if (parsed.op === ">=" && tokens[i+1] === "&&") {
+      const next2 = parseTermToken(tokens[i+2]);
+      if (next2 && next2.field === parsed.field && next2.op === "<=") {
+        rows.push({ field: parsed.field, op: "between", value: parsed.value, value2: next2.value, combinator, grouped });
+        i += 3;
+        continue;
+      }
+    }
+    rows.push({ ...parsed, combinator, grouped });
+    i++;
+  }
+  return rows.length ? rows : [newSearchRow()];
+}
+
+function SearchBar({ filterText, setFilterText, knownGliders }) {
+  // Opens on focus/tap into the search field itself (no separate button
+  // needed) and stays independent state from then on — it does NOT close
+  // again just because the field's text changes, since that caused the
+  // panel to flicker open/closed on every keystroke. Closing only happens
+  // via the explicit ✓ button below.
+  const [advOpen, setAdvOpen] = useState(false);
+  const [rows, setRows] = useState(() => parseQueryToRows(filterText));
+
+  const applyRows = (nextRows) => {
+    setRows(nextRows);
+    setFilterText(buildAdvancedQuery(nextRows));
+  };
+  const updateRow = (idx, patch) => applyRows(rows.map((r,i)=> i===idx ? {...r, ...patch} : r));
+  const addRow = () => applyRows([...rows, newSearchRow()]);
+  const removeRow = (idx) => {
+    const next = rows.filter((_,i)=>i!==idx);
+    applyRows(next.length ? next : [newSearchRow()]);
+  };
+
+  return (
+    <div style={{position:"relative"}}>
+      <div style={{position:"relative"}}>
+        <input value={filterText} onChange={e=>setFilterText(e.target.value)} onFocus={()=>setAdvOpen(true)} placeholder="🔍 Suchen…"
+          style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 34px 8px 12px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+        {filterText && (
+          <button onClick={()=>setFilterText("")}
+            style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"rgba(232,244,253,0.4)",cursor:"pointer",fontSize:14}}>✕</button>
+        )}
+      </div>
+
+      {advOpen && (
+        <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(92vw, 420px)",zIndex:2000,background:"#0f1f36",boxShadow:"0 12px 32px rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:10}}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {(() => {
+              const { startSet, endSet, inSet } = computeGroupRuns(rows);
+              return rows.map((row, idx) => {
+              const fieldDef = SEARCH_FIELDS.find(f=>f.id===row.field);
+              const grouped = inSet.has(idx);
+              return (
+                <div key={idx} style={{
+                  display:"flex",gap:6,alignItems:"center",
+                  borderLeft: grouped ? "2px solid rgba(167,139,250,0.6)" : "2px solid transparent",
+                  borderTopLeftRadius: startSet.has(idx) ? 6 : 0,
+                  borderBottomLeftRadius: endSet.has(idx) ? 6 : 0,
+                  paddingLeft: 4, marginLeft: -2,
+                }}>
+                  {idx===0 ? (
+                    <span style={{minWidth:34,flexShrink:0}} />
+                  ) : (
+                    <button onClick={()=>updateRow(idx,{combinator: row.combinator==="OR"?"AND":"OR"})}
+                      title="Verknüpfung zur vorherigen Zeile umschalten"
+                      style={{fontSize:10,fontWeight:700,minWidth:34,textAlign:"center",flexShrink:0,background:row.combinator==="OR"?"rgba(251,191,36,0.18)":"rgba(125,211,252,0.15)",border:`1px solid ${row.combinator==="OR"?"rgba(251,191,36,0.4)":"rgba(125,211,252,0.35)"}`,borderRadius:6,padding:"3px 2px",color:row.combinator==="OR"?"#fbbf24":"#7dd3fc",cursor:"pointer"}}>
+                      {row.combinator==="OR"?"ODER":"UND"}
+                    </button>
+                  )}
+                  <button onClick={()=>updateRow(idx,{grouped: !row.grouped})}
+                    title="Mit Nachbar-Zeile(n) klammern — ab 2 benachbart markierten Zeilen entsteht eine Klammer-Gruppe"
+                    style={{fontSize:12,fontWeight:900,width:20,flexShrink:0,background:row.grouped?"rgba(167,139,250,0.22)":"rgba(255,255,255,0.05)",border:`1px solid ${row.grouped?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,borderRadius:6,padding:"3px 0",color:row.grouped?"#a78bfa":"rgba(232,244,253,0.35)",cursor:"pointer"}}>
+                    ( )
+                  </button>
+                  <select value={row.field}
+                    onChange={e=>{
+                      const nf = SEARCH_FIELDS.find(f=>f.id===e.target.value);
+                      const isNum = nf?.type==="number"||nf?.type==="date"||nf?.type==="time";
+                      const isBool = nf?.type==="bool";
+                      updateRow(idx, { field: e.target.value, op: isNum ? "=" : ":", value2: undefined, value: isBool ? "ja" : "" });
+                    }}
+                    style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 2px",color:"#e8f4fd",fontSize:12,width:84,flexShrink:0}}>
+                    {SEARCH_FIELDS.map(f=><option key={f.id} value={f.id} style={{background:"#0a1628"}}>{f.label}</option>)}
+                  </select>
+                  {(() => {
+                    if (fieldDef?.type === "bool") return null;
+                    const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
+                    const ops = isNumeric ? ADV_OPS_NUM : ADV_OPS_TEXT;
+                    return (
+                      <select value={row.op || (isNumeric ? "=" : ":")} onChange={e=>updateRow(idx,{op:e.target.value})}
+                        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 2px",color:"#e8f4fd",fontSize:12,width:isNumeric?68:44,flexShrink:0}}>
+                        {ops.map(o=><option key={o} value={o} style={{background:"#0a1628"}}>{o==="between"?"zw.":o}</option>)}
+                      </select>
+                    );
+                  })()}
+                  {fieldDef?.type === "bool" ? (
+                    <select value={row.value||"ja"} onChange={e=>updateRow(idx,{value:e.target.value})}
+                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}}>
+                      {BOOL_OPTIONS.map(o=><option key={o.value} value={o.value} style={{background:"#0a1628"}}>{o.label}</option>)}
+                    </select>
+                  ) : (
+                  <input value={row.value==="*"?"":row.value} onChange={e=>updateRow(idx,{value:e.target.value})}
+                    placeholder={fieldDef?.anyOption ? "Name, oder \"beliebig\" →" : (row.op==="between" ? "von…" : "Wert…")}
+                    disabled={row.value==="*"}
+                    list={row.field==="glider" && knownGliders?.length ? "glider-datalist" : undefined}
+                    style={{flex:1,minWidth:0,background:row.value==="*"?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
+                  )}
+                  {row.op==="between" && (
+                    <input value={row.value2||""} onChange={e=>updateRow(idx,{value2:e.target.value})} placeholder="bis…"
+                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
+                  )}
+                  {fieldDef?.anyOption && (
+                    <button onClick={()=>updateRow(idx,{value: row.value==="*" ? "" : "*"})}
+                      title="Beliebiger Passagier (Biplace-Flüge)"
+                      style={{background:row.value==="*"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 5px",color:row.value==="*"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                      beliebig
+                    </button>
+                  )}
+                  <button onClick={()=>removeRow(idx)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.35)",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0}}>✕</button>
+                </div>
+              );
+              });
+            })()}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+            <button onClick={addRow} style={{background:"rgba(125,211,252,0.12)",border:"1px solid rgba(125,211,252,0.3)",borderRadius:8,padding:"5px 10px",color:"#7dd3fc",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Zeile</button>
+            <button onClick={()=>setAdvOpen(false)} title="Schliessen"
+              style={{background:"rgba(34,197,94,0.18)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:8,width:30,height:30,color:"#4ade80",fontSize:14,fontWeight:900,cursor:"pointer",flexShrink:0}}>✓</button>
+          </div>
+        </div>
+      )}
+      {knownGliders?.length > 0 && (
+        <datalist id="glider-datalist">
+          {knownGliders.map(g => <option key={g} value={g} />)}
+        </datalist>
+      )}
+    </div>
+  );
+}
+
+
 // ── Statistik Page ───────────────────────────────────────────────────────
 // Four aggregated views built from the same flight data the Flugbuch app
 // stores: Schirm (glider), Passagiere, Landeplätze, Startplätze. Shown as
 // four collapsible badges (same pattern as the Service page). On narrow
 // screens each row renders as a stacked card instead of a wide table, since
 // the source tables have too many columns to fit comfortably.
-
-function parseDateToTs(d) {
-  if (!d) return 0;
-  const m = String(d).match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
-  if (!m) return 0;
-  let [_, dd, mm, yy] = m;
-  yy = yy.length === 2 ? (+yy >= 30 ? "19" + yy : "20" + yy) : yy;
-  return new Date(+yy, +mm - 1, +dd).getTime();
-}
 
 function fmtDateShort(ts) {
   if (!ts) return "—";
@@ -386,9 +863,225 @@ function StatistikApp() {
       {TABLES.map(t => openTable===t.id && (
         t.id === "saison"
           ? <SeasonSection key={t.id} flights={flights} />
-          : <StatTable key={t.id} table={t} sortOptions={SORT_OPTIONS[t.id]}
-              initialDetailName={openTable===t.id ? restoreDetailName : null} />
+          : (
+            <React.Fragment key={t.id}>
+              {t.id === "schirm" && <SchirmTimeline flights={flights} />}
+              <StatTable table={t} sortOptions={SORT_OPTIONS[t.id]}
+                initialDetailName={openTable===t.id ? restoreDetailName : null} />
+            </React.Fragment>
+          )
       ))}
+    </div>
+  );
+}
+
+// Grafische Zeitleiste über alle geflogenen Schirme: eine Zeile pro Schirm,
+// eine Spalte pro Jahr, Zelle = Anzahl Flüge dieses Jahr mit diesem Schirm.
+// Kategorien (Standard/Tandem/Leicht) gibt's als eigenes Datenfeld nicht —
+// werden hier aus dem automatisch geführten "Typ" (Solo/Biplace/Hike)
+// abgeleitet: pro Schirm zählt, welcher Typ unter dessen Flügen am
+// häufigsten vorkommt (ein Schirm wird ja i.d.R. konsistent für eine
+// Einsatzart geflogen).
+function deriveGliderCategory(typs) {
+  let biplace = 0, hike = 0, solo = 0;
+  typs.forEach(t => {
+    const s = (t||"").toLowerCase();
+    if (s.includes("hike")) hike++;
+    else if (s.includes("biplace")) biplace++;
+    else solo++;
+  });
+  if (hike >= biplace && hike >= solo && hike > 0) return "Leicht";
+  if (biplace >= solo && biplace > 0) return "Tandem";
+  return "Standard";
+}
+const GLIDER_TIMELINE_COLORS = ["#7dd3fc","#4ade80","#fbbf24","#f87171","#a78bfa","#38bdf8","#fb923c","#facc15","#34d399","#f472b6"];
+const CATEGORY_ORDER = ["Standard","Tandem","Leicht"];
+const CATEGORY_STYLE = {
+  Standard: { bg:"rgba(59,130,246,0.18)", color:"#93c5fd" },
+  Tandem:   { bg:"rgba(74,222,128,0.18)", color:"#86efac" },
+  Leicht:   { bg:"rgba(251,191,36,0.18)", color:"#fde047" },
+};
+function SchirmTimeline({ flights }) {
+  const [filterText, setFilterText] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [config, setConfig] = useState({ colors: {}, order: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]} }
+  const [loaded, setLoaded] = useState(false);
+  const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("schirmTimelineConfig");
+        if (r && r.value) setConfig(JSON.parse(r.value));
+      } catch (e) {}
+      setLoaded(true);
+    })();
+  }, []);
+  const saveConfig = (next) => {
+    setConfig(next);
+    try { window.storage.set("schirmTimelineConfig", JSON.stringify(next)); } catch (e) {}
+  };
+  const setGliderColor = (name, patch) => {
+    const next = { ...config, colors: { ...config.colors, [name]: { ...(config.colors[name]||{}), ...patch } } };
+    saveConfig(next);
+  };
+  const moveGlider = (category, idx, dir) => {
+    const list = grouped.find(g => g.cat === category)?.list || [];
+    const names = list.map(g => g.name);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= names.length) return;
+    [names[idx], names[newIdx]] = [names[newIdx], names[idx]];
+    saveConfig({ ...config, order: { ...config.order, [category]: names } });
+  };
+
+  const filtered = filterText.trim() ? matchFlights(flights, filterText) : flights;
+  const byGlider = new Map();
+  filtered.forEach(f => {
+    const name = f.glider;
+    if (!name) return;
+    const year = f.year || (f.date||"").split(".")[2];
+    if (!year) return;
+    if (!byGlider.has(name)) byGlider.set(name, { name, years: new Map(), typs: [] });
+    const g = byGlider.get(name);
+    g.years.set(year, (g.years.get(year)||0) + 1);
+    g.typs.push(f.customFields?.typ);
+  });
+  const gliders = [...byGlider.values()].map(g => {
+    const years = [...g.years.keys()].map(Number).sort((a,b)=>a-b);
+    return { ...g, category: deriveGliderCategory(g.typs), since: years[0], years: g.years };
+  });
+  const allYears = gliders.flatMap(g => [...g.years.keys()].map(Number));
+  const maxYear = allYears.length ? Math.max(...allYears) : new Date().getFullYear();
+  const minYear = allYears.length ? Math.min(...allYears) : maxYear;
+  const yearCols = [];
+  for (let y = maxYear; y >= minYear; y--) yearCols.push(y);
+  // Reihenfolge pro Kategorie: gespeicherte Reihenfolge zuerst (soweit die
+  // Schirme noch in der aktuellen Auswahl vorkommen), neue/noch nicht
+  // einsortierte Schirme (z.B. gerade erst geflogen) hängen chronologisch
+  // ans Ende an, statt zu verschwinden.
+  const grouped = CATEGORY_ORDER.map(cat => {
+    const list = gliders.filter(g=>g.category===cat);
+    const savedOrder = config.order[cat] || [];
+    const byName = new Map(list.map(g=>[g.name,g]));
+    const ordered = savedOrder.map(n=>byName.get(n)).filter(Boolean);
+    const remaining = list.filter(g=>!savedOrder.includes(g.name)).sort((a,b)=>b.since-a.since);
+    return { cat, list: [...ordered, ...remaining] };
+  }).filter(g => g.list.length);
+
+  const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
+  let colorIdx = 0;
+  if (!loaded) return null;
+
+  return (
+    <div style={{margin:"0 16px 14px"}}>
+      <div style={{marginBottom:8}}>
+        <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={knownGliders} />
+      </div>
+      {gliders.length === 0 ? (
+        <div style={{padding:"16px 4px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Flüge für diesen Filter.</div>
+      ) : (
+      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,overflow:"hidden"}}>
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 8px 0"}}>
+          <button onClick={()=>{ setEditMode(m=>!m); setPickerFor(null); }} title={editMode?"Fertig":"Farben/Reihenfolge bearbeiten"}
+            style={{background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,borderRadius:8,width:28,height:28,fontSize:12,color:editMode?"#4ade80":"#7dd3fc",cursor:"pointer"}}>
+            {editMode?"✓":"✏️"}
+          </button>
+        </div>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          <table style={{borderCollapse:"collapse",fontSize:11,whiteSpace:"nowrap"}}>
+            <thead>
+              <tr>
+                <th style={{position:"sticky",left:0,background:"#210710",zIndex:2,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
+                <th style={{position:"sticky",left:0,background:"#210710",zIndex:2,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
+                {yearCols.map(y => <th key={y} style={{padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map(({cat, list}) => {
+                const catStyle = CATEGORY_STYLE[cat];
+                return (
+                  <React.Fragment key={cat}>
+                    <tr>
+                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px"}}>{cat}</td>
+                    </tr>
+                    {list.map((g, idx) => {
+                      const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
+                      const custom = config.colors[g.name] || {};
+                      const c1 = custom.c1 || auto;
+                      const c2 = custom.c2 || null;
+                      const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+                      const textColor = c1;
+                      return (
+                        <React.Fragment key={g.name}>
+                        <tr>
+                          <td style={{position:"sticky",left:0,background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              {editMode && (
+                                <>
+                                  <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
+                                    style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:18,height:18,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
+                                  <button onClick={()=>moveGlider(cat, idx, 1)} disabled={idx===list.length-1}
+                                    style={{opacity:idx===list.length-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:18,height:18,fontSize:9,color:"#e8f4fd",cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
+                                  <button onClick={()=>setPickerFor(pickerFor===g.name?null:g.name)}
+                                    style={{width:16,height:16,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
+                                </>
+                              )}
+                              <span>{g.name}</span>
+                            </div>
+                          </td>
+                          <td style={{position:"sticky",left:0,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)"}}>{g.since}</td>
+                          {yearCols.map(y => {
+                            const count = g.years.get(y);
+                            return (
+                              <td key={y} style={{textAlign:"center",padding:"6px 6px",background:count?c1+"33":"transparent",backgroundImage:count&&c2?`linear-gradient(90deg, ${c1}55, ${c2}55)`:undefined,color:count?textColor:"transparent",fontWeight:700}}>
+                                {count||"·"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                        {editMode && pickerFor===g.name && (
+                          <tr>
+                            <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#1a0910",padding:"8px 10px"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                                <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
+                                  Farbe 1
+                                  <input type="color" value={c1} onChange={e=>setGliderColor(g.name,{c1:e.target.value})}
+                                    style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+                                </label>
+                                {c2 ? (
+                                  <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
+                                    Farbe 2
+                                    <input type="color" value={c2} onChange={e=>setGliderColor(g.name,{c2:e.target.value})}
+                                      style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+                                    <button onClick={()=>setGliderColor(g.name,{c2:null})} style={{background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:14,cursor:"pointer"}}>✕</button>
+                                  </label>
+                                ) : (
+                                  <button onClick={()=>setGliderColor(g.name,{c2:GLIDER_TIMELINE_COLORS[(colorIdx+3)%GLIDER_TIMELINE_COLORS.length]})}
+                                    style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.2)",borderRadius:7,padding:"4px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
+                                    + 2. Farbe
+                                  </button>
+                                )}
+                                {(custom.c1||custom.c2) && (
+                                  <button onClick={()=>{ const nc={...config.colors}; delete nc[g.name]; saveConfig({...config,colors:nc}); }}
+                                    style={{background:"transparent",border:"none",color:"rgba(248,113,113,0.7)",fontSize:11,cursor:"pointer"}}>
+                                    Zurücksetzen
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
     </div>
   );
 }
