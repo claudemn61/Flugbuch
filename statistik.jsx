@@ -964,7 +964,7 @@ function SchirmTimeline({ flights }) {
   filtered.forEach(f => {
     const name = f.glider;
     if (!name) return;
-    const year = f.year || (f.date||"").split(".")[2];
+    const year = Number(f.year || (f.date||"").split(".")[2]);
     if (!year) return;
     if (!byGlider.has(name)) byGlider.set(name, { name, years: new Map(), typs: [] });
     const g = byGlider.get(name);
@@ -1089,18 +1089,20 @@ function SchirmTimeline({ flights }) {
                             return (
                               <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700}}>
                                 {active && (
-                                  // Höherer, plastischer (3D) Balken statt
-                                  // flacher Zellfarbe — Verlauf + Schatten für
-                                  // einen leicht gewölbten Look.
-                                  <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:14,transform:"translateY(-50%)",
+                                  // Stabförmiger 3D-Look: kräftiger Glanzstreifen
+                                  // im oberen Drittel, abgedunkelte Ränder oben
+                                  // und unten, plus Kontur-Schatten — wirkt wie
+                                  // ein liegender, zylindrischer Stab statt
+                                  // einer flachen Fläche.
+                                  <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:16,transform:"translateY(-50%)",
                                     borderRadius:0,
-                                    borderTopLeftRadius:isFirstActive?4:0,borderBottomLeftRadius:isFirstActive?4:0,
-                                    borderTopRightRadius:isLastActive?4:0,borderBottomRightRadius:isLastActive?4:0,
-                                    background:`linear-gradient(to bottom, rgba(255,255,255,0.45), rgba(255,255,255,0) 45%, rgba(0,0,0,0.25)), ${barGradient}`,
+                                    borderTopLeftRadius:isFirstActive?8:0,borderBottomLeftRadius:isFirstActive?8:0,
+                                    borderTopRightRadius:isLastActive?8:0,borderBottomRightRadius:isLastActive?8:0,
+                                    background:`linear-gradient(to bottom, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.25) 22%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.45) 100%), ${barGradient}`,
                                     opacity:count?1:0.35,
-                                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 1px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.25)"}} />
+                                    boxShadow:"inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -1.5px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(0,0,0,0.3)"}} />
                                 )}
-                                <span style={{position:"relative",color:active?"#fff":"transparent",textShadow:active?"0 1px 2px rgba(0,0,0,0.6)":"none"}}>{count||(active?"·":"")}</span>
+                                <span style={{position:"relative",color:active?"#fff":"transparent",textShadow:active?"0 1px 2px rgba(0,0,0,0.75)":"none"}}>{count||(active?"·":"")}</span>
                               </td>
                             );
                           })}
