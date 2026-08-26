@@ -4529,16 +4529,19 @@ function FlugbuchApp() {
   // darunter andocken statt zu überlappen.
   const titleBarRef = useRef(null);
   const statsBlockRef = useRef(null);
+  const group1HeaderRef = useRef(null);
   const [titleBarHeight, setTitleBarHeight] = useState(0);
   const [statsBlockHeight, setStatsBlockHeight] = useState(0);
+  const [group1HeaderHeight, setGroup1HeaderHeight] = useState(0);
   useEffect(() => {
-    const els = [titleBarRef.current, statsBlockRef.current].filter(Boolean);
+    const els = [titleBarRef.current, statsBlockRef.current, group1HeaderRef.current].filter(Boolean);
     if (!els.length || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
         const h = Math.ceil(entry.contentRect.height);
         if (entry.target === titleBarRef.current) setTitleBarHeight(h);
         if (entry.target === statsBlockRef.current) setStatsBlockHeight(h);
+        if (entry.target === group1HeaderRef.current) setGroup1HeaderHeight(h);
       }
     });
     els.forEach(el => ro.observe(el));
@@ -6488,7 +6491,7 @@ function FlugbuchApp() {
               const cmp = numericOrder ? (a.order - b.order) : String(a.order).localeCompare(String(b.order), "de", {numeric:true, sensitivity:"base"});
               return lvl.dir === "desc" ? -cmp : cmp;
             });
-            return scored.map(({key, groupFlights}) => {
+            return scored.map(({key, groupFlights}, scoredIdx) => {
               const collapseKey = prefix + "|" + key;
               const isCollapsed = lvl.collapsed.has(collapseKey);
               const label = groupFlights.length ? formatSortValue(groupFlights[0], lvl.id) : key;
@@ -6497,7 +6500,8 @@ function FlugbuchApp() {
               const biplace = depth===0 ? groupFlights.filter(f=>(f.customFields?.passagier||"").trim()).length : 0;
               return (
                 <div key={key}>
-                  <div onClick={()=>{
+                  <div ref={depth===0 && scoredIdx===0 ? group1HeaderRef : null}
+                    onClick={()=>{
                       if (selectMode) {
                         const ids = groupFlights.map(f=>f.id);
                         const allSelected = ids.every(id=>selectedIds.has(id));
@@ -6512,7 +6516,7 @@ function FlugbuchApp() {
                     }}
                     style={depth===0
                       ? {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"#0a1628",borderBottom:"1px solid rgba(255,255,255,0.04)",position:"sticky",top:titleBarHeight+(filterText.trim()?statsBlockHeight:0),zIndex:8}
-                      : {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+                      : {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"#0d1b30",borderBottom:"1px solid rgba(255,255,255,0.03)",position:"sticky",top:titleBarHeight+(filterText.trim()?statsBlockHeight:0)+group1HeaderHeight,zIndex:7}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       {selectMode && depth===0 && (() => {
                         const ids = groupFlights.map(f=>f.id);
