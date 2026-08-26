@@ -4538,7 +4538,12 @@ function FlugbuchApp() {
     if (!els.length || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
-        const h = Math.ceil(entry.contentRect.height);
+        // getBoundingClientRect() immer nehmen statt entry.contentRect —
+        // Letzteres liefert nur die Innenhöhe ohne Padding/Rahmen, was hier
+        // (Padding auf allen drei gemessenen Elementen) zu einer zu klein
+        // berechneten "top"-Position für die tiefer gestapelten Ebenen
+        // führte (sichtbarer Spalt/Überlappung beim Kat.2-Titel).
+        const h = Math.ceil(entry.target.getBoundingClientRect().height);
         if (entry.target === titleBarRef.current) setTitleBarHeight(h);
         if (entry.target === statsBlockRef.current) setStatsBlockHeight(h);
         if (entry.target === group1HeaderRef.current) setGroup1HeaderHeight(h);
