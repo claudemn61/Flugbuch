@@ -910,15 +910,20 @@ function deriveGliderCategory(typs) {
 }
 const GLIDER_TIMELINE_COLORS = ["#7dd3fc","#4ade80","#fbbf24","#f87171","#a78bfa","#38bdf8","#fb923c","#facc15","#34d399","#f472b6"];
 const CATEGORY_ORDER = ["Standard","Tandem","Leicht"];
+// Feste (nicht transparente) Farben — bei halbtransparenten rgba-Werten
+// blendet sich die Farbe je nachdem, was gerade "dahinter" sichtbar ist,
+// leicht unterschiedlich zwischen der fixierten und der normal
+// scrollenden Zelle derselben Zeile, was wie ein Farbbruch beim Scrollen
+// aussah. Mit deckenden Farben gibt es nichts mehr, das durchscheinen kann.
 const CATEGORY_STYLE = {
-  Standard: { bg:"rgba(59,130,246,0.18)", color:"#93c5fd" },
-  Tandem:   { bg:"rgba(74,222,128,0.18)", color:"#86efac" },
-  Leicht:   { bg:"rgba(251,191,36,0.18)", color:"#fde047" },
+  Standard: { bg:"#1e3a5f", color:"#93c5fd" },
+  Tandem:   { bg:"#1e4a2e", color:"#86efac" },
+  Leicht:   { bg:"#4a3b0f", color:"#fde047" },
 };
 function SchirmTimeline({ flights }) {
   const [filterText, setFilterText] = useState("");
   const [editMode, setEditMode] = useState(false);
-  const [config, setConfig] = useState({ colors: {}, order: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]} }
+  const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]}, hidden: {name:true} }
   const [loaded, setLoaded] = useState(false);
   const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
   const [collapsed, setCollapsed] = useState(false);
@@ -947,6 +952,11 @@ function SchirmTimeline({ flights }) {
     if (newIdx < 0 || newIdx >= names.length) return;
     [names[idx], names[newIdx]] = [names[newIdx], names[idx]];
     saveConfig({ ...config, order: { ...config.order, [category]: names } });
+  };
+  const toggleGliderHidden = (name) => {
+    const hidden = { ...(config.hidden||{}) };
+    if (hidden[name]) delete hidden[name]; else hidden[name] = true;
+    saveConfig({ ...config, hidden });
   };
 
   const filtered = filterText.trim() ? matchFlights(flights, filterText) : flights;
@@ -980,7 +990,12 @@ function SchirmTimeline({ flights }) {
     const byName = new Map(list.map(g=>[g.name,g]));
     const ordered = savedOrder.map(n=>byName.get(n)).filter(Boolean);
     const remaining = list.filter(g=>!savedOrder.includes(g.name)).sort((a,b)=>b.since-a.since);
-    return { cat, list: [...ordered, ...remaining] };
+    // Ausgeblendete Schirme verschwinden im Normalzustand komplett; im
+    // Bearbeiten-Modus bleiben sie sichtbar (gedimmt), damit man sie
+    // wieder einblenden kann.
+    const full = [...ordered, ...remaining];
+    const visible = editMode ? full : full.filter(g => !config.hidden?.[g.name]);
+    return { cat, list: visible };
   }).filter(g => g.list.length);
 
   const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
@@ -1013,9 +1028,9 @@ function SchirmTimeline({ flights }) {
           <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap",tableLayout:"fixed"}}>
             <thead>
               <tr>
-                <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
-                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
-                {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,boxSizing:"border-box",padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
+                <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,textAlign:"left",padding:"5px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
+                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
+                {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,boxSizing:"border-box",padding:"5px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
 
@@ -1025,7 +1040,7 @@ function SchirmTimeline({ flights }) {
                 return (
                   <React.Fragment key={cat}>
                     <tr>
-                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
+                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"4px 10px",zIndex:3}}>{cat}</td>
                       <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
                     </tr>
                     {list.map((g, idx) => {
@@ -1035,25 +1050,28 @@ function SchirmTimeline({ flights }) {
                       const c2 = custom.c2 || null;
                       const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
                       const textColor = c1;
+                      const isHidden = !!config.hidden?.[g.name];
                       return (
                         <React.Fragment key={g.name}>
-                        <tr>
-                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,boxSizing:"border-box",overflow:"hidden",background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                        <tr style={{opacity:editMode&&isHidden?0.4:1}}>
+                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,boxSizing:"border-box",overflow:"hidden",background:"#2a0d17",padding:"4px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
+                            <div style={{display:"flex",alignItems:"center",gap:5,minWidth:0}}>
                               {editMode && (
                                 <>
+                                  <button onClick={()=>toggleGliderHidden(g.name)} title={isHidden?"Einblenden":"Ausblenden"}
+                                    style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:"pointer",flexShrink:0,padding:0}}>{isHidden?"🚫":"👁"}</button>
                                   <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
-                                    style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:18,height:18,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
+                                    style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
                                   <button onClick={()=>moveGlider(cat, idx, 1)} disabled={idx===list.length-1}
-                                    style={{opacity:idx===list.length-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:18,height:18,fontSize:9,color:"#e8f4fd",cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
+                                    style={{opacity:idx===list.length-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
                                   <button onClick={()=>setPickerFor(pickerFor===g.name?null:g.name)}
-                                    style={{width:16,height:16,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
+                                    style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
                                 </>
                               )}
                               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
                             </div>
                           </td>
-                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
+                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
                           {yearCols.map(y => {
                             const count = g.years.get(y);
                             // Der Balken läuft durchgehend über die ganze
@@ -1063,7 +1081,7 @@ function SchirmTimeline({ flights }) {
                             const active = y >= g.since && y <= g.until;
                             const bg = !active ? "transparent" : (c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1);
                             return (
-                              <td key={y} style={{textAlign:"center",padding:"6px 6px",background:bg,opacity:active?(count?1:0.4):1,color:active?textColor:"transparent",fontWeight:700}}>
+                              <td key={y} style={{textAlign:"center",padding:"4px 6px",background:bg,opacity:active?(count?1:0.4):1,color:active?textColor:"transparent",fontWeight:700}}>
                                 {count||(active?"·":"")}
                               </td>
                             );
