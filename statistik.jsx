@@ -1025,7 +1025,8 @@ function SchirmTimeline({ flights }) {
                 return (
                   <React.Fragment key={cat}>
                     <tr>
-                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:1}}>{cat}</td>
+                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
+                      <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
                     </tr>
                     {list.map((g, idx) => {
                       const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
@@ -1070,7 +1071,7 @@ function SchirmTimeline({ flights }) {
                         </tr>
                         {editMode && pickerFor===g.name && (
                           <tr>
-                            <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#1a0910",padding:"8px 10px",zIndex:1}}>
+                            <td colSpan={2+yearCols.length} style={{background:"#1a0910",padding:"8px 10px"}}>
                               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                                 <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
                                   Farbe 1
