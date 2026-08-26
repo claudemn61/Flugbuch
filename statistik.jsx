@@ -962,7 +962,7 @@ function SchirmTimeline({ flights }) {
   });
   const gliders = [...byGlider.values()].map(g => {
     const years = [...g.years.keys()].map(Number).sort((a,b)=>a-b);
-    return { ...g, category: deriveGliderCategory(g.typs), since: years[0], years: g.years };
+    return { ...g, category: deriveGliderCategory(g.typs), since: years[0], until: years[years.length-1], years: g.years };
   });
   const allYears = gliders.flatMap(g => [...g.years.keys()].map(Number));
   const maxYear = allYears.length ? Math.max(...allYears) : new Date().getFullYear();
@@ -1046,9 +1046,15 @@ function SchirmTimeline({ flights }) {
                           <td style={{position:"sticky",left:0,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)"}}>{g.since}</td>
                           {yearCols.map(y => {
                             const count = g.years.get(y);
+                            // Der Balken läuft durchgehend über die ganze
+                            // Nutzungsspanne (since–until), auch in Jahren
+                            // ohne Flug dazwischen — nur die Zahl zeigt an,
+                            // ob in diesem konkreten Jahr geflogen wurde.
+                            const active = y >= g.since && y <= g.until;
+                            const bg = !active ? "transparent" : (c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1);
                             return (
-                              <td key={y} style={{textAlign:"center",padding:"6px 6px",background:count?c1+"33":"transparent",backgroundImage:count&&c2?`linear-gradient(90deg, ${c1}55, ${c2}55)`:undefined,color:count?textColor:"transparent",fontWeight:700}}>
-                                {count||"·"}
+                              <td key={y} style={{textAlign:"center",padding:"6px 6px",background:bg,opacity:active?(count?1:0.4):1,color:active?textColor:"transparent",fontWeight:700}}>
+                                {count||(active?"·":"")}
                               </td>
                             );
                           })}
