@@ -1007,7 +1007,7 @@ function SchirmTimeline({ flights }) {
   const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
   return (
-    <div style={{margin:"0 16px 14px"}}>
+    <div style={{margin:"14px 16px 14px"}}>
       <div style={{background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:14,overflow:"hidden"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px"}}>
           <button onClick={()=>setCollapsed(c=>!c)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:0}}>
@@ -1022,7 +1022,7 @@ function SchirmTimeline({ flights }) {
         </div>
         {!collapsed && (
         <>
-        <div style={{padding:"6px 10px 8px",marginTop:2}}>
+        <div style={{padding:"0 10px 14px",marginTop:14}}>
           <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={knownGliders} />
         </div>
         {gliders.length === 0 ? (
