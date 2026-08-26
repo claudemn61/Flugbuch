@@ -896,29 +896,32 @@ function StatistikApp() {
 // abgeleitet: pro Schirm zählt, welcher Typ unter dessen Flügen am
 // häufigsten vorkommt (ein Schirm wird ja i.d.R. konsistent für eine
 // Einsatzart geflogen).
+// Kategorie-Titel entsprechen jetzt exakt den Typ-Werten aus dem Flugbuch
+// (Solo/Biplace/Hike) statt eigener Bezeichnungen — pro Flug zählt bei
+// "Hike, Biplace" (beides zugleich) ausdrücklich Biplace, nicht Hike.
 function deriveGliderCategory(typs) {
   let biplace = 0, hike = 0, solo = 0;
   typs.forEach(t => {
     const s = (t||"").toLowerCase();
-    if (s.includes("hike")) hike++;
-    else if (s.includes("biplace")) biplace++;
+    if (s.includes("biplace")) biplace++;
+    else if (s.includes("hike")) hike++;
     else solo++;
   });
-  if (hike >= biplace && hike >= solo && hike > 0) return "Leicht";
-  if (biplace >= solo && biplace > 0) return "Tandem";
-  return "Standard";
+  if (biplace >= hike && biplace >= solo && biplace > 0) return "Biplace";
+  if (hike >= solo && hike > 0) return "Hike";
+  return "Solo";
 }
 const GLIDER_TIMELINE_COLORS = ["#7dd3fc","#4ade80","#fbbf24","#f87171","#a78bfa","#38bdf8","#fb923c","#facc15","#34d399","#f472b6"];
-const CATEGORY_ORDER = ["Standard","Tandem","Leicht"];
+const CATEGORY_ORDER = ["Solo","Biplace","Hike"];
 // Feste (nicht transparente) Farben — bei halbtransparenten rgba-Werten
 // blendet sich die Farbe je nachdem, was gerade "dahinter" sichtbar ist,
 // leicht unterschiedlich zwischen der fixierten und der normal
 // scrollenden Zelle derselben Zeile, was wie ein Farbbruch beim Scrollen
 // aussah. Mit deckenden Farben gibt es nichts mehr, das durchscheinen kann.
 const CATEGORY_STYLE = {
-  Standard: { bg:"#1e3a5f", color:"#93c5fd" },
-  Tandem:   { bg:"#1e4a2e", color:"#86efac" },
-  Leicht:   { bg:"#4a3b0f", color:"#fde047" },
+  Solo:    { bg:"#1e3a5f", color:"#93c5fd" },
+  Biplace: { bg:"#1e4a2e", color:"#86efac" },
+  Hike:    { bg:"#4a3b0f", color:"#fde047" },
 };
 function SchirmTimeline({ flights }) {
   const [filterText, setFilterText] = useState("");
@@ -1005,13 +1008,7 @@ function SchirmTimeline({ flights }) {
 
   return (
     <div style={{margin:"0 16px 14px"}}>
-      <div style={{marginBottom:8}}>
-        <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={knownGliders} />
-      </div>
-      {gliders.length === 0 ? (
-        <div style={{padding:"16px 4px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Flüge für diesen Filter.</div>
-      ) : (
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,overflow:"hidden"}}>
+      <div style={{background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:14,overflow:"hidden"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px"}}>
           <button onClick={()=>setCollapsed(c=>!c)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:0}}>
             <span style={{fontSize:10}}>{collapsed?"▸":"▾"}</span> Schirm-Zeitleiste
@@ -1024,6 +1021,13 @@ function SchirmTimeline({ flights }) {
           )}
         </div>
         {!collapsed && (
+        <>
+        <div style={{padding:"6px 10px 8px",marginTop:2}}>
+          <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={knownGliders} />
+        </div>
+        {gliders.length === 0 ? (
+          <div style={{padding:"16px 14px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Flüge für diesen Filter.</div>
+        ) : (
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap",tableLayout:"fixed"}}>
             <thead>
@@ -1149,8 +1153,9 @@ function SchirmTimeline({ flights }) {
           </table>
         </div>
         )}
+        </>
+        )}
       </div>
-      )}
     </div>
   );
 }
