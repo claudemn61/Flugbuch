@@ -6404,7 +6404,7 @@ function FlugbuchApp() {
       {filterText.trim() && (
         <div style={{padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
-            style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"#7dd3fc",cursor:"pointer",width:"fit-content"}}>
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
             <span>{filteredFlights.length} Treffer</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
