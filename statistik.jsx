@@ -1013,9 +1013,9 @@ function SchirmTimeline({ flights }) {
           <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap",tableLayout:"fixed"}}>
             <thead>
               <tr>
-                <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,background:"#210710",zIndex:3,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
-                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#210710",zIndex:3,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
-                {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
+                <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
+                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
+                {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,boxSizing:"border-box",padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
 
@@ -1025,7 +1025,7 @@ function SchirmTimeline({ flights }) {
                 return (
                   <React.Fragment key={cat}>
                     <tr>
-                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
+                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
                       <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
                     </tr>
                     {list.map((g, idx) => {
@@ -1038,7 +1038,7 @@ function SchirmTimeline({ flights }) {
                       return (
                         <React.Fragment key={g.name}>
                         <tr>
-                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,overflow:"hidden",background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
+                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,boxSizing:"border-box",overflow:"hidden",background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
                             <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                               {editMode && (
                                 <>
@@ -1053,7 +1053,7 @@ function SchirmTimeline({ flights }) {
                               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
                             </div>
                           </td>
-                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
+                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
                           {yearCols.map(y => {
                             const count = g.years.get(y);
                             // Der Balken läuft durchgehend über die ganze
