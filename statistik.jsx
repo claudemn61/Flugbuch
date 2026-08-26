@@ -921,6 +921,7 @@ function SchirmTimeline({ flights }) {
   const [config, setConfig] = useState({ colors: {}, order: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]} }
   const [loaded, setLoaded] = useState(false);
   const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -985,6 +986,7 @@ function SchirmTimeline({ flights }) {
   const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
   let colorIdx = 0;
   if (!loaded) return null;
+  const NAME_COL_W = 130, SEIT_COL_W = 46;
 
   return (
     <div style={{margin:"0 16px 14px"}}>
@@ -995,28 +997,35 @@ function SchirmTimeline({ flights }) {
         <div style={{padding:"16px 4px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Flüge für diesen Filter.</div>
       ) : (
       <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,overflow:"hidden"}}>
-        <div style={{display:"flex",justifyContent:"flex-end",padding:"6px 8px 0"}}>
-          <button onClick={()=>{ setEditMode(m=>!m); setPickerFor(null); }} title={editMode?"Fertig":"Farben/Reihenfolge bearbeiten"}
-            style={{background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,borderRadius:8,width:28,height:28,fontSize:12,color:editMode?"#4ade80":"#7dd3fc",cursor:"pointer"}}>
-            {editMode?"✓":"✏️"}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px"}}>
+          <button onClick={()=>setCollapsed(c=>!c)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:0}}>
+            <span style={{fontSize:10}}>{collapsed?"▸":"▾"}</span> Schirm-Zeitleiste
           </button>
+          {!collapsed && (
+            <button onClick={()=>{ setEditMode(m=>!m); setPickerFor(null); }} title={editMode?"Fertig":"Farben/Reihenfolge bearbeiten"}
+              style={{background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,borderRadius:8,width:28,height:28,fontSize:12,color:editMode?"#4ade80":"#7dd3fc",cursor:"pointer"}}>
+              {editMode?"✓":"✏️"}
+            </button>
+          )}
         </div>
+        {!collapsed && (
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-          <table style={{borderCollapse:"collapse",fontSize:11,whiteSpace:"nowrap"}}>
+          <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap"}}>
             <thead>
               <tr>
-                <th style={{position:"sticky",left:0,background:"#210710",zIndex:2,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
-                <th style={{position:"sticky",left:0,background:"#210710",zIndex:2,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
+                <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,background:"#210710",zIndex:3,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
+                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#210710",zIndex:3,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
                 {yearCols.map(y => <th key={y} style={{padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
+
             <tbody>
               {grouped.map(({cat, list}) => {
                 const catStyle = CATEGORY_STYLE[cat];
                 return (
                   <React.Fragment key={cat}>
                     <tr>
-                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px"}}>{cat}</td>
+                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:1}}>{cat}</td>
                     </tr>
                     {list.map((g, idx) => {
                       const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
@@ -1028,7 +1037,7 @@ function SchirmTimeline({ flights }) {
                       return (
                         <React.Fragment key={g.name}>
                         <tr>
-                          <td style={{position:"sticky",left:0,background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd"}}>
+                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
                             <div style={{display:"flex",alignItems:"center",gap:6}}>
                               {editMode && (
                                 <>
@@ -1043,7 +1052,7 @@ function SchirmTimeline({ flights }) {
                               <span>{g.name}</span>
                             </div>
                           </td>
-                          <td style={{position:"sticky",left:0,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)"}}>{g.since}</td>
+                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
                           {yearCols.map(y => {
                             const count = g.years.get(y);
                             // Der Balken läuft durchgehend über die ganze
@@ -1061,7 +1070,7 @@ function SchirmTimeline({ flights }) {
                         </tr>
                         {editMode && pickerFor===g.name && (
                           <tr>
-                            <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#1a0910",padding:"8px 10px"}}>
+                            <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#1a0910",padding:"8px 10px",zIndex:1}}>
                               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                                 <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
                                   Farbe 1
@@ -1100,6 +1109,7 @@ function SchirmTimeline({ flights }) {
             </tbody>
           </table>
         </div>
+        )}
       </div>
       )}
     </div>
