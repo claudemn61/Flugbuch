@@ -1026,7 +1026,7 @@ function SchirmTimeline({ flights }) {
                   <React.Fragment key={cat}>
                     <tr>
                       <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
-                      <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
+                      <td colSpan={yearCols.length} />
                     </tr>
                     {list.map((g, idx) => {
                       const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
