@@ -4523,7 +4523,7 @@ function FlugbuchApp() {
   // derived, not real saved data.
   const flightsWithRanks = useMemo(() => attachComputedRanks(flights), [flights]);
   const [selected, setSelected] = useState(null);
-  const [showSearchStats, setShowSearchStats] = useState(false);
+  const [showSearchStats, setShowSearchStats] = useState(true);
   const [view, setView] = useState("list"); // list|detail|edit|season
   // ── Zustand für ungewollte Neustarts merken (iOS/Safari kann die Seite
   // bei wenig Speicher jederzeit beenden — beim nächsten Öffnen landet man
@@ -6404,9 +6404,9 @@ function FlugbuchApp() {
       {filterText.trim() && (
         <div style={{padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
-            style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"rgba(232,244,253,0.45)",cursor:"pointer",width:"fit-content"}}>
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"#7dd3fc",cursor:"pointer",width:"fit-content"}}>
             <span>{filteredFlights.length} Treffer</span>
-            {filteredFlights.length>0 && <span style={{fontSize:9}}>{showSearchStats?"▾":"▸"}</span>}
+            {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
           {showSearchStats && filteredFlights.length>0 && (
             <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3}}>
