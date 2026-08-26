@@ -924,7 +924,6 @@ const CATEGORY_STYLE = {
   Hike:    { bg:"#4a3b0f", color:"#fde047" },
 };
 function SchirmTimeline({ flights }) {
-  const [filterText, setFilterText] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]}, hidden: {name:true} }
   const [loaded, setLoaded] = useState(false);
@@ -962,7 +961,7 @@ function SchirmTimeline({ flights }) {
     saveConfig({ ...config, hidden });
   };
 
-  const filtered = filterText.trim() ? matchFlights(flights, filterText) : flights;
+  const filtered = flights;
   const byGlider = new Map();
   filtered.forEach(f => {
     const name = f.glider;
@@ -1001,7 +1000,6 @@ function SchirmTimeline({ flights }) {
     return { cat, list: visible };
   }).filter(g => g.list.length);
 
-  const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
   let colorIdx = 0;
   if (!loaded) return null;
   const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
@@ -1021,12 +1019,8 @@ function SchirmTimeline({ flights }) {
           )}
         </div>
         {!collapsed && (
-        <>
-        <div style={{padding:"0 10px 14px",marginTop:14}}>
-          <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={knownGliders} />
-        </div>
-        {gliders.length === 0 ? (
-          <div style={{padding:"16px 14px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Flüge für diesen Filter.</div>
+        gliders.length === 0 ? (
+          <div style={{padding:"16px 14px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Schirm-Daten vorhanden.</div>
         ) : (
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap",tableLayout:"fixed"}}>
@@ -1152,8 +1146,7 @@ function SchirmTimeline({ flights }) {
             </tbody>
           </table>
         </div>
-        )}
-        </>
+        )
         )}
       </div>
     </div>
