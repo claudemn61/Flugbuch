@@ -4520,6 +4520,30 @@ function FlugbuchApp() {
   const flightsWithRanks = useMemo(() => attachComputedRanks(flights), [flights]);
   const [selected, setSelected] = useState(null);
   const [showSearchStats, setShowSearchStats] = useState(true);
+  // Fixierte Kopfzeilen (Titel-Leiste, dann die "X Flüge"/Wertetabelle,
+  // dann die Kategorie-Titel darunter) stapeln sich mit position:sticky —
+  // da jede eigene Höhe hat und die Wertetabelle je nach Suche/Zustand
+  // ein-/ausblendet, wird deren tatsächliche Höhe per ResizeObserver
+  // laufend gemessen, statt einen festen Pixel-Wert zu raten. Kategorie-
+  // Titel bekommen diese Summe als eigenen "top"-Wert, damit sie exakt
+  // darunter andocken statt zu überlappen.
+  const titleBarRef = useRef(null);
+  const statsBlockRef = useRef(null);
+  const [titleBarHeight, setTitleBarHeight] = useState(0);
+  const [statsBlockHeight, setStatsBlockHeight] = useState(0);
+  useEffect(() => {
+    const els = [titleBarRef.current, statsBlockRef.current].filter(Boolean);
+    if (!els.length || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const h = Math.ceil(entry.contentRect.height);
+        if (entry.target === titleBarRef.current) setTitleBarHeight(h);
+        if (entry.target === statsBlockRef.current) setStatsBlockHeight(h);
+      }
+    });
+    els.forEach(el => ro.observe(el));
+    return () => ro.disconnect();
+  });
   const [view, setView] = useState("list"); // list|detail|edit|season
   // ── Zustand für ungewollte Neustarts merken (iOS/Safari kann die Seite
   // bei wenig Speicher jederzeit beenden — beim nächsten Öffnen landet man
@@ -5584,7 +5608,7 @@ function FlugbuchApp() {
       <input ref={pdfFileRef} type="file" accept=".pdf,.csv" style={{display:"none"}} onChange={e=>e.target.files[0]&&importPDFFile(e.target.files[0])} />
 
       {/* Header */}
-      <div style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
+      <div ref={titleBarRef} style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
         <button onClick={goHome} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
@@ -6398,7 +6422,7 @@ function FlugbuchApp() {
       </div>
 
       {filterText.trim() && (
-        <div style={{padding:"0 16px 8px"}}>
+        <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
             <span>{filteredFlights.length} Flüge</span>
@@ -6487,7 +6511,7 @@ function FlugbuchApp() {
                       }
                     }}
                     style={depth===0
-                      ? {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"rgba(255,255,255,0.02)",borderBottom:"1px solid rgba(255,255,255,0.04)"}
+                      ? {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px",cursor:"pointer",background:"#0a1628",borderBottom:"1px solid rgba(255,255,255,0.04)",position:"sticky",top:titleBarHeight+(filterText.trim()?statsBlockHeight:0),zIndex:8}
                       : {display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 16px 6px 28px",cursor:"pointer",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       {selectMode && depth===0 && (() => {
