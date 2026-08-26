@@ -986,7 +986,7 @@ function SchirmTimeline({ flights }) {
   const knownGliders = [...new Set(flights.map(f=>f.glider).filter(Boolean))].sort();
   let colorIdx = 0;
   if (!loaded) return null;
-  const NAME_COL_W = 130, SEIT_COL_W = 46;
+  const NAME_COL_W = 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
   return (
     <div style={{margin:"0 16px 14px"}}>
@@ -1010,12 +1010,12 @@ function SchirmTimeline({ flights }) {
         </div>
         {!collapsed && (
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-          <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap"}}>
+          <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:11,whiteSpace:"nowrap",tableLayout:"fixed"}}>
             <thead>
               <tr>
                 <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,background:"#210710",zIndex:3,textAlign:"left",padding:"7px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
                 <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#210710",zIndex:3,padding:"7px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
-                {yearCols.map(y => <th key={y} style={{padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
+                {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,padding:"7px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
 
@@ -1026,7 +1026,7 @@ function SchirmTimeline({ flights }) {
                   <React.Fragment key={cat}>
                     <tr>
                       <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"5px 10px",zIndex:3}}>{cat}</td>
-                      <td colSpan={yearCols.length} />
+                      <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
                     </tr>
                     {list.map((g, idx) => {
                       const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
@@ -1038,8 +1038,8 @@ function SchirmTimeline({ flights }) {
                       return (
                         <React.Fragment key={g.name}>
                         <tr>
-                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,overflow:"hidden",background:"#2a0d17",padding:"6px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                               {editMode && (
                                 <>
                                   <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
@@ -1050,7 +1050,7 @@ function SchirmTimeline({ flights }) {
                                     style={{width:16,height:16,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
                                 </>
                               )}
-                              <span>{g.name}</span>
+                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
                             </div>
                           </td>
                           <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,background:"#2a0d17",padding:"6px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
