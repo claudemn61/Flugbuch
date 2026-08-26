@@ -503,6 +503,20 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
 // screens each row renders as a stacked card instead of a wide table, since
 // the source tables have too many columns to fit comfortably.
 
+function parseDateToTs(d, timeStr) {
+  if (!d) return 0;
+  const m = String(d).match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+  if (!m) return 0;
+  let [_, dd, mm, yy] = m;
+  yy = yy.length === 2 ? (+yy >= 30 ? "19" + yy : "20" + yy) : yy;
+  let hh = 0, min = 0, sec = 0;
+  if (timeStr) {
+    const tm = String(timeStr).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (tm) { hh = +tm[1]; min = +tm[2]; sec = +(tm[3] || 0); }
+  }
+  return new Date(+yy, +mm - 1, +dd, hh, min, sec).getTime();
+}
+
 function fmtDateShort(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
