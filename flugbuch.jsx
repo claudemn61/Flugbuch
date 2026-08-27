@@ -4783,6 +4783,26 @@ function FlugbuchApp() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditData, setBulkEditData] = useState({});
+  // Beim Öffnen der Massen-Bearbeitung: Felder, die bei ALLEN ausgewählten
+  // Flügen denselben (nicht-leeren) Wert haben, gleich damit vorbefüllen
+  // statt leer mit "unverändert lassen" zu starten — man sieht so direkt,
+  // was schon übereinstimmt, und muss nur echte Abweichungen eintippen.
+  const BULK_CF_FIELDS = new Set(["landung","kmh","maxSteigen","maxSinken","hGew","typ","passagier","hikeStartpunkt","hikeOrt","hikeStarthoehe","hikeDauer","hikeZusatzValue","reise"]);
+  const computeCommonBulkValues = () => {
+    const selFlights = flights.filter(f => selectedIds.has(f.id));
+    if (!selFlights.length) return {};
+    const manualIds = customFieldDefs.filter(d => !d.formula && d.id!=="passagier" && d.id!=="typ").map(d=>d.id);
+    const keys = ["date","startTime","endTime","site","landung","startAlt","endAlt","maxAlt","totalDist","kmh","maxSteigen","maxSinken","hGew","glider","typ","passagier","hikeStartpunkt","hikeOrt","hikeStarthoehe","hikeDauer","hikeZusatzValue","rating","notes","reise", ...manualIds];
+    const result = {};
+    keys.forEach(key => {
+      const vals = selFlights.map(f => BULK_CF_FIELDS.has(key) || manualIds.includes(key) ? (f.customFields?.[key] ?? "") : (f[key] ?? ""));
+      const first = vals[0];
+      if (first !== "" && first != null && vals.every(v => String(v) === String(first))) {
+        result[key] = String(first);
+      }
+    });
+    return result;
+  };
   // Wie beim Datum im Flugdetail: eine Datumsänderung hier nummeriert
   // ALLE Flüge neu — deshalb erst nach expliziter Warnung anwendbar.
   const [confirmBulkDateRenumber, setConfirmBulkDateRenumber] = useState(false);
@@ -5892,6 +5912,7 @@ function FlugbuchApp() {
           </button>
           <button onClick={()=>{
               if (!selectedIds.size) { setCopyMsg("Keine Flüge ausgewählt."); return; }
+              setBulkEditData(computeCommonBulkValues());
               setBulkEditOpen(true);
             }}
             title="Auswahl bearbeiten"
