@@ -934,6 +934,15 @@ function schirmGroupKey(g, fieldId) {
 function schirmGroupColor(key, fieldId) {
   return fieldId === "typ" ? (TYP_COLOR[key] || "#7dd3fc") : "#7dd3fc";
 }
+// Die Namensspalte ist schmal — statt das Ende (Modell/Grösse, meist der
+// wichtigere Teil) wegzuschneiden, wird nur das erste Wort (i.d.R. die
+// Marke, z.B. "Advance") auf den Anfangsbuchstaben verkürzt, der Rest
+// bleibt vollständig sichtbar.
+function abbreviateGliderName(name) {
+  const idx = name.indexOf(" ");
+  if (idx < 0) return name;
+  return name[0] + "." + name.slice(idx);
+}
 // Fasst eine bereits sortierte Liste zu Gruppen zusammen — Reihenfolge der
 // Gruppen ergibt sich aus dem ersten Vorkommen in der sortierten Liste
 // (kein zusätzliches, "smartes" Gruppen-Sortieren).
@@ -1069,7 +1078,7 @@ function SchirmTimeline({ flights }) {
                   style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
               </>
             )}
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
+            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{abbreviateGliderName(g.name)}</span>
           </div>
         </td>
         <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
