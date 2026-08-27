@@ -947,6 +947,24 @@ function abbreviateGliderName(name, maxChars) {
   if (idx < 0) return name;
   return name[0] + "." + name.slice(idx);
 }
+// Titel + Wert der zweiten Spalte richten sich nach dem gewählten
+// Sortierfeld — bei "Name" bleibt es beim gewohnten "Seit" (Startjahr),
+// bei den anderen Feldern zeigt die Spalte direkt den sortierten Wert.
+function secondColLabel(sortField) {
+  if (sortField === "flights") return "Flüge";
+  if (sortField === "duration") return "Dauer";
+  if (sortField === "dist") return "km";
+  return "Seit";
+}
+function secondColValue(g, sortField) {
+  if (sortField === "flights") return String(g.totalFlights);
+  if (sortField === "duration") {
+    const h = Math.floor(g.maxDurationSec/3600), m = Math.floor((g.maxDurationSec%3600)/60);
+    return `${h}:${String(m).padStart(2,"0")}`;
+  }
+  if (sortField === "dist") return g.maxDist ? g.maxDist.toFixed(0) : "0";
+  return String(g.since);
+}
 // Fasst eine bereits sortierte Liste zu Gruppen zusammen — Reihenfolge der
 // Gruppen ergibt sich aus dem ersten Vorkommen in der sortierten Liste
 // (kein zusätzliches, "smartes" Gruppen-Sortieren).
@@ -1098,7 +1116,7 @@ function SchirmTimeline({ flights }) {
             <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{abbreviateGliderName(g.name, maxChars)}</span>
           </div>
         </td>
-        <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
+        <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{secondColValue(g, config.sortField)}</td>
         {yearCols.map((y, yi) => {
           const count = g.years.get(y);
           const active = y >= g.since && y <= g.until;
@@ -1211,7 +1229,7 @@ function SchirmTimeline({ flights }) {
             <thead>
               <tr>
                 <th style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,textAlign:"left",padding:"5px 10px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Schirm</th>
-                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>Seit</th>
+                <th style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#210710",zIndex:3,padding:"5px 8px",color:"rgba(232,244,253,0.4)",fontWeight:600}}>{secondColLabel(config.sortField)}</th>
                 {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,boxSizing:"border-box",padding:"5px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
