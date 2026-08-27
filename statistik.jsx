@@ -1031,14 +1031,22 @@ function SchirmTimeline({ flights }) {
     saveConfig({ ...config, order: { ...config.order, [bucketPath]: names } });
   };
 
-  let colorIdx = 0;
+  // Stabile Farbzuweisung pro Schirm (alphabetisch, unabhängig von
+  // Gruppierung/Sortierung/Ein-Ausblenden) — vorher wurde ein gemeinsamer
+  // Zähler beim Rendern hochgezählt, der sich je nach Render-Reihenfolge
+  // verschob und dieselbe automatische Farbe zwischen Schirmen "springen"
+  // liess (inkonsistentes Bearbeiten-UI).
+  const colorIndexByName = new Map(
+    [...gliders].sort((a,b)=>a.name.localeCompare(b.name)).map((g,i)=>[g.name,i])
+  );
   if (!loaded) return null;
   const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
   // Einzelne Schirm-Zeile.
   const renderGliderRow = (g, bucketPath, idx, items) => {
     const listLen = items.length;
-    const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
+    const colorIdx = colorIndexByName.get(g.name) || 0;
+    const auto = GLIDER_TIMELINE_COLORS[colorIdx % GLIDER_TIMELINE_COLORS.length];
     const custom = config.colors[g.name] || {};
     const c1 = custom.c1 || auto;
     const c2 = custom.c2 || null;
