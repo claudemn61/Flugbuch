@@ -929,6 +929,8 @@ function SchirmTimeline({ flights }) {
   const [loaded, setLoaded] = useState(false);
   const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
   const [collapsed, setCollapsed] = useState(false);
+  const [collapsedCats, setCollapsedCats] = useState(new Set());
+  const toggleCat = (cat) => setCollapsedCats(prev => { const n=new Set(prev); n.has(cat)?n.delete(cat):n.add(cat); return n; });
 
   useEffect(() => {
     (async () => {
@@ -960,6 +962,7 @@ function SchirmTimeline({ flights }) {
     if (hidden[name]) delete hidden[name]; else hidden[name] = true;
     saveConfig({ ...config, hidden });
   };
+  const resetOrder = () => saveConfig({ ...config, order: {} });
 
   const filtered = flights;
   const byGlider = new Map();
@@ -991,7 +994,7 @@ function SchirmTimeline({ flights }) {
     const savedOrder = config.order[cat] || [];
     const byName = new Map(list.map(g=>[g.name,g]));
     const ordered = savedOrder.map(n=>byName.get(n)).filter(Boolean);
-    const remaining = list.filter(g=>!savedOrder.includes(g.name)).sort((a,b)=>b.since-a.since);
+    const remaining = list.filter(g=>!savedOrder.includes(g.name)).sort((a,b)=>a.since-b.since);
     // Ausgeblendete Schirme verschwinden im Normalzustand komplett; im
     // Bearbeiten-Modus bleiben sie sichtbar (gedimmt), damit man sie
     // wieder einblenden kann.
@@ -1004,6 +1007,100 @@ function SchirmTimeline({ flights }) {
   if (!loaded) return null;
   const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
+  const mergedView = collapsedCats.size > 0 && !editMode;
+  const mergedList = mergedView
+    ? grouped.filter(gr=>!collapsedCats.has(gr.cat)).flatMap(gr=>gr.list).sort((a,b)=>a.since-b.since)
+    : null;
+  // Einzelne Schirm-Zeile — als Funktion statt inline, damit sie sowohl in
+  // der normalen, nach Kategorie gruppierten Ansicht als auch in der
+  // typübergreifenden Ansicht (sobald eine Kategorie eingeklappt ist)
+  // identisch wiederverwendet werden kann.
+  const renderGliderRow = (g, cat, idx, listLen) => {
+    const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
+    const custom = config.colors[g.name] || {};
+    const c1 = custom.c1 || auto;
+    const c2 = custom.c2 || null;
+    const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+    const isHidden = !!config.hidden?.[g.name];
+    return (
+      <React.Fragment key={g.name}>
+      <tr style={{opacity:editMode&&isHidden?0.4:1}}>
+        <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,boxSizing:"border-box",overflow:"hidden",background:"#2a0d17",padding:"4px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,minWidth:0}}>
+            {editMode && (
+              <>
+                <button onClick={()=>toggleGliderHidden(g.name)} title={isHidden?"Einblenden":"Ausblenden"}
+                  style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:"pointer",flexShrink:0,padding:0}}>{isHidden?"🚫":"👁"}</button>
+                <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
+                  style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
+                <button onClick={()=>moveGlider(cat, idx, 1)} disabled={idx===listLen-1}
+                  style={{opacity:idx===listLen-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===listLen-1?"default":"pointer",flexShrink:0}}>▼</button>
+                <button onClick={()=>setPickerFor(pickerFor===g.name?null:g.name)}
+                  style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
+              </>
+            )}
+            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
+          </div>
+        </td>
+        <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
+        {yearCols.map((y, yi) => {
+          const count = g.years.get(y);
+          const active = y >= g.since && y <= g.until;
+          const barGradient = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+          const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
+          const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
+          return (
+            <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:30,fontWeight:700}}>
+              {active && (
+                <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:24,transform:"translateY(-50%)",
+                  borderRadius:0,
+                  borderTopLeftRadius:isFirstActive?8:0,borderBottomLeftRadius:isFirstActive?8:0,
+                  borderTopRightRadius:isLastActive?8:0,borderBottomRightRadius:isLastActive?8:0,
+                  background:`linear-gradient(to bottom, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.25) 22%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.45) 100%), ${barGradient}`,
+                  opacity:count?1:0.35,
+                  boxShadow:"inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -1.5px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(0,0,0,0.3)"}} />
+              )}
+              <span style={{position:"relative",color:active?"#fff":"transparent",textShadow:active?"0 1px 2px rgba(0,0,0,0.75)":"none"}}>{count||(active?"·":"")}</span>
+            </td>
+          );
+        })}
+      </tr>
+      {editMode && pickerFor===g.name && (
+        <tr>
+          <td colSpan={2+yearCols.length} style={{background:"#1a0910",padding:"8px 10px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
+                Farbe 1
+                <input type="color" value={c1} onChange={e=>setGliderColor(g.name,{c1:e.target.value})}
+                  style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+              </label>
+              {c2 ? (
+                <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
+                  Farbe 2
+                  <input type="color" value={c2} onChange={e=>setGliderColor(g.name,{c2:e.target.value})}
+                    style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+                  <button onClick={()=>setGliderColor(g.name,{c2:null})} style={{background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:14,cursor:"pointer"}}>✕</button>
+                </label>
+              ) : (
+                <button onClick={()=>setGliderColor(g.name,{c2:GLIDER_TIMELINE_COLORS[(colorIdx+3)%GLIDER_TIMELINE_COLORS.length]})}
+                  style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.2)",borderRadius:7,padding:"4px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
+                  + 2. Farbe
+                </button>
+              )}
+              {(custom.c1||custom.c2) && (
+                <button onClick={()=>{ const nc={...config.colors}; delete nc[g.name]; saveConfig({...config,colors:nc}); }}
+                  style={{background:"transparent",border:"none",color:"rgba(248,113,113,0.7)",fontSize:11,cursor:"pointer"}}>
+                  Zurücksetzen
+                </button>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div style={{margin:"14px 16px 14px"}}>
       <div style={{background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:14,overflow:"hidden"}}>
@@ -1012,10 +1109,18 @@ function SchirmTimeline({ flights }) {
             <span style={{fontSize:10}}>{collapsed?"▸":"▾"}</span> Schirm-Zeitleiste
           </button>
           {!collapsed && (
-            <button onClick={()=>{ setEditMode(m=>!m); setPickerFor(null); }} title={editMode?"Fertig":"Farben/Reihenfolge bearbeiten"}
-              style={{background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,borderRadius:8,width:28,height:28,fontSize:12,color:editMode?"#4ade80":"#7dd3fc",cursor:"pointer"}}>
-              {editMode?"✓":"✏️"}
-            </button>
+            <div style={{display:"flex",gap:6}}>
+              {editMode && (
+                <button onClick={resetOrder} title="Reihenfolge zurücksetzen (alle Schirme wieder nach erstem Flug sortiert)"
+                  style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:8,width:28,height:28,fontSize:12,color:"#f87171",cursor:"pointer"}}>
+                  🔄
+                </button>
+              )}
+              <button onClick={()=>{ setEditMode(m=>!m); setPickerFor(null); }} title={editMode?"Fertig":"Farben/Reihenfolge bearbeiten"}
+                style={{background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,borderRadius:8,width:28,height:28,fontSize:12,color:editMode?"#4ade80":"#7dd3fc",cursor:"pointer"}}>
+                {editMode?"✓":"✏️"}
+              </button>
+            </div>
           )}
         </div>
         {!collapsed && (
@@ -1033,116 +1138,41 @@ function SchirmTimeline({ flights }) {
             </thead>
 
             <tbody>
-              {grouped.map(({cat, list}) => {
-                const catStyle = CATEGORY_STYLE[cat];
-                return (
-                  <React.Fragment key={cat}>
+              {mergedView ? (
+                <>
+                  {collapsedCats.size > 0 && (
                     <tr>
-                      <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:catStyle.bg,color:catStyle.color,fontWeight:700,padding:"4px 10px",zIndex:3}}>{cat}</td>
-                      <td colSpan={yearCols.length} style={{background:catStyle.bg}} />
+                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#210710",padding:"4px 10px"}}>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {[...collapsedCats].map(cat => (
+                            <button key={cat} onClick={()=>toggleCat(cat)}
+                              style={{background:"none",border:`1px solid ${CATEGORY_STYLE[cat].color}`,borderRadius:20,padding:"2px 10px",color:CATEGORY_STYLE[cat].color,fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                              ▸ {cat}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
                     </tr>
-                    {list.map((g, idx) => {
-                      const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
-                      const custom = config.colors[g.name] || {};
-                      const c1 = custom.c1 || auto;
-                      const c2 = custom.c2 || null;
-                      const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
-                      const textColor = c1;
-                      const isHidden = !!config.hidden?.[g.name];
-                      return (
-                        <React.Fragment key={g.name}>
-                        <tr style={{opacity:editMode&&isHidden?0.4:1}}>
-                          <td style={{position:"sticky",left:0,width:NAME_COL_W,minWidth:NAME_COL_W,maxWidth:NAME_COL_W,boxSizing:"border-box",overflow:"hidden",background:"#2a0d17",padding:"4px 10px",fontWeight:600,color:"#e8f4fd",zIndex:1}}>
-                            <div style={{display:"flex",alignItems:"center",gap:5,minWidth:0}}>
-                              {editMode && (
-                                <>
-                                  <button onClick={()=>toggleGliderHidden(g.name)} title={isHidden?"Einblenden":"Ausblenden"}
-                                    style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:"pointer",flexShrink:0,padding:0}}>{isHidden?"🚫":"👁"}</button>
-                                  <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
-                                    style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
-                                  <button onClick={()=>moveGlider(cat, idx, 1)} disabled={idx===list.length-1}
-                                    style={{opacity:idx===list.length-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
-                                  <button onClick={()=>setPickerFor(pickerFor===g.name?null:g.name)}
-                                    style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
-                                </>
-                              )}
-                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{g.name}</span>
-                            </div>
-                          </td>
-                          <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
-                          {yearCols.map((y, yi) => {
-                            const count = g.years.get(y);
-                            // Der Balken läuft durchgehend über die ganze
-                            // Nutzungsspanne (since–until), auch in Jahren
-                            // ohne Flug dazwischen — die Zahl im Balken zeigt
-                            // an, ob und wie oft in diesem Jahr geflogen wurde.
-                            const active = y >= g.since && y <= g.until;
-                            const barGradient = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
-                            // Durchgehender statt segmentierter Balken: kein
-                            // Rand-Abstand/keine Rundung zwischen benachbarten
-                            // aktiven Jahren — nur die beiden äusseren Enden
-                            // der Nutzungsspanne (since/until) werden gerundet.
-                            const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
-                            const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
-                            return (
-                              <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700}}>
-                                {active && (
-                                  // Stabförmiger 3D-Look: kräftiger Glanzstreifen
-                                  // im oberen Drittel, abgedunkelte Ränder oben
-                                  // und unten, plus Kontur-Schatten — wirkt wie
-                                  // ein liegender, zylindrischer Stab statt
-                                  // einer flachen Fläche.
-                                  <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:16,transform:"translateY(-50%)",
-                                    borderRadius:0,
-                                    borderTopLeftRadius:isFirstActive?8:0,borderBottomLeftRadius:isFirstActive?8:0,
-                                    borderTopRightRadius:isLastActive?8:0,borderBottomRightRadius:isLastActive?8:0,
-                                    background:`linear-gradient(to bottom, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.25) 22%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.2) 70%, rgba(0,0,0,0.45) 100%), ${barGradient}`,
-                                    opacity:count?1:0.35,
-                                    boxShadow:"inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -1.5px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(0,0,0,0.3)"}} />
-                                )}
-                                <span style={{position:"relative",color:active?"#fff":"transparent",textShadow:active?"0 1px 2px rgba(0,0,0,0.75)":"none"}}>{count||(active?"·":"")}</span>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        {editMode && pickerFor===g.name && (
-                          <tr>
-                            <td colSpan={2+yearCols.length} style={{background:"#1a0910",padding:"8px 10px"}}>
-                              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                                <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
-                                  Farbe 1
-                                  <input type="color" value={c1} onChange={e=>setGliderColor(g.name,{c1:e.target.value})}
-                                    style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
-                                </label>
-                                {c2 ? (
-                                  <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
-                                    Farbe 2
-                                    <input type="color" value={c2} onChange={e=>setGliderColor(g.name,{c2:e.target.value})}
-                                      style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
-                                    <button onClick={()=>setGliderColor(g.name,{c2:null})} style={{background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:14,cursor:"pointer"}}>✕</button>
-                                  </label>
-                                ) : (
-                                  <button onClick={()=>setGliderColor(g.name,{c2:GLIDER_TIMELINE_COLORS[(colorIdx+3)%GLIDER_TIMELINE_COLORS.length]})}
-                                    style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.2)",borderRadius:7,padding:"4px 8px",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer"}}>
-                                    + 2. Farbe
-                                  </button>
-                                )}
-                                {(custom.c1||custom.c2) && (
-                                  <button onClick={()=>{ const nc={...config.colors}; delete nc[g.name]; saveConfig({...config,colors:nc}); }}
-                                    style={{background:"transparent",border:"none",color:"rgba(248,113,113,0.7)",fontSize:11,cursor:"pointer"}}>
-                                    Zurücksetzen
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
+                  )}
+                  {mergedList.map((g, idx) => renderGliderRow(g, g.category, idx, mergedList.length))}
+                </>
+              ) : (
+                grouped.map(({cat, list}) => {
+                  const catStyle = CATEGORY_STYLE[cat];
+                  const catCollapsed = collapsedCats.has(cat);
+                  return (
+                    <React.Fragment key={cat}>
+                      <tr onClick={()=>toggleCat(cat)} style={{cursor:"pointer"}}>
+                        <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:"#210710",color:catStyle.color,fontWeight:700,padding:"4px 10px",zIndex:3,border:`1px solid ${catStyle.color}`,borderRight:"none"}}>
+                          <span style={{fontSize:9,marginRight:5}}>{catCollapsed?"▸":"▾"}</span>{cat}
+                        </td>
+                        <td colSpan={yearCols.length} style={{background:"#210710",border:`1px solid ${catStyle.color}`,borderLeft:"none"}} />
+                      </tr>
+                      {!catCollapsed && list.map((g, idx) => renderGliderRow(g, cat, idx, list.length))}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
