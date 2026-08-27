@@ -912,31 +912,56 @@ function deriveGliderCategory(typs) {
   return "Solo";
 }
 const GLIDER_TIMELINE_COLORS = ["#7dd3fc","#4ade80","#fbbf24","#f87171","#a78bfa","#38bdf8","#fb923c","#facc15","#34d399","#f472b6"];
-const CATEGORY_ORDER = ["Solo","Biplace","Hike"];
-// Feste (nicht transparente) Farben — bei halbtransparenten rgba-Werten
-// blendet sich die Farbe je nachdem, was gerade "dahinter" sichtbar ist,
-// leicht unterschiedlich zwischen der fixierten und der normal
-// scrollenden Zelle derselben Zeile, was wie ein Farbbruch beim Scrollen
-// aussah. Mit deckenden Farben gibt es nichts mehr, das durchscheinen kann.
-const CATEGORY_STYLE = {
-  Solo:    { bg:"#1e3a5f", color:"#93c5fd" },
-  Biplace: { bg:"#1e4a2e", color:"#86efac" },
-  Hike:    { bg:"#4a3b0f", color:"#fde047" },
-};
+const TYP_COLOR = { Solo: "#93c5fd", Biplace: "#86efac", Hike: "#fde047" };
+// Gr. 1°/Gr. 2° — dieselbe Idee wie in der Flugliste (Feld wählen, dazu
+// eine Sortierrichtung), statt fest einprogrammierter Typ-Kategorien mit
+// Aufklappen. Keine automatische "smarte" Sortierung mehr — die Reihen-
+// folge ergibt sich ausschliesslich aus dem gewählten Sortierfeld.
+const SCHIRM_GROUP_FIELDS = [
+  { id: "none", label: "Keine" },
+  { id: "typ",  label: "Typ" },
+  { id: "seit", label: "Seit" },
+];
+const SCHIRM_SORT_FIELDS = [
+  { id: "name", label: "Name" },
+  { id: "seit", label: "Seit" },
+];
+function schirmGroupKey(g, fieldId) {
+  if (fieldId === "typ") return deriveGliderCategory(g.typs);
+  if (fieldId === "seit") return String(g.since);
+  return null;
+}
+function schirmGroupColor(key, fieldId) {
+  return fieldId === "typ" ? (TYP_COLOR[key] || "#7dd3fc") : "#7dd3fc";
+}
+// Fasst eine bereits sortierte Liste zu Gruppen zusammen — Reihenfolge der
+// Gruppen ergibt sich aus dem ersten Vorkommen in der sortierten Liste
+// (kein zusätzliches, "smartes" Gruppen-Sortieren).
+function bucketize(list, fieldId) {
+  if (fieldId === "none") return [{ key: null, items: list }];
+  const map = new Map();
+  list.forEach(g => {
+    const k = schirmGroupKey(g, fieldId);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(g);
+  });
+  return [...map.entries()].map(([key, items]) => ({ key, items }));
+}
+
 function SchirmTimeline({ flights }) {
   const [editMode, setEditMode] = useState(false);
-  const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {} }); // { colors: {name:{c1,c2}}, order: {category:[names]}, hidden: {name:true} }
+  const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {}, group1: "none", group2: "none", sortField: "name", sortDir: "asc" });
   const [loaded, setLoaded] = useState(false);
   const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
   const [collapsed, setCollapsed] = useState(false);
-  const [collapsedCats, setCollapsedCats] = useState(new Set());
-  const toggleCat = (cat) => setCollapsedCats(prev => { const n=new Set(prev); n.has(cat)?n.delete(cat):n.add(cat); return n; });
+  const [collapsedBuckets, setCollapsedBuckets] = useState(new Set());
+  const toggleBucket = (path) => setCollapsedBuckets(prev => { const n=new Set(prev); n.has(path)?n.delete(path):n.add(path); return n; });
 
   useEffect(() => {
     (async () => {
       try {
         const r = await window.storage.get("schirmTimelineConfig");
-        if (r && r.value) setConfig(JSON.parse(r.value));
+        if (r && r.value) setConfig(prev => ({ ...prev, ...JSON.parse(r.value) }));
       } catch (e) {}
       setLoaded(true);
     })();
@@ -949,14 +974,6 @@ function SchirmTimeline({ flights }) {
     const next = { ...config, colors: { ...config.colors, [name]: { ...(config.colors[name]||{}), ...patch } } };
     saveConfig(next);
   };
-  const moveGlider = (category, idx, dir) => {
-    const list = grouped.find(g => g.cat === category)?.list || [];
-    const names = list.map(g => g.name);
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= names.length) return;
-    [names[idx], names[newIdx]] = [names[newIdx], names[idx]];
-    saveConfig({ ...config, order: { ...config.order, [category]: names } });
-  };
   const toggleGliderHidden = (name) => {
     const hidden = { ...(config.hidden||{}) };
     if (hidden[name]) delete hidden[name]; else hidden[name] = true;
@@ -964,9 +981,8 @@ function SchirmTimeline({ flights }) {
   };
   const resetOrder = () => saveConfig({ ...config, order: {} });
 
-  const filtered = flights;
   const byGlider = new Map();
-  filtered.forEach(f => {
+  flights.forEach(f => {
     const name = f.glider;
     if (!name) return;
     const year = Number(f.year || (f.date||"").split(".")[2]);
@@ -978,44 +994,50 @@ function SchirmTimeline({ flights }) {
   });
   const gliders = [...byGlider.values()].map(g => {
     const years = [...g.years.keys()].map(Number).sort((a,b)=>a-b);
-    return { ...g, category: deriveGliderCategory(g.typs), since: years[0], until: years[years.length-1], years: g.years };
+    return { ...g, since: years[0], until: years[years.length-1], years: g.years };
   });
   const allYears = gliders.flatMap(g => [...g.years.keys()].map(Number));
   const maxYear = allYears.length ? Math.max(...allYears) : new Date().getFullYear();
   const minYear = allYears.length ? Math.min(...allYears) : maxYear;
   const yearCols = [];
   for (let y = maxYear; y >= minYear; y--) yearCols.push(y);
-  // Reihenfolge pro Kategorie: gespeicherte Reihenfolge zuerst (soweit die
-  // Schirme noch in der aktuellen Auswahl vorkommen), neue/noch nicht
-  // einsortierte Schirme (z.B. gerade erst geflogen) hängen chronologisch
-  // ans Ende an, statt zu verschwinden.
-  const grouped = CATEGORY_ORDER.map(cat => {
-    const list = gliders.filter(g=>g.category===cat);
-    const savedOrder = config.order[cat] || [];
-    const byName = new Map(list.map(g=>[g.name,g]));
-    const ordered = savedOrder.map(n=>byName.get(n)).filter(Boolean);
-    const remaining = list.filter(g=>!savedOrder.includes(g.name)).sort((a,b)=>a.since-b.since);
-    // Ausgeblendete Schirme verschwinden im Normalzustand komplett; im
-    // Bearbeiten-Modus bleiben sie sichtbar (gedimmt), damit man sie
-    // wieder einblenden kann.
-    const full = [...ordered, ...remaining];
-    const visible = editMode ? full : full.filter(g => !config.hidden?.[g.name]);
-    return { cat, list: visible };
-  }).filter(g => g.list.length);
+
+  // Ausgeblendete Schirme verschwinden im Normalzustand komplett; im
+  // Bearbeiten-Modus bleiben sie sichtbar (gedimmt), damit man sie wieder
+  // einblenden kann.
+  const visibleGliders = editMode ? gliders : gliders.filter(g => !config.hidden?.[g.name]);
+  // Basis-Sortierung ausschliesslich nach dem gewählten Feld — keine
+  // automatische/"smarte" Sortierung mehr.
+  const sortDirMul = config.sortDir === "desc" ? -1 : 1;
+  const baseSorted = [...visibleGliders].sort((a,b) => {
+    if (config.sortField === "seit") return (a.since - b.since) * sortDirMul;
+    return a.name.localeCompare(b.name) * sortDirMul;
+  });
+  const level1Buckets = bucketize(baseSorted, config.group1);
+  // Manuelles Verschieben (▲▼) bleibt erhalten, wirkt aber innerhalb der
+  // jeweils aktuellen (Gr.1°/Gr.2°-)Gruppe statt fest pro Typ-Kategorie.
+  const applyManualOrder = (items, bucketPath) => {
+    const saved = config.order[bucketPath] || [];
+    const byName = new Map(items.map(g=>[g.name,g]));
+    const ordered = saved.map(n=>byName.get(n)).filter(Boolean);
+    const remaining = items.filter(g=>!saved.includes(g.name));
+    return [...ordered, ...remaining];
+  };
+  const moveGliderIn = (bucketPath, items, idx, dir) => {
+    const names = items.map(g=>g.name);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= names.length) return;
+    [names[idx], names[newIdx]] = [names[newIdx], names[idx]];
+    saveConfig({ ...config, order: { ...config.order, [bucketPath]: names } });
+  };
 
   let colorIdx = 0;
   if (!loaded) return null;
   const NAME_COL_W = editMode ? 172 : 130, SEIT_COL_W = 46, YEAR_COL_W = 44;
 
-  const mergedView = collapsedCats.size > 0 && !editMode;
-  const mergedList = mergedView
-    ? grouped.filter(gr=>!collapsedCats.has(gr.cat)).flatMap(gr=>gr.list).sort((a,b)=>a.since-b.since)
-    : null;
-  // Einzelne Schirm-Zeile — als Funktion statt inline, damit sie sowohl in
-  // der normalen, nach Kategorie gruppierten Ansicht als auch in der
-  // typübergreifenden Ansicht (sobald eine Kategorie eingeklappt ist)
-  // identisch wiederverwendet werden kann.
-  const renderGliderRow = (g, cat, idx, listLen) => {
+  // Einzelne Schirm-Zeile.
+  const renderGliderRow = (g, bucketPath, idx, items) => {
+    const listLen = items.length;
     const auto = GLIDER_TIMELINE_COLORS[colorIdx++ % GLIDER_TIMELINE_COLORS.length];
     const custom = config.colors[g.name] || {};
     const c1 = custom.c1 || auto;
@@ -1031,9 +1053,9 @@ function SchirmTimeline({ flights }) {
               <>
                 <button onClick={()=>toggleGliderHidden(g.name)} title={isHidden?"Einblenden":"Ausblenden"}
                   style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:"pointer",flexShrink:0,padding:0}}>{isHidden?"🚫":"👁"}</button>
-                <button onClick={()=>moveGlider(cat, idx, -1)} disabled={idx===0}
+                <button onClick={()=>moveGliderIn(bucketPath, items, idx, -1)} disabled={idx===0}
                   style={{opacity:idx===0?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
-                <button onClick={()=>moveGlider(cat, idx, 1)} disabled={idx===listLen-1}
+                <button onClick={()=>moveGliderIn(bucketPath, items, idx, 1)} disabled={idx===listLen-1}
                   style={{opacity:idx===listLen-1?0.25:1,background:"rgba(255,255,255,0.08)",border:"none",borderRadius:5,width:16,height:16,fontSize:9,color:"#e8f4fd",cursor:idx===listLen-1?"default":"pointer",flexShrink:0}}>▼</button>
                 <button onClick={()=>setPickerFor(pickerFor===g.name?null:g.name)}
                   style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
@@ -1050,9 +1072,9 @@ function SchirmTimeline({ flights }) {
           const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
           const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
           return (
-            <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:30,fontWeight:700}}>
+            <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700}}>
               {active && (
-                <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:24,transform:"translateY(-50%)",
+                <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:16,transform:"translateY(-50%)",
                   borderRadius:0,
                   borderTopLeftRadius:isFirstActive?8:0,borderBottomLeftRadius:isFirstActive?8:0,
                   borderTopRightRadius:isLastActive?8:0,borderBottomRightRadius:isLastActive?8:0,
@@ -1101,6 +1123,14 @@ function SchirmTimeline({ flights }) {
     );
   };
 
+  // Kleines wiederverwendbares Dropdown fürs Gr.1°/Gr.2°/Sortieren-Menü.
+  const MiniSelect = ({ value, onChange, options }) => (
+    <select value={value} onChange={e=>onChange(e.target.value)}
+      style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"3px 4px",color:"#e8f4fd",fontSize:11}}>
+      {options.map(o=><option key={o.id} value={o.id} style={{background:"#0a1628"}}>{o.label}</option>)}
+    </select>
+  );
+
   return (
     <div style={{margin:"14px 16px 14px"}}>
       <div style={{background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:14,overflow:"hidden"}}>
@@ -1111,7 +1141,7 @@ function SchirmTimeline({ flights }) {
           {!collapsed && (
             <div style={{display:"flex",gap:6}}>
               {editMode && (
-                <button onClick={resetOrder} title="Reihenfolge zurücksetzen (alle Schirme wieder nach erstem Flug sortiert)"
+                <button onClick={resetOrder} title="Manuelle Reihenfolge zurücksetzen"
                   style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:8,width:28,height:28,fontSize:12,color:"#f87171",cursor:"pointer"}}>
                   🔄
                 </button>
@@ -1124,7 +1154,26 @@ function SchirmTimeline({ flights }) {
           )}
         </div>
         {!collapsed && (
-        gliders.length === 0 ? (
+        <>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",padding:"0 10px 10px"}}>
+          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"rgba(232,244,253,0.5)"}}>
+            Gr. 1°
+            <MiniSelect value={config.group1} onChange={v=>saveConfig({...config,group1:v})} options={SCHIRM_GROUP_FIELDS} />
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"rgba(232,244,253,0.5)"}}>
+            Gr. 2°
+            <MiniSelect value={config.group2} onChange={v=>saveConfig({...config,group2:v})} options={SCHIRM_GROUP_FIELDS} />
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"rgba(232,244,253,0.5)"}}>
+            Sortieren
+            <MiniSelect value={config.sortField} onChange={v=>saveConfig({...config,sortField:v})} options={SCHIRM_SORT_FIELDS} />
+            <button onClick={()=>saveConfig({...config,sortDir:config.sortDir==="desc"?"asc":"desc"})}
+              style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,width:22,height:22,color:"#e8f4fd",fontSize:11,cursor:"pointer"}}>
+              {config.sortDir==="desc"?"↓":"↑"}
+            </button>
+          </label>
+        </div>
+        {gliders.length === 0 ? (
           <div style={{padding:"16px 14px",color:"rgba(232,244,253,0.35)",fontSize:13,fontStyle:"italic"}}>Keine Schirm-Daten vorhanden.</div>
         ) : (
         <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -1136,47 +1185,49 @@ function SchirmTimeline({ flights }) {
                 {yearCols.map(y => <th key={y} style={{width:YEAR_COL_W,boxSizing:"border-box",padding:"5px 6px",color:"rgba(232,244,253,0.35)",fontWeight:600}}>{y}</th>)}
               </tr>
             </thead>
-
             <tbody>
-              {mergedView ? (
-                <>
-                  {collapsedCats.size > 0 && (
-                    <tr>
-                      <td colSpan={2+yearCols.length} style={{position:"sticky",left:0,background:"#210710",padding:"4px 10px"}}>
-                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                          {[...collapsedCats].map(cat => (
-                            <button key={cat} onClick={()=>toggleCat(cat)}
-                              style={{background:"none",border:`1px solid ${CATEGORY_STYLE[cat].color}`,borderRadius:20,padding:"2px 10px",color:CATEGORY_STYLE[cat].color,fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                              ▸ {cat}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {mergedList.map((g, idx) => renderGliderRow(g, g.category, idx, mergedList.length))}
-                </>
-              ) : (
-                grouped.map(({cat, list}) => {
-                  const catStyle = CATEGORY_STYLE[cat];
-                  const catCollapsed = collapsedCats.has(cat);
-                  return (
-                    <React.Fragment key={cat}>
-                      <tr onClick={()=>toggleCat(cat)} style={{cursor:"pointer"}}>
-                        <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:"#210710",color:catStyle.color,fontWeight:700,padding:"4px 10px",zIndex:3,border:`1px solid ${catStyle.color}`,borderRight:"none"}}>
-                          <span style={{fontSize:9,marginRight:5}}>{catCollapsed?"▸":"▾"}</span>{cat}
+              {level1Buckets.map(l1 => {
+                const l1Path = `g1:${l1.key ?? "_"}`;
+                const l1Collapsed = collapsedBuckets.has(l1Path);
+                const level2Buckets = bucketize(l1.items, config.group2);
+                const l1Color = schirmGroupColor(l1.key, config.group1);
+                return (
+                  <React.Fragment key={l1Path}>
+                    {config.group1 !== "none" && (
+                      <tr onClick={()=>toggleBucket(l1Path)} style={{cursor:"pointer"}}>
+                        <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:"#210710",color:l1Color,fontWeight:700,padding:"4px 10px",zIndex:3,border:`1px solid ${l1Color}`,borderRight:"none"}}>
+                          <span style={{fontSize:9,marginRight:5}}>{l1Collapsed?"▸":"▾"}</span>{l1.key}
                         </td>
-                        <td colSpan={yearCols.length} style={{background:"#210710",border:`1px solid ${catStyle.color}`,borderLeft:"none"}} />
+                        <td colSpan={yearCols.length} style={{background:"#210710",border:`1px solid ${l1Color}`,borderLeft:"none"}} />
                       </tr>
-                      {!catCollapsed && list.map((g, idx) => renderGliderRow(g, cat, idx, list.length))}
-                    </React.Fragment>
-                  );
-                })
-              )}
+                    )}
+                    {!l1Collapsed && level2Buckets.map(l2 => {
+                      const l2Path = `${l1Path}|g2:${l2.key ?? "_"}`;
+                      const l2Collapsed = collapsedBuckets.has(l2Path);
+                      const finalItems = applyManualOrder(l2.items, l2Path);
+                      const l2Color = schirmGroupColor(l2.key, config.group2);
+                      return (
+                        <React.Fragment key={l2Path}>
+                          {config.group2 !== "none" && (
+                            <tr onClick={()=>toggleBucket(l2Path)} style={{cursor:"pointer"}}>
+                              <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:"#1a0910",color:l2Color,fontWeight:700,padding:"3px 10px 3px 20px",zIndex:2,border:`1px solid ${l2Color}`,borderRight:"none"}}>
+                                <span style={{fontSize:9,marginRight:5}}>{l2Collapsed?"▸":"▾"}</span>{l2.key}
+                              </td>
+                              <td colSpan={yearCols.length} style={{background:"#1a0910",border:`1px solid ${l2Color}`,borderLeft:"none"}} />
+                            </tr>
+                          )}
+                          {!l2Collapsed && finalItems.map((g, idx) => renderGliderRow(g, l2Path, idx, finalItems))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        )
+        )}
+        </>
         )}
       </div>
     </div>
