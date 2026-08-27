@@ -938,7 +938,8 @@ function schirmGroupColor(key, fieldId) {
 // wichtigere Teil) wegzuschneiden, wird nur das erste Wort (i.d.R. die
 // Marke, z.B. "Advance") auf den Anfangsbuchstaben verkürzt, der Rest
 // bleibt vollständig sichtbar.
-function abbreviateGliderName(name) {
+function abbreviateGliderName(name, maxChars) {
+  if (name.length <= maxChars) return name;
   const idx = name.indexOf(" ");
   if (idx < 0) return name;
   return name[0] + "." + name.slice(idx);
@@ -1061,6 +1062,13 @@ function SchirmTimeline({ flights }) {
     const c2 = custom.c2 || null;
     const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
     const isHidden = !!config.hidden?.[g.name];
+    // Nur abkürzen, wenn die volle Bezeichnung rechnerisch nicht passt —
+    // verfügbare Breite = Spaltenbreite minus Padding minus (im
+    // Bearbeiten-Modus) Platz für die vier Icons, geteilt durch eine
+    // grobe durchschnittliche Zeichenbreite dieser fetten 11px-Schrift.
+    const iconsW = editMode ? 4*16 + 3*5 + 5 : 0;
+    const availablePx = NAME_COL_W - 20 - iconsW;
+    const maxChars = Math.floor(availablePx / 6.3);
     return (
       <React.Fragment key={g.name}>
       <tr style={{opacity:editMode&&isHidden?0.4:1}}>
@@ -1078,7 +1086,7 @@ function SchirmTimeline({ flights }) {
                   style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
               </>
             )}
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{abbreviateGliderName(g.name)}</span>
+            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{abbreviateGliderName(g.name, maxChars)}</span>
           </div>
         </td>
         <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{g.since}</td>
