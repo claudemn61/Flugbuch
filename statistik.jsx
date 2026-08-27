@@ -1097,18 +1097,18 @@ function SchirmTimeline({ flights }) {
       </tr>
       {editMode && pickerFor===g.name && (
         <tr>
-          <td colSpan={2+yearCols.length} style={{background:"#1a0910",padding:"8px 10px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <td colSpan={2+yearCols.length} style={{background:"#1a0910",padding:0}}>
+            <div style={{position:"sticky",left:0,width:"calc(100vw - 32px)",maxWidth:"90vw",boxSizing:"border-box",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"8px 10px"}}>
               <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
                 Farbe 1
                 <input type="color" value={c1} onChange={e=>setGliderColor(g.name,{c1:e.target.value})}
-                  style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+                  style={{width:30,height:22,border:"1px solid rgba(255,255,255,0.25)",borderRadius:5,padding:0}} />
               </label>
               {c2 ? (
                 <label style={{fontSize:11,color:"rgba(232,244,253,0.5)",display:"flex",alignItems:"center",gap:5}}>
                   Farbe 2
                   <input type="color" value={c2} onChange={e=>setGliderColor(g.name,{c2:e.target.value})}
-                    style={{width:30,height:22,border:"none",borderRadius:5,padding:0,background:"none"}} />
+                    style={{width:30,height:22,border:"1px solid rgba(255,255,255,0.25)",borderRadius:5,padding:0}} />
                   <button onClick={()=>setGliderColor(g.name,{c2:null})} style={{background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:14,cursor:"pointer"}}>✕</button>
                 </label>
               ) : (
