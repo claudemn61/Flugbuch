@@ -913,7 +913,7 @@ function deriveGliderCategory(typs) {
 }
 const GLIDER_TIMELINE_COLORS = ["#7dd3fc","#4ade80","#fbbf24","#f87171","#a78bfa","#38bdf8","#fb923c","#facc15","#34d399","#f472b6"];
 const TYP_COLOR = { Solo: "#93c5fd", Biplace: "#86efac", Hike: "#fde047" };
-// Gr. 1°/Gr. 2° — dieselbe Idee wie in der Flugliste (Feld wählen, dazu
+// Gr. 1° — dieselbe Idee wie in der Flugliste (Feld wählen, dazu
 // eine Sortierrichtung), statt fest einprogrammierter Typ-Kategorien mit
 // Aufklappen. Keine automatische "smarte" Sortierung mehr — die Reihen-
 // folge ergibt sich ausschliesslich aus dem gewählten Sortierfeld.
@@ -925,6 +925,9 @@ const SCHIRM_GROUP_FIELDS = [
 const SCHIRM_SORT_FIELDS = [
   { id: "name", label: "Name" },
   { id: "seit", label: "Seit" },
+  { id: "flights", label: "Anzahl Flüge" },
+  { id: "duration", label: "Längster Flug" },
+  { id: "dist", label: "Weitester Flug" },
 ];
 function schirmGroupKey(g, fieldId) {
   if (fieldId === "typ") return deriveGliderCategory(g.typs);
@@ -960,7 +963,7 @@ function bucketize(list, fieldId) {
 
 function SchirmTimeline({ flights }) {
   const [editMode, setEditMode] = useState(false);
-  const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {}, group1: "none", group2: "none", sortField: "name", sortDir: "asc" });
+  const [config, setConfig] = useState({ colors: {}, order: {}, hidden: {}, group1: "none", sortField: "name", sortDir: "asc" });
   const [loaded, setLoaded] = useState(false);
   const [pickerFor, setPickerFor] = useState(null); // name of glider whose color popover is open
   const [collapsed, setCollapsed] = useState(false);
@@ -997,10 +1000,13 @@ function SchirmTimeline({ flights }) {
     if (!name) return;
     const year = Number(f.year || (f.date||"").split(".")[2]);
     if (!year) return;
-    if (!byGlider.has(name)) byGlider.set(name, { name, years: new Map(), typs: [] });
+    if (!byGlider.has(name)) byGlider.set(name, { name, years: new Map(), typs: [], totalFlights: 0, maxDurationSec: 0, maxDist: 0 });
     const g = byGlider.get(name);
     g.years.set(year, (g.years.get(year)||0) + 1);
     g.typs.push(f.customFields?.typ);
+    g.totalFlights++;
+    if ((f.durationSec||0) > g.maxDurationSec) g.maxDurationSec = f.durationSec||0;
+    if ((f.totalDist||0) > g.maxDist) g.maxDist = f.totalDist||0;
   });
   const gliders = [...byGlider.values()].map(g => {
     const years = [...g.years.keys()].map(Number).sort((a,b)=>a-b);
@@ -1021,6 +1027,9 @@ function SchirmTimeline({ flights }) {
   const sortDirMul = config.sortDir === "desc" ? -1 : 1;
   const baseSorted = [...visibleGliders].sort((a,b) => {
     if (config.sortField === "seit") return (a.since - b.since) * sortDirMul;
+    if (config.sortField === "flights") return (a.totalFlights - b.totalFlights) * sortDirMul;
+    if (config.sortField === "duration") return (a.maxDurationSec - b.maxDurationSec) * sortDirMul;
+    if (config.sortField === "dist") return (a.maxDist - b.maxDist) * sortDirMul;
     return a.name.localeCompare(b.name) * sortDirMul;
   });
   const level1Buckets = bucketize(baseSorted, config.group1);
@@ -1186,10 +1195,6 @@ function SchirmTimeline({ flights }) {
             <MiniSelect value={config.group1} onChange={v=>saveConfig({...config,group1:v})} options={SCHIRM_GROUP_FIELDS} />
           </label>
           <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"rgba(232,244,253,0.5)"}}>
-            Gr. 2°
-            <MiniSelect value={config.group2} onChange={v=>saveConfig({...config,group2:v})} options={SCHIRM_GROUP_FIELDS} />
-          </label>
-          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"rgba(232,244,253,0.5)"}}>
             Sortieren
             <MiniSelect value={config.sortField} onChange={v=>saveConfig({...config,sortField:v})} options={SCHIRM_SORT_FIELDS} />
             <button onClick={()=>saveConfig({...config,sortDir:config.sortDir==="desc"?"asc":"desc"})}
@@ -1214,7 +1219,7 @@ function SchirmTimeline({ flights }) {
               {level1Buckets.map(l1 => {
                 const l1Path = `g1:${l1.key ?? "_"}`;
                 const l1Collapsed = collapsedBuckets.has(l1Path);
-                const level2Buckets = bucketize(l1.items, config.group2);
+                const finalItems = applyManualOrder(l1.items, l1Path);
                 const l1Color = schirmGroupColor(l1.key, config.group1);
                 return (
                   <React.Fragment key={l1Path}>
@@ -1226,25 +1231,7 @@ function SchirmTimeline({ flights }) {
                         <td colSpan={yearCols.length} style={{background:"#210710",border:`1px solid ${l1Color}`,borderLeft:"none"}} />
                       </tr>
                     )}
-                    {!l1Collapsed && level2Buckets.map(l2 => {
-                      const l2Path = `${l1Path}|g2:${l2.key ?? "_"}`;
-                      const l2Collapsed = collapsedBuckets.has(l2Path);
-                      const finalItems = applyManualOrder(l2.items, l2Path);
-                      const l2Color = schirmGroupColor(l2.key, config.group2);
-                      return (
-                        <React.Fragment key={l2Path}>
-                          {config.group2 !== "none" && (
-                            <tr onClick={()=>toggleBucket(l2Path)} style={{cursor:"pointer"}}>
-                              <td colSpan={2} style={{position:"sticky",left:0,width:NAME_COL_W+SEIT_COL_W,minWidth:NAME_COL_W+SEIT_COL_W,boxSizing:"border-box",background:"#1a0910",color:l2Color,fontWeight:700,padding:"3px 10px 3px 20px",zIndex:2,border:`1px solid ${l2Color}`,borderRight:"none"}}>
-                                <span style={{fontSize:9,marginRight:5}}>{l2Collapsed?"▸":"▾"}</span>{l2.key}
-                              </td>
-                              <td colSpan={yearCols.length} style={{background:"#1a0910",border:`1px solid ${l2Color}`,borderLeft:"none"}} />
-                            </tr>
-                          )}
-                          {!l2Collapsed && finalItems.map((g, idx) => renderGliderRow(g, l2Path, idx, finalItems))}
-                        </React.Fragment>
-                      );
-                    })}
+                    {!l1Collapsed && finalItems.map((g, idx) => renderGliderRow(g, l1Path, idx, finalItems))}
                   </React.Fragment>
                 );
               })}
