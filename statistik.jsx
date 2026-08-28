@@ -1306,6 +1306,23 @@ const STAT_COLUMNS_BY_ID = {
   landeplaetze: PLATZ_STAT_COLUMNS,
   hike: HIKE_STAT_COLUMNS,
 };
+// Kleines Badge neben Koordinaten — kopiert sie per Tippen in die
+// Zwischenablage, mit kurzer visueller Bestätigung (✓).
+function CopyBadge({ text }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={async (e) => {
+        e.stopPropagation();
+        try { await navigator.clipboard.writeText(text); } catch (err) {}
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+      title="Koordinaten kopieren"
+      style={{background:copied?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.06)",border:`1px solid ${copied?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.12)"}`,borderRadius:20,padding:"1px 6px",fontSize:9,color:copied?"#4ade80":"rgba(232,244,253,0.5)",cursor:"pointer",flexShrink:0,lineHeight:"14px"}}>
+      {copied ? "✓" : "📋"}
+    </button>
+  );
+}
 function StatTable({ table, sortOptions }) {
   const { rows, id } = table;
   const [sortField, setSortFieldRaw] = useState(sortOptions[0].id);
@@ -1408,8 +1425,9 @@ function StatTable({ table, sortOptions }) {
                 {r.name}
               </div>
               {(id === "landeplaetze" || id === "startplaetze") && r.lat && r.lon && (
-                <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:2,fontFamily:"monospace"}}>
-                  {r.lat.toFixed(5)}, {r.lon.toFixed(5)}
+                <div style={{fontSize:10,color:"rgba(232,244,253,0.35)",marginTop:2,fontFamily:"monospace",display:"flex",alignItems:"center",gap:5}}>
+                  <span>{r.lat.toFixed(5)}, {r.lon.toFixed(5)}</span>
+                  <CopyBadge text={`${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`} />
                 </div>
               )}
             </div>
