@@ -724,19 +724,15 @@ function StatistikApp() {
   const [flights, setFlights] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [openTable, setOpenTable] = useState(null); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze"
-  // If this page was left via a flight click (which stashes its state here
-  // before navigating to Flugbuch), restore exactly which category + row
-  // was open once, then forget it so a fresh visit doesn't get stuck.
-  const [restoreDetailName, setRestoreDetailName] = useState(null);
+  // If this page was left via a Statistik-entry click (which stashes its
+  // tableId here before navigating to Flugbuch), reopen the same tile once,
+  // then forget it so a fresh visit doesn't get stuck.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("statistik:returnState");
       if (raw) {
         const saved = JSON.parse(raw);
-        if (saved?.tableId) {
-          setOpenTable(saved.tableId);
-          setRestoreDetailName(saved.rowName || null);
-        }
+        if (saved?.tableId) setOpenTable(saved.tableId);
         sessionStorage.removeItem("statistik:returnState");
       }
     } catch {}
@@ -880,8 +876,7 @@ function StatistikApp() {
           : (
             <React.Fragment key={t.id}>
               {t.id === "schirm" && <SchirmTimeline flights={flights} />}
-              <StatTable table={t} sortOptions={SORT_OPTIONS[t.id]}
-                initialDetailName={openTable===t.id ? restoreDetailName : null} />
+              <StatTable table={t} sortOptions={SORT_OPTIONS[t.id]} />
             </React.Fragment>
           )
       ))}
@@ -1264,7 +1259,16 @@ function SchirmTimeline({ flights }) {
   );
 }
 
-function StatTable({ table, sortOptions, initialDetailName }) {
+// Welches Suchfeld der Flugliste einem Statistik-Eintrag entspricht — für
+// den Direktsprung mit passendem Filter beim Antippen eines Eintrags.
+const STAT_TABLE_FILTER_FIELD = {
+  schirm: "schirm",
+  startplaetze: "site",
+  landeplaetze: "landung",
+  passagiere: "passagier",
+  hike: "hikeOrt",
+};
+function StatTable({ table, sortOptions }) {
   const { rows, id } = table;
   const [sortField, setSortFieldRaw] = useState(sortOptions[0].id);
   const [sortDir, setSortDirRaw] = useState("desc");
@@ -1292,17 +1296,6 @@ function StatTable({ table, sortOptions, initialDetailName }) {
   const setSortField = (f) => { setSortFieldRaw(f); persistSort(f, sortDir); };
   const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function" ? updater(prev) : updater; persistSort(sortField, next); return next; }); };
   const [showSortMenu, setShowSortMenu] = useState(false);
-  const [openDetail, setOpenDetail] = useState(null); // the row (r) whose flight list is shown
-  // Restores the flight-list overlay for whichever row was open when the
-  // person left for Flugbuch (via initialDetailName, read from
-  // sessionStorage by the parent) — only once, on mount.
-  useEffect(() => {
-    if (initialDetailName) {
-      const match = rows.find(r => r.name === initialDetailName);
-      if (match) setOpenDetail(match);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // Keeps every card's chip row scrolled to the same horizontal position:
   // scrolling any one card's chips (e.g. one Schirm's stats) mirrors that
   // scrollLeft onto every other card's chip row, while each card's name/
@@ -1362,16 +1355,17 @@ function StatTable({ table, sortOptions, initialDetailName }) {
         <div key={idx} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8,gap:8}}>
             <div style={{flex:1,minWidth:0}}>
-              <div onClick={id === "schirm" ? () => {
-                  // Schirm: nicht mehr die eigene Flugliste-Übersicht
-                  // öffnen, sondern direkt zur echten Flugliste springen,
-                  // vorgefiltert auf diesen Schirm. Derselbe Rückkehr-
+              <div onClick={() => {
+                  // Nicht mehr die eigene Flugliste-Übersicht öffnen,
+                  // sondern direkt zur echten Flugliste springen, vor-
+                  // gefiltert auf diesen Eintrag. Derselbe Rückkehr-
                   // Mechanismus wie beim Antippen eines einzelnen Flugs
                   // (sessionStorage) sorgt dafür, dass "Zurück" wieder auf
-                  // Statistik/Schirm landet statt auf Home.
-                  try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "schirm", rowName: null })); } catch {}
-                  window.location.href = `flugbuch.html?filter=${encodeURIComponent('schirm:"'+r.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
-                } : () => setOpenDetail(r)}
+                  // dieselbe Statistik-Kachel landet statt auf Home.
+                  const field = STAT_TABLE_FILTER_FIELD[id];
+                  try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: id, rowName: null })); } catch {}
+                  window.location.href = `flugbuch.html?filter=${encodeURIComponent(field+':"'+r.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
+                }}
                 style={{fontSize:14,fontWeight:700,cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(232,244,253,0.25)",textUnderlineOffset:3}}>
                 {r.name}
               </div>
@@ -1422,7 +1416,6 @@ function StatTable({ table, sortOptions, initialDetailName }) {
           </div>
         </div>
       ))}
-      {openDetail && <FlightListOverlay row={openDetail} onClose={()=>setOpenDetail(null)} tableId={id} />}
     </div>
   );
 }
@@ -1448,82 +1441,6 @@ function flightListSortValue(f, sortId) {
   }
 }
 
-function FlightListOverlay({ row, onClose, tableId }) {
-  const [sortField, setSortField] = useState("date");
-  const [sortDir, setSortDir] = useState("desc");
-  const [showSortMenu, setShowSortMenu] = useState(false);
-
-  const sorted = [...row.flights].sort((a,b) => {
-    const av = flightListSortValue(a, sortField), bv = flightListSortValue(b, sortField);
-    return sortDir === "asc" ? av - bv : bv - av;
-  });
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"#210710",zIndex:300,overflowY:"auto"}}>
-      <div style={{position:"sticky",top:0,zIndex:10,background:"rgba(33,7,16,0.95)",backdropFilter:"blur(10px)",borderBottom:"1px solid rgba(255,255,255,0.08)",padding:"calc(16px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={onClose}
-          style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,width:32,height:32,color:"#e8f4fd",fontSize:16,cursor:"pointer",flexShrink:0}}>
-          ✕
-        </button>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:16,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{row.name}</div>
-          <div style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{row.flights.length} Flüge</div>
-        </div>
-      </div>
-
-      <div style={{padding:"12px 16px",position:"relative"}}>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setShowSortMenu(s=>!s)}
-            style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 12px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer"}}>
-            <span>⇅ {FLIGHT_LIST_SORT_OPTIONS.find(o=>o.id===sortField)?.label}</span>
-            <span>{showSortMenu?"▾":"▸"}</span>
-          </button>
-          <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}
-            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 14px",color:"#f87171",fontSize:14,cursor:"pointer"}}>
-            {sortDir==="asc"?"↑":"↓"}
-          </button>
-        </div>
-        {showSortMenu && (
-          <div style={{marginTop:6,background:"#2a0d16",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",position:"absolute",top:"100%",left:16,right:16,zIndex:20}}>
-            {FLIGHT_LIST_SORT_OPTIONS.map(o=>(
-              <div key={o.id} onClick={()=>{setSortField(o.id);setShowSortMenu(false);}}
-                style={{padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:o.id===sortField?"#f87171":"rgba(232,244,253,0.75)",background:o.id===sortField?"rgba(224,48,74,0.15)":"transparent"}}>
-                {o.label}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{padding:"0 16px 24px"}}>
-        {sorted.map(f => (
-          <div key={f.id}
-            onClick={()=>{
-              try {
-                sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId, rowName: row.name }));
-              } catch {}
-              window.location.href = `flugbuch.html?openFlightId=${encodeURIComponent(f.id)}&returnTo=${encodeURIComponent("statistik.html")}`;
-            }}
-            style={{padding:"11px 0",borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:700}}>{f.name}</div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>
-                {f.date} · {f.site||"—"}{f.customFields?.landung ? " → "+f.customFields.landung : ""}
-              </div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#f87171",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
-                {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
-                <span>{f.durationStr||fmtHM(f.durationSec||0)}</span>
-              </div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist?f.totalDist+" km":""}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function StatChip({ label, value }) {
   return (
