@@ -1284,6 +1284,28 @@ const SCHIRM_STAT_COLUMNS = [
   { label: "Erster Flug",      w: 54, value: r => fmtDateShort(r.first) },
   { label: "Letzter Flug",     w: 54, value: r => fmtDateShort(r.last) },
 ];
+const PASSAGIER_STAT_COLUMNS = [
+  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
+  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
+];
+const PLATZ_STAT_COLUMNS = [
+  { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
+  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
+  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
+];
+const HIKE_STAT_COLUMNS = [
+  { label: "Höhenmeter",   w: 58, value: r => r.hoehenmeter!=null ? `${r.hoehenmeter} m` : "—" },
+  { label: "Hike-Dauer",   w: 58, value: r => r.hikeDauer || "—" },
+  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
+  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
+];
+const STAT_COLUMNS_BY_ID = {
+  schirm: SCHIRM_STAT_COLUMNS,
+  passagiere: PASSAGIER_STAT_COLUMNS,
+  startplaetze: PLATZ_STAT_COLUMNS,
+  landeplaetze: PLATZ_STAT_COLUMNS,
+  hike: HIKE_STAT_COLUMNS,
+};
 function StatTable({ table, sortOptions }) {
   const { rows, id } = table;
   const [sortField, setSortFieldRaw] = useState(sortOptions[0].id);
@@ -1369,10 +1391,10 @@ function StatTable({ table, sortOptions }) {
         {rows.length} Einträge · {totalFlights} Flüge total
       </div>
 
-      {id === "schirm" && (
+      {STAT_COLUMNS_BY_ID[id] && (
         <div ref={headerRowRef} onScroll={handleChipScroll}
           style={{display:"flex",alignItems:"flex-start",gap:10,overflowX:"auto",padding:"0 14px 4px",WebkitOverflowScrolling:"touch",height:30}}>
-          {SCHIRM_STAT_COLUMNS.map(col => (
+          {STAT_COLUMNS_BY_ID[id].map(col => (
             <span key={col.label} lang="de" style={{width:col.w,flexShrink:0,fontSize:9,lineHeight:"11px",color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"normal",hyphens:"auto",WebkitHyphens:"auto",overflowWrap:"break-word"}}>
               {col.label}
             </span>
@@ -1413,27 +1435,12 @@ function StatTable({ table, sortOptions }) {
             <div style={{fontSize:13,fontWeight:700,color:"#f87171",flexShrink:0}}>{r.count} Flüge</div>
           </div>
           <div ref={el => { chipRowRefs.current[idx] = el; }} onScroll={handleChipScroll}
-            style={{display:"flex",gap:id==="schirm"?10:6,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
-            {id === "schirm" && SCHIRM_STAT_COLUMNS.map(col => (
+            style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
+            {(STAT_COLUMNS_BY_ID[id]||[]).map(col => (
               <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>
                 {col.value(r)}
               </span>
             ))}
-            {id === "passagiere" && (<>
-              <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
-              <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
-            </>)}
-            {(id === "landeplaetze" || id === "startplaetze") && (<>
-              {r.alt ? <StatChip label="m.ü.M." value={r.alt} /> : null}
-              <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
-              <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
-            </>)}
-            {id === "hike" && (<>
-              {r.hoehenmeter!=null ? <StatChip label="Höhenmeter" value={`${r.hoehenmeter} m`} /> : null}
-              {r.hikeDauer ? <StatChip label="Hike-Dauer" value={r.hikeDauer} /> : null}
-              <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
-              <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
-            </>)}
           </div>
         </div>
       ))}
@@ -1462,12 +1469,3 @@ function flightListSortValue(f, sortId) {
   }
 }
 
-
-function StatChip({ label, value }) {
-  return (
-    <span style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"5px 10px",whiteSpace:"nowrap",flexShrink:0}}>
-      <span style={{fontSize:9,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3}}>{label}</span>
-      <span style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)"}}>{value}</span>
-    </span>
-  );
-}
