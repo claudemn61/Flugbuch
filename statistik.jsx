@@ -1371,7 +1371,7 @@ function StatTable({ table, sortOptions }) {
 
       {id === "schirm" && (
         <div ref={headerRowRef} onScroll={handleChipScroll}
-          style={{display:"flex",alignItems:"flex-end",gap:10,overflowX:"auto",padding:"0 2px 4px",WebkitOverflowScrolling:"touch",height:30}}>
+          style={{display:"flex",alignItems:"flex-start",gap:10,overflowX:"auto",padding:"0 14px 4px",WebkitOverflowScrolling:"touch",height:30}}>
           {SCHIRM_STAT_COLUMNS.map(col => (
             <span key={col.label} lang="de" style={{width:col.w,flexShrink:0,fontSize:9,lineHeight:"11px",color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"normal",hyphens:"auto",WebkitHyphens:"auto",overflowWrap:"break-word"}}>
               {col.label}
