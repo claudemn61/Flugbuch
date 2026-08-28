@@ -2213,6 +2213,7 @@ function flightFieldValue(f, field){
     case "reise": return cf.reise||"";
     case "jahr": case "year": return f.year||"";
     case "monat": return f.month ? MONTH_NAMES_DE[+f.month-1] || "" : "";
+    case "tag": { const d = parseInt((f.date||"").split(".")[0], 10); return Number.isFinite(d) ? String(d) : ""; }
     case "std": { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h) : ""; }
     case "datum": case "date": return f.date||"";
     case "startzeit": case "starttime": return f.startTime||"";
@@ -2343,6 +2344,7 @@ const MONTH_NAMES_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","
 const GROUP_FIELDS = [
   { id: "jahr",    label: "Jahr" },
   { id: "monat",   label: "Monat" },
+  { id: "tag",     label: "Tag" },
   { id: "std",     label: "Std." },
   { id: "glider",  label: "Schirm" },
   { id: "typ",     label: "Typ" },
@@ -2507,6 +2509,7 @@ function sortFieldValue(f, sortId) {
     case "hikeDauer": return (cf.hikeDauer || "").toLowerCase();
     case "jahr":     return f.year || 0;
     case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
+    case "tag":      { const d = parseInt((f.date||"").split(".")[0], 10); return Number.isFinite(d) ? d : 0; }
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? h : -1; }
     default:         return 0;
   }
@@ -2615,6 +2618,7 @@ function formatSortValue(f, sortId) {
     case "hikeDauer": return cf.hikeDauer || "—";
     case "jahr":     return f.year ? String(f.year) : "—";
     case "monat":    return f.month ? MONTH_NAMES_DE[+f.month-1] || "—" : "—";
+    case "tag":      { const d = parseInt((f.date||"").split(".")[0], 10); return Number.isFinite(d) ? String(d)+"." : "—"; }
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h).padStart(2,"0")+"–"+String((h+1)%24).padStart(2,"0")+" Uhr" : "—"; }
     default:         return f.durationStr || "—";
   }
