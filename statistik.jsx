@@ -1339,14 +1339,12 @@ function StatTable({ table, sortOptions }) {
   // scrollLeft onto every other card's chip row, while each card's name/
   // title stays in normal (non-scrolling) flow above it.
   const chipRowRefs = useRef([]);
-  const headerRowRef = useRef(null);
   const syncingScroll = useRef(false);
   const handleChipScroll = (e) => {
     if (syncingScroll.current) return;
     syncingScroll.current = true;
     const left = e.target.scrollLeft;
     chipRowRefs.current.forEach(el => { if (el && el !== e.target) el.scrollLeft = left; });
-    if (headerRowRef.current && headerRowRef.current !== e.target) headerRowRef.current.scrollLeft = left;
     syncingScroll.current = false;
   };
 
@@ -1391,17 +1389,6 @@ function StatTable({ table, sortOptions }) {
         {rows.length} Einträge · {totalFlights} Flüge total
       </div>
 
-      {id === "schirm" && (
-        <div ref={headerRowRef} onScroll={handleChipScroll}
-          style={{display:"flex",alignItems:"flex-start",gap:10,overflowX:"auto",padding:"0 14px 4px",WebkitOverflowScrolling:"touch",height:30}}>
-          {STAT_COLUMNS_BY_ID[id].map(col => (
-            <span key={col.label} lang="de" style={{width:col.w,flexShrink:0,fontSize:9,lineHeight:"11px",color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"normal",hyphens:"auto",WebkitHyphens:"auto",overflowWrap:"break-word"}}>
-              {col.label}
-            </span>
-          ))}
-        </div>
-      )}
-
       {sorted.map((r,idx) => (
         <div key={idx} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8,gap:8}}>
@@ -1436,11 +1423,7 @@ function StatTable({ table, sortOptions }) {
           </div>
           <div ref={el => { chipRowRefs.current[idx] = el; }} onScroll={handleChipScroll}
             style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
-            {id === "schirm" ? (STAT_COLUMNS_BY_ID[id]||[]).map(col => (
-              <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>
-                {col.value(r)}
-              </span>
-            )) : (STAT_COLUMNS_BY_ID[id]||[]).map(col => (
+            {(STAT_COLUMNS_BY_ID[id]||[]).map(col => (
               <span key={col.label} style={{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,flexShrink:0}}>
                 <span style={{fontSize:8,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"nowrap"}}>{col.label}</span>
                 <span style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>{col.value(r)}</span>
