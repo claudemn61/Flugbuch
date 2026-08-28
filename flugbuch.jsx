@@ -2344,7 +2344,6 @@ const MONTH_NAMES_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","
 const GROUP_FIELDS = [
   { id: "jahr",    label: "Jahr" },
   { id: "monat",   label: "Monat" },
-  { id: "tag",     label: "Tag" },
   { id: "std",     label: "Std." },
   { id: "glider",  label: "Schirm" },
   { id: "typ",     label: "Typ" },
@@ -2359,6 +2358,8 @@ const SORT_OPTIONS = [
   { id: "number",   label: "Nummer" },
   { id: "date",     label: "Datum" },
   { id: "jahr",     label: "Jahr" },
+  { id: "monat",    label: "Monat" },
+  { id: "tag",      label: "Monatstag" },
   { id: "startTime", label: "Startzeit" },
   { id: "endTime",  label: "Landezeit" },
   { id: "site",     label: "Startplatz" },
