@@ -1268,6 +1268,22 @@ const STAT_TABLE_FILTER_FIELD = {
   passagiere: "passagier",
   hike: "hikeOrt",
 };
+// Einmal definiert, sowohl für die gemeinsame Kopfzeile als auch für jede
+// Schirm-Werte-Zeile genutzt — feste Breiten sorgen dafür, dass Titel oben
+// und Werte darunter sauber übereinander stehen.
+const SCHIRM_STAT_COLUMNS = [
+  { label: "Gesamte Flugzeit", w: 92, value: r => fmtHM(r.totalSec) },
+  { label: "Längster Flug",    w: 78, value: r => fmtHours(r.maxSec) },
+  { label: "Gesamte Distanz",  w: 92, value: r => `${r.totalDist.toFixed(1)} km` },
+  { label: "Weitester Flug",   w: 82, value: r => `${r.maxDist.toFixed(1)} km` },
+  { label: "Zeit/Flug",        w: 66, value: r => fmtHM(Math.round(r.totalSec/r.count)) },
+  { label: "km/Flug",          w: 66, value: r => `${(r.totalDist/r.count).toFixed(1)} km` },
+  { label: "Grösste Höhe",     w: 76, value: r => `${r.maxAlt} m` },
+  { label: "Startplätze",      w: 70, value: r => String(r.startSites) },
+  { label: "Landeplätze",      w: 74, value: r => String(r.endSites) },
+  { label: "Erster Flug",      w: 66, value: r => fmtDateShort(r.first) },
+  { label: "Letzter Flug",     w: 66, value: r => fmtDateShort(r.last) },
+];
 function StatTable({ table, sortOptions }) {
   const { rows, id } = table;
   const [sortField, setSortFieldRaw] = useState(sortOptions[0].id);
@@ -1301,12 +1317,14 @@ function StatTable({ table, sortOptions }) {
   // scrollLeft onto every other card's chip row, while each card's name/
   // title stays in normal (non-scrolling) flow above it.
   const chipRowRefs = useRef([]);
+  const headerRowRef = useRef(null);
   const syncingScroll = useRef(false);
   const handleChipScroll = (e) => {
     if (syncingScroll.current) return;
     syncingScroll.current = true;
     const left = e.target.scrollLeft;
     chipRowRefs.current.forEach(el => { if (el && el !== e.target) el.scrollLeft = left; });
+    if (headerRowRef.current && headerRowRef.current !== e.target) headerRowRef.current.scrollLeft = left;
     syncingScroll.current = false;
   };
 
@@ -1351,6 +1369,17 @@ function StatTable({ table, sortOptions }) {
         {rows.length} Einträge · {totalFlights} Flüge total
       </div>
 
+      {id === "schirm" && (
+        <div ref={headerRowRef} onScroll={handleChipScroll}
+          style={{display:"flex",gap:6,overflowX:"auto",padding:"0 2px 4px",WebkitOverflowScrolling:"touch"}}>
+          {SCHIRM_STAT_COLUMNS.map(col => (
+            <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:9,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"nowrap"}}>
+              {col.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       {sorted.map((r,idx) => (
         <div key={idx} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8,gap:8}}>
@@ -1385,19 +1414,11 @@ function StatTable({ table, sortOptions }) {
           </div>
           <div ref={el => { chipRowRefs.current[idx] = el; }} onScroll={handleChipScroll}
             style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
-            {id === "schirm" && (<>
-              <StatChip label="Gesamte Flugzeit" value={fmtHM(r.totalSec)} />
-              <StatChip label="Längster Flug" value={fmtHours(r.maxSec)} />
-              <StatChip label="Gesamte Distanz" value={`${r.totalDist.toFixed(1)} km`} />
-              <StatChip label="Weitester Flug" value={`${r.maxDist.toFixed(1)} km`} />
-              <StatChip label="Zeit/Flug" value={fmtHM(Math.round(r.totalSec/r.count))} />
-              <StatChip label="km/Flug" value={`${(r.totalDist/r.count).toFixed(1)} km`} />
-              <StatChip label="Grösste Höhe" value={`${r.maxAlt} m`} />
-              <StatChip label="Startplätze" value={r.startSites} />
-              <StatChip label="Landeplätze" value={r.endSites} />
-              <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
-              <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
-            </>)}
+            {id === "schirm" && SCHIRM_STAT_COLUMNS.map(col => (
+              <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>
+                {col.value(r)}
+              </span>
+            ))}
             {id === "passagiere" && (<>
               <StatChip label="Erster Flug" value={fmtDateShort(r.first)} />
               <StatChip label="Letzter Flug" value={fmtDateShort(r.last)} />
