@@ -4811,6 +4811,7 @@ function FlugbuchApp() {
   // (?openFlightId=...&returnTo=...), the back button in the detail view
   // should return to that exact page instead of this app's own list.
   const [returnTo, setReturnTo] = useState(null);
+  const [listReturnTo, setListReturnTo] = useState(null);
   useEffect(() => {
     (async () => {
       try {
@@ -4891,6 +4892,7 @@ function FlugbuchApp() {
         const params = new URLSearchParams(window.location.search);
         const openId = params.get("openFlightId");
         const ret = params.get("returnTo");
+        const filterParam = params.get("filter");
         if (openId) {
           const target = sorted.find(f => String(f.id) === openId);
           if (target) {
@@ -4898,6 +4900,15 @@ function FlugbuchApp() {
             setView("detail");
             if (ret) setReturnTo(ret);
           }
+        } else if (filterParam) {
+          // Deep-Link auf die (gefilterte) Liste statt auf einen einzelnen
+          // Flug — z.B. von Statistik/Schirm aus. Eigener State
+          // (listReturnTo) statt "returnTo", damit ein normaler Flug-Klick
+          // innerhalb dieser Liste ganz gewöhnlich zur Liste zurückführt,
+          // statt beim Zurück gleich bis zu Statistik durchzuspringen — nur
+          // der 🏠-Button der Liste selbst nutzt listReturnTo.
+          setFilterText(filterParam);
+          if (ret) setListReturnTo(ret);
         }
       } catch {}
       try {
@@ -5638,7 +5649,10 @@ function FlugbuchApp() {
       {/* Header */}
       <div ref={titleBarRef} style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
-        <button onClick={goHome} title="Zur Startseite"
+        <button onClick={()=>{
+            if (listReturnTo) { try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }
+            else goHome();
+          }} title="Zur Startseite"
           style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
           🏠
         </button>

@@ -991,7 +991,7 @@ function SchirmTimeline({ flights }) {
   useEffect(() => {
     (async () => {
       try {
-        const r = await window.storage.get("schirmTimelineConfig");
+        const r = await window.storage.get("service:schirmTimeline");
         if (r && r.value) setConfig(prev => ({ ...prev, ...JSON.parse(r.value) }));
       } catch (e) {}
       setLoaded(true);
@@ -999,7 +999,7 @@ function SchirmTimeline({ flights }) {
   }, []);
   const saveConfig = (next) => {
     setConfig(next);
-    try { window.storage.set("schirmTimelineConfig", JSON.stringify(next)); } catch (e) {}
+    try { window.storage.set("service:schirmTimeline", JSON.stringify(next)); } catch (e) {}
   };
   const setGliderColor = (name, patch) => {
     const next = { ...config, colors: { ...config.colors, [name]: { ...(config.colors[name]||{}), ...patch } } };
@@ -1362,7 +1362,16 @@ function StatTable({ table, sortOptions, initialDetailName }) {
         <div key={idx} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8,gap:8}}>
             <div style={{flex:1,minWidth:0}}>
-              <div onClick={()=>setOpenDetail(r)}
+              <div onClick={id === "schirm" ? () => {
+                  // Schirm: nicht mehr die eigene Flugliste-Übersicht
+                  // öffnen, sondern direkt zur echten Flugliste springen,
+                  // vorgefiltert auf diesen Schirm. Derselbe Rückkehr-
+                  // Mechanismus wie beim Antippen eines einzelnen Flugs
+                  // (sessionStorage) sorgt dafür, dass "Zurück" wieder auf
+                  // Statistik/Schirm landet statt auf Home.
+                  try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "schirm", rowName: null })); } catch {}
+                  window.location.href = `flugbuch.html?filter=${encodeURIComponent('schirm:"'+r.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
+                } : () => setOpenDetail(r)}
                 style={{fontSize:14,fontWeight:700,cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(232,244,253,0.25)",textUnderlineOffset:3}}>
                 {r.name}
               </div>
