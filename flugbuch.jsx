@@ -5649,13 +5649,18 @@ function FlugbuchApp() {
       {/* Header */}
       <div ref={titleBarRef} style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
-        <button onClick={()=>{
-            if (listReturnTo) { try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }
-            else goHome();
-          }} title="Zur Startseite"
-          style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
-          🏠
-        </button>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={goHome} title="Zur Startseite"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            🏠
+          </button>
+          {listReturnTo && (
+            <button onClick={()=>{ try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }} title="Zurück zu Statistik"
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+              📊
+            </button>
+          )}
+        </div>
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center",marginLeft:-8}}>
           ✈️ Flugbuch
         </span>
