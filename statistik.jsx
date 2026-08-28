@@ -1272,17 +1272,17 @@ const STAT_TABLE_FILTER_FIELD = {
 // Schirm-Werte-Zeile genutzt — feste Breiten sorgen dafür, dass Titel oben
 // und Werte darunter sauber übereinander stehen.
 const SCHIRM_STAT_COLUMNS = [
-  { label: "Gesamte Flugzeit", w: 92, value: r => fmtHM(r.totalSec) },
-  { label: "Längster Flug",    w: 78, value: r => fmtHours(r.maxSec) },
-  { label: "Gesamte Distanz",  w: 92, value: r => `${r.totalDist.toFixed(1)} km` },
-  { label: "Weitester Flug",   w: 82, value: r => `${r.maxDist.toFixed(1)} km` },
-  { label: "Zeit/Flug",        w: 66, value: r => fmtHM(Math.round(r.totalSec/r.count)) },
-  { label: "km/Flug",          w: 66, value: r => `${(r.totalDist/r.count).toFixed(1)} km` },
-  { label: "Grösste Höhe",     w: 76, value: r => `${r.maxAlt} m` },
-  { label: "Startplätze",      w: 70, value: r => String(r.startSites) },
-  { label: "Landeplätze",      w: 74, value: r => String(r.endSites) },
-  { label: "Erster Flug",      w: 66, value: r => fmtDateShort(r.first) },
-  { label: "Letzter Flug",     w: 66, value: r => fmtDateShort(r.last) },
+  { label: "Gesamte Flugzeit", w: 58, value: r => fmtHM(r.totalSec) },
+  { label: "Längster Flug",    w: 52, value: r => fmtHours(r.maxSec) },
+  { label: "Gesamte Distanz",  w: 58, value: r => `${r.totalDist.toFixed(1)} km` },
+  { label: "Weitester Flug",   w: 54, value: r => `${r.maxDist.toFixed(1)} km` },
+  { label: "Zeit/Flug",        w: 46, value: r => fmtHM(Math.round(r.totalSec/r.count)) },
+  { label: "km/Flug",          w: 46, value: r => `${(r.totalDist/r.count).toFixed(1)} km` },
+  { label: "Grösste Höhe",     w: 50, value: r => `${r.maxAlt} m` },
+  { label: "Startplätze",      w: 48, value: r => String(r.startSites) },
+  { label: "Landeplätze",      w: 50, value: r => String(r.endSites) },
+  { label: "Erster Flug",      w: 46, value: r => fmtDateShort(r.first) },
+  { label: "Letzter Flug",     w: 46, value: r => fmtDateShort(r.last) },
 ];
 function StatTable({ table, sortOptions }) {
   const { rows, id } = table;
@@ -1371,9 +1371,9 @@ function StatTable({ table, sortOptions }) {
 
       {id === "schirm" && (
         <div ref={headerRowRef} onScroll={handleChipScroll}
-          style={{display:"flex",gap:6,overflowX:"auto",padding:"0 2px 4px",WebkitOverflowScrolling:"touch"}}>
+          style={{display:"flex",alignItems:"flex-end",gap:6,overflowX:"auto",padding:"0 2px 4px",WebkitOverflowScrolling:"touch",height:30}}>
           {SCHIRM_STAT_COLUMNS.map(col => (
-            <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:9,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"nowrap"}}>
+            <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:9,lineHeight:"11px",color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"normal",wordBreak:"break-word"}}>
               {col.label}
             </span>
           ))}
