@@ -1082,7 +1082,7 @@ function SchirmTimeline({ flights }) {
     const custom = config.colors[g.name] || {};
     const c1 = custom.c1 || auto;
     const c2 = custom.c2 || null;
-    const cellBg = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+    const cellBg = c2 ? `linear-gradient(90deg, ${c1} 0%, ${c1} 50%, ${c2} 83%, ${c2} 100%)` : c1;
     const isHidden = !!config.hidden?.[g.name];
     // Nur abkürzen, wenn die volle Bezeichnung rechnerisch nicht passt —
     // verfügbare Breite = Spaltenbreite minus Padding minus (im
@@ -1115,7 +1115,7 @@ function SchirmTimeline({ flights }) {
         {yearCols.map((y, yi) => {
           const count = g.years.get(y);
           const active = y >= g.since && y <= g.until;
-          const barGradient = c2 ? `linear-gradient(90deg, ${c1}, ${c2})` : c1;
+          const barGradient = c2 ? `linear-gradient(90deg, ${c1} 0%, ${c1} 50%, ${c2} 83%, ${c2} 100%)` : c1;
           const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
           const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
           return (
