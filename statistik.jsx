@@ -1391,7 +1391,7 @@ function StatTable({ table, sortOptions }) {
         {rows.length} Einträge · {totalFlights} Flüge total
       </div>
 
-      {STAT_COLUMNS_BY_ID[id] && (
+      {id === "schirm" && (
         <div ref={headerRowRef} onScroll={handleChipScroll}
           style={{display:"flex",alignItems:"flex-start",gap:10,overflowX:"auto",padding:"0 14px 4px",WebkitOverflowScrolling:"touch",height:30}}>
           {STAT_COLUMNS_BY_ID[id].map(col => (
@@ -1436,9 +1436,14 @@ function StatTable({ table, sortOptions }) {
           </div>
           <div ref={el => { chipRowRefs.current[idx] = el; }} onScroll={handleChipScroll}
             style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
-            {(STAT_COLUMNS_BY_ID[id]||[]).map(col => (
+            {id === "schirm" ? (STAT_COLUMNS_BY_ID[id]||[]).map(col => (
               <span key={col.label} style={{width:col.w,flexShrink:0,fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>
                 {col.value(r)}
+              </span>
+            )) : (STAT_COLUMNS_BY_ID[id]||[]).map(col => (
+              <span key={col.label} style={{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1,flexShrink:0}}>
+                <span style={{fontSize:8,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.3,whiteSpace:"nowrap"}}>{col.label}</span>
+                <span style={{fontSize:13,fontWeight:700,color:"rgba(232,244,253,0.9)",whiteSpace:"nowrap"}}>{col.value(r)}</span>
               </span>
             ))}
           </div>
