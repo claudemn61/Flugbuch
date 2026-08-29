@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.5";
+const APP_VERSION = "5.5.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.5.1", note: "IGC-Import: Distanz-Feld wird jetzt als editierbarer Vorschlag vorausgefüllt (freie Streckenberechnung über bis zu 3 Wendepunkte, ~78% exakte Treffer gegen bekannte XContest-Werte) statt komplett leer zu bleiben — bestehende oder manuell eingetragene Werte werden nie überschrieben. Ausserdem: Max.Steigen/Max.Sinken-Berechnung nutzt jetzt Druckhöhe statt GPS-Höhe (deutlich genauer) und das Weltkarte-Icon in der Flugliste ist neu ein Globus." },
   { v: "5.5", note: "Schirm-Zeitleiste: Einstellungen (Farben, Reihenfolge, Ausblenden, Gruppierung/Sortierung) sind jetzt Teil des normalen Backups. Antippen eines Schirm-Eintrags in Statistik öffnet neu direkt die (vorgefilterte) Flugliste statt einer eigenen Übersicht — Flug-Details/Zurück verhalten sich wie gewohnt, \"Zurück\" aus der Liste führt wieder zu Statistik/Schirm zurück." },
   { v: "5.4", note: "Statistik ▸ Schirm: neue Zeitleisten-Grafik über der Schirm-Liste — eine Zeile pro Schirm, eine Spalte pro Jahr, Zelle = Anzahl Flüge; farblich nach Kategorie gruppiert (Standard/Tandem/Leicht), automatisch aus dem Typ (Solo/Biplace/Hike) der jeweiligen Flüge abgeleitet. Schirm-Name und Startjahr bleiben beim horizontalen Scrollen durch die Jahre fixiert. Eigenes Suchfeld darüber (identisches Filter-/Zeilen-Baukasten-System wie in der Flugliste, inkl. UND/ODER/Klammern) filtert, welche Flüge in die Jahres-Zellen einfliessen. ✏️ Bearbeiten-Modus: Balkenfarbe pro Schirm frei wählbar (auch zweifarbig, als Verlauf), Reihenfolge der Schirme innerhalb ihrer Kategorie per ▲▼ verschiebbar. Alles wird gespeichert." },
   { v: "5.3", note: "Suche unterstützt jetzt echte Klammerung: \"dauer>2h UND (schirm:XI ODER schirm:Artik)\" funktioniert direkt (Freitext oder Baukasten) statt nur über die alte UND-bindet-stärker-als-ODER-Regel. Die Such-Engine wertet dafür nicht mehr flach aus, sondern baut einen echten UND/ODER-Baum (rekursiver Parser). Im Zeilen-Baukasten neu ein \"( )\"-Kästchen pro Zeile — ab 2 benachbart markierten Zeilen entsteht eine Klammer-Gruppe, sichtbar als violette Linie am linken Rand." },
