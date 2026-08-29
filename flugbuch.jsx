@@ -3231,6 +3231,24 @@ function EditableTitle({ value, onSave }) {
   );
 }
 
+// Wandelt die frei eingetippte Hike-Dauer (z.B. "2h 30m", "2:30", "150min",
+// "2.5") in eine Dezimal-Stundenzahl um — für die Höhenmeter/Std.-Berechnung
+// direkt unter der Dauer. Gibt null zurück, wenn nichts Sinnvolles erkannt
+// werden kann, statt zu raten.
+function parseHikeDauerToHours(s) {
+  if (!s) return null;
+  const str = String(s).trim();
+  const hm = str.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (hm) return (+hm[1]) + (+hm[2])/60;
+  let h = 0, mn = 0, found = false;
+  const hMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:h|std)/i);
+  if (hMatch) { h = parseFloat(hMatch[1].replace(",", ".")); found = true; }
+  const mMatch = str.match(/(\d+)\s*m(?:in)?\b/i);
+  if (mMatch) { mn = parseFloat(mMatch[1]); found = true; }
+  if (found) return h + mn/60;
+  const num = parseFloat(str.replace(",", "."));
+  return Number.isFinite(num) ? num : null;
+}
 function StaticField({label, value, unit}) {
   return (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
@@ -4115,6 +4133,14 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? String(Math.round(startAlt-hikeStart)) : "";
                 })()} unit="m" />
               <InlineField label="Dauer" value={fl.customFields?.hikeDauer} onSave={v=>saveField({customFields:{hikeDauer:v}})} />
+              <StaticField label="Höhenmeter/Std." value={(() => {
+                  const startAlt = fl.startAlt>0 ? fl.startAlt : parseFloat(fl.customFields?.msa);
+                  const hikeStart = parseFloat(fl.customFields?.hikeStarthoehe);
+                  const hoehenmeter = (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : null;
+                  const hours = parseHikeDauerToHours(fl.customFields?.hikeDauer);
+                  if (hoehenmeter == null || !hours || hours <= 0) return "";
+                  return String(Math.round(hoehenmeter/hours));
+                })()} unit="m/h" />
               <EditableLabelField label={fl.customFields?.hikeZusatzLabel||"Zusatz"}
                 onLabelSave={v=>saveField({customFields:{hikeZusatzLabel:v}})}
                 value={fl.customFields?.hikeZusatzValue}
