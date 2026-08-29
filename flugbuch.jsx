@@ -2249,6 +2249,13 @@ function flightFieldValue(f, field){
       const hikeStart = parseFloat(cf.hikeStarthoehe);
       return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
     }
+    case "hikehmprostd": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      const hoehenmeter = (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : null;
+      const hours = parseHikeDauerToHours(cf.hikeDauer);
+      return (hoehenmeter != null && hours > 0) ? Math.round(hoehenmeter/hours) : 0;
+    }
     default: return "";
   }
 }
@@ -2275,7 +2282,7 @@ function evalToken(f, tok){
 
     const numericFields=["name","titel","dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
       "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
-      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
+      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter","hikehmprostd"];
     const dateFields=["datum","date"];
     const timeFields=["startzeit","starttime","landezeit","endtime"];
 
@@ -2870,6 +2877,7 @@ const SEARCH_FIELDS = [
   { id: "hikestarthoehe", label: "Hike-Starthöhe (m)", type: "number" },
   { id: "hikehoehenmeter", label: "Hike-Höhenmeter (m)", type: "number" },
   { id: "hikedauer",      label: "Hike-Dauer",       type: "text" },
+  { id: "hikehmprostd",   label: "Höhenmeter/Std.",  type: "number" },
 ];
 const BOOL_OPTIONS = [
   { value: "ja",   label: "Vorhanden" },
