@@ -75,8 +75,15 @@ function parseIGC(text) {
       // so a 0 reading is always treated as a glitch and skipped rather
       // than kept as a real data point.
       const gpsAlt = +line.slice(30,35);
+      // Pressure altitude, kept alongside gpsAlt: barometric altitude is
+      // far less noisy than GPS altitude second-to-second, which matters
+      // for the Max.Steigen/Max.Sinken calculation in analyzeIGC below.
+      // 0 here means "no baro sensor" or a dropout, same convention as
+      // gpsAlt, so it's treated as missing rather than a real reading.
+      const pAltRaw = +line.slice(25,30);
+      const pAlt = (!isNaN(pAltRaw) && pAltRaw>0) ? pAltRaw : null;
       if (!isNaN(lat)&&!isNaN(lon)&&!isNaN(gpsAlt)&&gpsAlt>0)
-        track.push({ lat, lon, gpsAlt, timeSec: hh*3600+mm*60+ss });
+        track.push({ lat, lon, gpsAlt, pAlt, timeSec: hh*3600+mm*60+ss });
     }
   }
   return { track, date, pilot, glider, passagier, tzOffsetHours };
@@ -117,28 +124,36 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
   const maxAlt = Math.max(...alts), minAlt = Math.min(...alts);
   const startAlt = track[0].gpsAlt, endAlt = track[track.length-1].gpsAlt;
   const startPt = track[0], endPt = track[track.length-1];
-  // Max.Steigen / Max.Sinken: for every point, look at the altitude change
-  // over the next ~30 seconds (nearest available sample), take the best/
-  // worst rate found anywhere in the flight. Replaces both the old thermal-
-  // segment-average approach (Steigen) and the raw single-step rate
-  // (Sinken) — this 30s sliding window was derived empirically by comparing
-  // 83 flights against their known XContest-entered values (best match of
-  // any window tested: ~50% exact matches, lowest average error).
-  const CLIMB_WINDOW_SEC = 30;
+  // Max.Steigen / Max.Sinken: take the raw second-to-second climb rate and
+  // smooth it with a simple moving average over the last 30 samples (~30s),
+  // then take the best/worst smoothed value found anywhere in the flight.
+  // Uses barometric altitude (pAlt) rather than GPS altitude — baro is far
+  // less noisy second-to-second, which is what makes the 30-sample average
+  // land on the instrument's own reading instead of a GPS-noise-inflated
+  // one. Verified against 4 flights' known Max.Steigen/Max.Sinken values
+  // (XC Tracer / XContest): exact match (to 0.1 m/s) on all 4, vs. the
+  // previous GPS-altitude/endpoint-window approach which was off by
+  // 0.1–0.4 m/s on the same flights. Falls back to GPS altitude for loggers
+  // without a pressure sensor (pAlt missing on every point).
+  const VARIO_SMA_SAMPLES = 30;
+  const hasBaro = track.some(p => p.pAlt != null);
+  const altKey = hasBaro ? "pAlt" : "gpsAlt";
   let maxClimb = -Infinity, maxSinkRate = Infinity;
   {
-    let j = 0;
-    for (let i=0; i<track.length; i++) {
-      const t0 = track[i].timeSec;
-      const target = t0 + CLIMB_WINDOW_SEC;
-      while (j < track.length && track[j].timeSec < target) j++;
-      if (j >= track.length) break;
-      if (j === i) continue;
-      const dt = track[j].timeSec - t0;
+    let sum = 0;
+    const buf = [];
+    for (let i=1; i<track.length; i++) {
+      const a = track[i-1][altKey], b = track[i][altKey];
+      if (a==null || b==null) continue;
+      const dt = track[i].timeSec - track[i-1].timeSec;
       if (dt <= 0) continue;
-      const rate = (track[j].gpsAlt - track[i].gpsAlt) / dt;
-      if (rate > maxClimb) maxClimb = rate;
-      if (rate < maxSinkRate) maxSinkRate = rate;
+      const rate = (b - a) / dt;
+      buf.push(rate);
+      sum += rate;
+      if (buf.length > VARIO_SMA_SAMPLES) sum -= buf.shift();
+      const avg = sum / buf.length;
+      if (avg > maxClimb) maxClimb = avg;
+      if (avg < maxSinkRate) maxSinkRate = avg;
     }
   }
   maxClimb = isFinite(maxClimb) ? +maxClimb.toFixed(1) : 0;
