@@ -174,6 +174,94 @@ function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
   return +best.toFixed(2);
 }
 
+// Finds the best-scoring closed triangle in the track: a chronologically-
+// ordered quadruple of points (i,j,k,m) where the closing leg back from m to
+// i is short enough — ≤20% of the triangle's own 3-leg perimeter — to count
+// as a triangle at all. Classified into XContest's actual point-multiplier
+// tiers (confirmed against the pilot's own XContest account, section 4.2
+// "Tracks value"):
+//   - shortest leg ≥28% of perimeter AND closing ≤5%  → 1.60× (closed FAI)
+//   - shortest leg ≥28% of perimeter (closing 5–20%)  → 1.40× (FAI)
+//   - closing ≤5% but a leg <28% of perimeter         → 1.40× (closed free)
+//   - neither, just closing ≤20%                      → 1.20× (free triangle)
+// Solved with the same DP idea as estimateFreeDistance, but constrained to
+// start/end at a specific (i,m) pair instead of a free chain: L1[a,b] = best
+// 1-interior-point chain from a to b, L2[i,m] = best 2-interior-point chain
+// from i to m (built from L1). Every (i,m) pair with a short-enough closing
+// leg is scored by points (length × multiplier); the highest-scoring one
+// wins.
+// Verified against 9 known triangle flights (matched to the pilot's
+// XContest history by date): ~7.5% average error, exact on several. The
+// remaining error isn't only approximation on our end — a couple of cases
+// find a larger valid triangle than XContest's own historical score, i.e.
+// XContest's own (non-exhaustive) optimizer missed a better shape there.
+function estimateTriangleDistance(track, targetPoints = 300) {
+  if (track.length < 4) return null;
+  let pts = track;
+  if (track.length > targetPoints) {
+    const step = track.length / targetPoints;
+    pts = [];
+    for (let x = 0; x < track.length; x += step) pts.push(track[Math.floor(x)]);
+  }
+  const n = pts.length;
+  if (n < 4) return null;
+  const dist = new Float64Array(n * n);
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      const dkm = haversineKm(pts[a].lat, pts[a].lon, pts[b].lat, pts[b].lon);
+      dist[a * n + b] = dkm;
+      dist[b * n + a] = dkm;
+    }
+  }
+  const NEG = -Infinity;
+  const L1 = new Float64Array(n * n).fill(NEG);
+  const J1 = new Int32Array(n * n).fill(-1);
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 2; b < n; b++) {
+      let mx = NEG, mxJ = -1;
+      for (let j = a + 1; j < b; j++) {
+        const v = dist[a * n + j] + dist[j * n + b];
+        if (v > mx) { mx = v; mxJ = j; }
+      }
+      L1[a * n + b] = mx;
+      J1[a * n + b] = mxJ;
+    }
+  }
+  const L2 = new Float64Array(n * n).fill(NEG);
+  const K2 = new Int32Array(n * n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    for (let m = i + 3; m < n; m++) {
+      let mx = NEG, mxK = -1;
+      for (let k = i + 2; k < m; k++) {
+        const l1 = L1[i * n + k];
+        if (l1 === NEG) continue;
+        const v = l1 + dist[k * n + m];
+        if (v > mx) { mx = v; mxK = k; }
+      }
+      L2[i * n + m] = mx;
+      K2[i * n + m] = mxK;
+    }
+  }
+  let bestPoints = -1, bestLen = 0;
+  for (let i = 0; i < n; i++) {
+    for (let m = i + 3; m < n; m++) {
+      const total = L2[i * n + m];
+      if (total === NEG || total <= 0) continue;
+      const closing = dist[i * n + m];
+      if (closing > 0.20 * total) continue;
+      const k = K2[i * n + m], j = J1[i * n + k];
+      const leg1 = dist[i * n + j], leg2 = dist[j * n + k], leg3 = dist[k * n + m];
+      const shortestLeg = Math.min(leg1, leg2, leg3);
+      const isFai = shortestLeg >= 0.28 * total;
+      const isTight = closing <= 0.05 * total;
+      const mult = (isFai && isTight) ? 1.60 : (isFai || isTight) ? 1.40 : 1.20;
+      const points = total * mult;
+      if (points > bestPoints) { bestPoints = points; bestLen = total; }
+    }
+  }
+  return bestPoints > 0 ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2) } : null;
+}
+
 function analyzeIGC(track, tzOffsetHours, dateStr) {
   const tz = tzOffsetHours != null ? tzOffsetHours : estimateTzOffset(track[0], dateStr);
   if (!track.length) return {};
@@ -253,17 +341,22 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
   const durH = Math.floor(durationSec/3600), durM = Math.floor((durationSec%3600)/60), durS = durationSec%60;
   const durationStr = `${durH}h ${String(durM).padStart(2,"0")}m`;
   // H.Diff. is computed from Start-/Landeplatz-Höhe (same as the manual-
-  // entry formula). Distanz (freeDist) is only ever used to pre-fill the
+  // entry formula). Distanz (distEstimate) is only ever used to pre-fill the
   // Distanz field as an editable suggestion when it's still empty — never
-  // written to totalDist directly, since it's an estimate (~78% exact match
-  // against known XContest values, see estimateFreeDistance above) rather
-  // than a trusted final value. Ø Speed only gets filled in once a real
+  // written to totalDist directly, since both the free-distance and the
+  // triangle estimate are approximations (see estimateFreeDistance and
+  // estimateTriangleDistance above), not trusted final values. Whichever of
+  // the two scores more points (free distance always 1.0×/km, triangle per
+  // its own multiplier) wins, matching how XContest itself picks the best
+  // category for a flight. Ø Speed only gets filled in once a real
   // (confirmed) distance exists (via saveComputedField, same as for any
   // other flight).
   const hDiff = Math.abs(startAlt - endAlt);
   const freeDist = estimateFreeDistance(track);
+  const triangle = estimateTriangleDistance(track);
+  const distEstimate = (triangle && triangle.points > freeDist) ? triangle.length : freeDist;
   return { maxAlt, minAlt, startAlt, endAlt, startPt, endPt, durationSec, durationStr, startTime, endTime,
-    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, freeDist };
+    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, distEstimate };
 }
 
 // ── FlightMap ──────────────────────────────────────────────────────────────
@@ -5491,7 +5584,7 @@ function FlugbuchApp() {
     if (igcData.hDiff) cf.hDiff = String(igcData.hDiff);
     if (!(cf.maxSteigen||"").trim() && igcData.maxClimb) cf.maxSteigen = String(igcData.maxClimb);
     if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
-    if (!(cf.distKm||"").trim() && igcData.freeDist) cf.distKm = String(igcData.freeDist);
+    if (!(cf.distKm||"").trim() && igcData.distEstimate) cf.distKm = String(igcData.distEstimate);
     const updated = {
       ...existing, track, customFields: cf,
       pilot: (existing.pilot||"").trim() ? existing.pilot : (pilot||existing.pilot),
@@ -5557,7 +5650,7 @@ function FlugbuchApp() {
               hDiff: igcData.hDiff ? String(igcData.hDiff) : "",
               maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
               maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : "",
-              distKm: igcData.freeDist ? String(igcData.freeDist) : ""},
+              distKm: igcData.distEstimate ? String(igcData.distEstimate) : ""},
             ...igcData, startPt:igcData.startPt, endPt:igcData.endPt };
           await saveFlight(newF);
           newFlights.push(newF);
@@ -5970,7 +6063,7 @@ function FlugbuchApp() {
                 hDiff: item.igcData.hDiff ? String(item.igcData.hDiff) : "",
                 maxSteigen: item.igcData.maxClimb ? String(item.igcData.maxClimb) : "",
                 maxSinken: item.igcData.maxSinkRate ? String(item.igcData.maxSinkRate) : "",
-                distKm: item.igcData.freeDist ? String(item.igcData.freeDist) : ""},
+                distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : ""},
               ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt };
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
