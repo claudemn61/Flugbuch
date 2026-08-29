@@ -2388,6 +2388,7 @@ const SORT_OPTIONS = [
   { id: "hikeStarthoehe",  label: "Hike-Starthöhe" },
   { id: "hikeHoehenmeter", label: "Hike-Höhenmeter" },
   { id: "hikeDauer",       label: "Hike-Dauer" },
+  { id: "hikeHmProStd",    label: "Höhenmeter/Std." },
 ];
 function parseDateToTs(d, timeStr) {
   if (!d) return 0;
@@ -2507,6 +2508,13 @@ function sortFieldValue(f, sortId) {
       const hikeStart = parseFloat(cf.hikeStarthoehe);
       return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : 0;
     }
+    case "hikeHmProStd": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      const hoehenmeter = (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : null;
+      const hours = parseHikeDauerToHours(cf.hikeDauer);
+      return (hoehenmeter != null && hours > 0) ? Math.round(hoehenmeter/hours) : 0;
+    }
     case "hikeDauer": return (cf.hikeDauer || "").toLowerCase();
     case "jahr":     return f.year || 0;
     case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
@@ -2615,6 +2623,13 @@ function formatSortValue(f, sortId) {
       const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
       const hikeStart = parseFloat(cf.hikeStarthoehe);
       return (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) + " m" : "—";
+    }
+    case "hikeHmProStd": {
+      const startAlt = f.startAlt>0 ? f.startAlt : parseFloat(cf.msa);
+      const hikeStart = parseFloat(cf.hikeStarthoehe);
+      const hoehenmeter = (Number.isFinite(startAlt) && Number.isFinite(hikeStart)) ? Math.round(startAlt-hikeStart) : null;
+      const hours = parseHikeDauerToHours(cf.hikeDauer);
+      return (hoehenmeter != null && hours > 0) ? Math.round(hoehenmeter/hours) + " m/h" : "—";
     }
     case "hikeDauer": return cf.hikeDauer || "—";
     case "jahr":     return f.year ? String(f.year) : "—";
