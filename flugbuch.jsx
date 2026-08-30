@@ -5389,14 +5389,31 @@ function FlugbuchApp() {
       }
       const sorted = loaded.sort((a,b) =>
         (parseInt((b.name||"").match(/\d+/)?.[0]||"0",10)) - (parseInt((a.name||"").match(/\d+/)?.[0]||"0",10)));
-      setFlights(sorted);
+      // Einmalige Nachrechnung: bestehende Flüge, bei denen Ø Speed leer
+      // ist, obwohl Distanz und Dauer schon vorliegen (z.B. weil sie vor
+      // der IGC-Auto-Berechnung importiert wurden). Gleiche Formel wie
+      // beim IGC-Import bzw. der manuellen Bearbeitung, nur wenn das Feld
+      // noch leer ist. Läuft bei jedem Start mit, ist danach für jeden
+      // einzelnen Flug ein No-op.
+      const migrated = sorted.map(f => {
+        const cf = f.customFields || {};
+        if ((cf.kmh||"").trim()) return f;
+        const dist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
+        if (!(dist > 0) || !(f.durationSec > 0)) return f;
+        return { ...f, customFields: { ...cf, kmh: (dist / (f.durationSec/3600)).toFixed(1) } };
+      });
+      const changed = migrated.filter((f,i) => f !== sorted[i]);
+      if (changed.length) {
+        Promise.all(changed.map(f => window.storage.set(`flight:${f.id}`, JSON.stringify(f)))).catch(()=>{});
+      }
+      setFlights(migrated);
       try {
         const params = new URLSearchParams(window.location.search);
         const openId = params.get("openFlightId");
         const ret = params.get("returnTo");
         const filterParam = params.get("filter");
         if (openId) {
-          const target = sorted.find(f => String(f.id) === openId);
+          const target = migrated.find(f => String(f.id) === openId);
           if (target) {
             setSelected(target);
             setView("detail");
