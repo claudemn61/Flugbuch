@@ -857,7 +857,14 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const routePts = flight?.routePts;
     const sdk = window.maptilersdk;
     if (!routePts || routePts.length < 2 || !sdk) return;
-    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck");
+    // The dashed closing hint (and correspondingly, recomputeRoutePts
+    // treating the last leg back to the start as not part of the scored
+    // distance) only makes sense for an actual 4-point shape — an
+    // in-progress edit (still 2-3 points) or a stray extra point (5+)
+    // isn't a real triangle regardless of what the Routenart label says,
+    // and drawing a closing line for it would show a shape the distance
+    // figure doesn't match.
+    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 4;
     const legCoords = routePts.map(p => [p.lon, p.lat]);
     map.addSource("route", {
       type: "geojson",
@@ -866,7 +873,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     map.addLayer({ id: "route-line", type: "line", source: "route",
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": "#000000", "line-width": 1.5, "line-dasharray": [2.5, 1.5] } });
-    if (isTriangleRoute && routePts.length > 2) {
+    if (isTriangleRoute) {
       map.addSource("route-closing", {
         type: "geojson",
         data: { type: "Feature", geometry: { type: "LineString",
@@ -4025,11 +4032,18 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const flRef = useRef(fl);
     flRef.current = fl;
     const recomputeRoutePts = (pts) => {
+      // Always just the sum of the actually-drawn legs between consecutive
+      // points — never a truncated/capped count. For an exact 4-point
+      // triangle that's automatically the 3 real sides (there are only 3
+      // gaps in a 4-point array), correctly excluding the dashed closing
+      // hint without needing to special-case it; for any other point count
+      // (still 2-3 points mid-edit, or a 5th added by mistake) it's simply
+      // the full open chain — matching exactly what drawRoute puts on the
+      // map, so distance and line can never show something inconsistent
+      // with each other.
       const current = flRef.current;
-      const isTriangleRoute = (current.customFields?.routenTyp || "").includes("Dreieck");
       let newLen = 0;
-      const legCount = isTriangleRoute ? Math.min(pts.length, 4) : pts.length;
-      for (let i=1; i<legCount; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
+      for (let i=1; i<pts.length; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
       newLen = +newLen.toFixed(2);
       saveComputedField(current, { routePts:pts, totalDist:newLen, customFields:{distKm:String(newLen)} });
     };
