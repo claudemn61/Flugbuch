@@ -210,7 +210,7 @@ function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
 // remaining error isn't only approximation on our end — a couple of cases
 // find a larger valid triangle than XContest's own historical score, i.e.
 // XContest's own (non-exhaustive) optimizer missed a better shape there.
-function estimateTriangleDistance(track, targetPoints = 300) {
+function estimateTriangleDistance(track, targetPoints = 150) {
   if (track.length < 4) return null;
   let pts = track;
   if (track.length > targetPoints) {
