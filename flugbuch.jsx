@@ -242,7 +242,7 @@ function estimateTriangleDistance(track, targetPoints = 300) {
       K2[i * n + m] = mxK;
     }
   }
-  let bestPoints = -1, bestLen = 0;
+  let bestPoints = -1, bestLen = 0, bestIsFai = false;
   for (let i = 0; i < n; i++) {
     for (let m = i + 3; m < n; m++) {
       const total = L2[i * n + m];
@@ -256,10 +256,15 @@ function estimateTriangleDistance(track, targetPoints = 300) {
       const isTight = closing <= 0.05 * total;
       const mult = (isFai && isTight) ? 1.60 : (isFai || isTight) ? 1.40 : 1.20;
       const points = total * mult;
-      if (points > bestPoints) { bestPoints = points; bestLen = total; }
+      if (points > bestPoints) { bestPoints = points; bestLen = total; bestIsFai = isFai; }
     }
   }
-  return bestPoints > 0 ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2) } : null;
+  // isFai collapses the closing-tightness distinction (which only affects
+  // the point bonus, 1.4 vs 1.6) into the 2 shape categories the app
+  // actually shows the pilot: "Flaches Dreieck" vs "FAI-Dreieck".
+  return bestPoints > 0
+    ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2), category: bestIsFai ? "fai" : "flach" }
+    : null;
 }
 
 function analyzeIGC(track, tzOffsetHours, dateStr) {
@@ -354,9 +359,11 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
   const hDiff = Math.abs(startAlt - endAlt);
   const freeDist = estimateFreeDistance(track);
   const triangle = estimateTriangleDistance(track);
-  const distEstimate = (triangle && triangle.points > freeDist) ? triangle.length : freeDist;
+  const isTriangle = triangle && triangle.points > freeDist;
+  const distEstimate = isTriangle ? triangle.length : freeDist;
+  const routeType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
   return { maxAlt, minAlt, startAlt, endAlt, startPt, endPt, durationSec, durationStr, startTime, endTime,
-    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, distEstimate };
+    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, distEstimate, routeType };
 }
 
 // ── FlightMap ──────────────────────────────────────────────────────────────
@@ -4384,6 +4391,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" />
             <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />
             <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />
+            <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />
             <StaticField label="Dauer"       value={fl.durationStr} />
             <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />
             <InlineField label="Ø Speed"     value={fl.customFields?.kmh}           onSave={v=>saveField({customFields:{kmh:v}})} unit="km/h" />
@@ -4411,10 +4419,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           )}
 
           {/* Manual custom fields */}
-          {manualFields.filter(f=>!["passagier","landung","distKm","kmh","hDiff","msa","ml","hm","hGew","maxSinken","maxSteigen"].includes(f.id)).length>0&&(
+          {manualFields.filter(f=>!["passagier","landung","distKm","kmh","hDiff","msa","ml","hm","hGew","maxSinken","maxSteigen","routenTyp"].includes(f.id)).length>0&&(
             <div style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
               <div style={{fontSize:10,fontWeight:700,color:"rgba(232,244,253,0.4)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Eigene Felder</div>
-              {manualFields.filter(f=>!["passagier","landung","distKm","kmh","hDiff","msa","ml","hm","hGew","maxSinken","maxSteigen"].includes(f.id)).map(f=>(
+              {manualFields.filter(f=>!["passagier","landung","distKm","kmh","hDiff","msa","ml","hm","hGew","maxSinken","maxSteigen","routenTyp"].includes(f.id)).map(f=>(
                 <InlineField key={f.id} label={f.name} value={fl.customFields?.[f.id]||""} onSave={v=>saveField({customFields:{[f.id]:v}})} />
               ))}
             </div>
@@ -5585,6 +5593,7 @@ function FlugbuchApp() {
     if (!(cf.maxSteigen||"").trim() && igcData.maxClimb) cf.maxSteigen = String(igcData.maxClimb);
     if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
     if (!(cf.distKm||"").trim() && igcData.distEstimate) cf.distKm = String(igcData.distEstimate);
+    if (!(cf.routenTyp||"").trim() && igcData.routeType) cf.routenTyp = igcData.routeType;
     const updated = {
       ...existing, track, customFields: cf,
       pilot: (existing.pilot||"").trim() ? existing.pilot : (pilot||existing.pilot),
@@ -5650,7 +5659,8 @@ function FlugbuchApp() {
               hDiff: igcData.hDiff ? String(igcData.hDiff) : "",
               maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
               maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : "",
-              distKm: igcData.distEstimate ? String(igcData.distEstimate) : ""},
+              distKm: igcData.distEstimate ? String(igcData.distEstimate) : "",
+              routenTyp: igcData.routeType || ""},
             ...igcData, startPt:igcData.startPt, endPt:igcData.endPt };
           await saveFlight(newF);
           newFlights.push(newF);
@@ -6063,7 +6073,8 @@ function FlugbuchApp() {
                 hDiff: item.igcData.hDiff ? String(item.igcData.hDiff) : "",
                 maxSteigen: item.igcData.maxClimb ? String(item.igcData.maxClimb) : "",
                 maxSinken: item.igcData.maxSinkRate ? String(item.igcData.maxSinkRate) : "",
-                distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : ""},
+                distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : "",
+                routenTyp: item.igcData.routeType || ""},
               ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt };
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
