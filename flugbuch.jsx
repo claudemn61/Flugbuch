@@ -5395,12 +5395,24 @@ function FlugbuchApp() {
       // beim IGC-Import bzw. der manuellen Bearbeitung, nur wenn das Feld
       // noch leer ist. Läuft bei jedem Start mit, ist danach für jeden
       // einzelnen Flug ein No-op.
+      // Zweite Nachrechnung im selben Zug: Flüge ganz ohne GPS-Track können
+      // nie algorithmisch als Dreieck erkannt worden sein (das braucht
+      // zwingend einen Track) — bei denen ist "Freie Strecke" also immer
+      // korrekt, sobald überhaupt eine Distanz vorliegt und Routenart noch
+      // leer ist. Betrifft v.a. alte, manuell erfasste Flüge ohne IGC.
       const migrated = sorted.map(f => {
         const cf = f.customFields || {};
-        if ((cf.kmh||"").trim()) return f;
+        let next = f, nextCf = cf;
         const dist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
-        if (!(dist > 0) || !(f.durationSec > 0)) return f;
-        return { ...f, customFields: { ...cf, kmh: (dist / (f.durationSec/3600)).toFixed(1) } };
+        if (!(cf.kmh||"").trim() && dist > 0 && f.durationSec > 0) {
+          nextCf = { ...nextCf, kmh: (dist / (f.durationSec/3600)).toFixed(1) };
+        }
+        const hasTrack = f.track && f.track.length > 1;
+        if (!(cf.routenTyp||"").trim() && dist > 0 && !hasTrack) {
+          nextCf = { ...nextCf, routenTyp: "Freie Strecke" };
+        }
+        if (nextCf !== cf) next = { ...f, customFields: nextCf };
+        return next;
       });
       const changed = migrated.filter((f,i) => f !== sorted[i]);
       if (changed.length) {
