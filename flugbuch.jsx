@@ -139,8 +139,13 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 // triangle) that this doesn't attempt to detect — so this is only ever used
 // as an editable suggestion, never as a trusted final value (see
 // analyzeIGC below).
+// Returns { length, path } — path is the actual sequence of {lat,lon}
+// turnpoints (2 to 5 points depending on how many legs won) making up the
+// best chain found, reconstructed via backpointers kept alongside the DP
+// values. The path is what lets the app draw the route on the map and
+// makes it editable (dragging a point re-sums the same haversine legs).
 function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
-  if (track.length < 2) return 0;
+  if (track.length < 2) return { length: 0, path: [] };
   let pts = track;
   if (track.length > targetPoints) {
     const step = track.length / targetPoints;
@@ -157,21 +162,31 @@ function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
     }
   }
   let dpPrev = new Float64Array(n);
-  let best = 0;
+  let best = 0, bestLeg = 0, bestEnd = 0;
+  const backpointers = [];
   for (let leg = 1; leg <= maxLegs; leg++) {
     const dpCur = new Float64Array(n).fill(-Infinity);
+    const back = new Int32Array(n).fill(-1);
     for (let i = 1; i < n; i++) {
-      let mx = -Infinity;
+      let mx = -Infinity, mxJ = -1;
       for (let j = 0; j < i; j++) {
         const v = dpPrev[j] + dist[j * n + i];
-        if (v > mx) mx = v;
+        if (v > mx) { mx = v; mxJ = j; }
       }
-      dpCur[i] = mx;
+      dpCur[i] = mx; back[i] = mxJ;
     }
-    for (let i = 0; i < n; i++) if (dpCur[i] > best) best = dpCur[i];
+    backpointers.push(back);
+    for (let i = 0; i < n; i++) if (dpCur[i] > best) { best = dpCur[i]; bestLeg = leg; bestEnd = i; }
     dpPrev = dpCur;
   }
-  return +best.toFixed(2);
+  const idxChain = [bestEnd];
+  let cur = bestEnd;
+  for (let leg = bestLeg; leg >= 1; leg--) {
+    cur = backpointers[leg - 1][cur];
+    idxChain.unshift(cur);
+  }
+  const path = bestLeg > 0 ? idxChain.map(idx => ({ lat: pts[idx].lat, lon: pts[idx].lon })) : [];
+  return { length: +best.toFixed(2), path };
 }
 
 // Finds the best-scoring closed triangle in the track: a chronologically-
@@ -242,7 +257,7 @@ function estimateTriangleDistance(track, targetPoints = 300) {
       K2[i * n + m] = mxK;
     }
   }
-  let bestPoints = -1, bestLen = 0, bestIsFai = false;
+  let bestPoints = -1, bestLen = 0, bestIsFai = false, bestQuad = null;
   for (let i = 0; i < n; i++) {
     for (let m = i + 3; m < n; m++) {
       const total = L2[i * n + m];
@@ -256,14 +271,17 @@ function estimateTriangleDistance(track, targetPoints = 300) {
       const isTight = closing <= 0.05 * total;
       const mult = (isFai && isTight) ? 1.60 : (isFai || isTight) ? 1.40 : 1.20;
       const points = total * mult;
-      if (points > bestPoints) { bestPoints = points; bestLen = total; bestIsFai = isFai; }
+      if (points > bestPoints) { bestPoints = points; bestLen = total; bestIsFai = isFai; bestQuad = [i, j, k, m]; }
     }
   }
+  // path is the 4 actual turnpoints (i,j,k,m) — the app draws the closing
+  // leg back from the 4th to the 1st itself, it isn't a 5th path entry.
+  const path = bestQuad ? bestQuad.map(idx => ({ lat: pts[idx].lat, lon: pts[idx].lon })) : [];
   // isFai collapses the closing-tightness distinction (which only affects
   // the point bonus, 1.4 vs 1.6) into the 2 shape categories the app
   // actually shows the pilot: "Flaches Dreieck" vs "FAI-Dreieck".
   return bestPoints > 0
-    ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2), category: bestIsFai ? "fai" : "flach" }
+    ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2), category: bestIsFai ? "fai" : "flach", path }
     : null;
 }
 
@@ -359,11 +377,12 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
   const hDiff = Math.abs(startAlt - endAlt);
   const freeDist = estimateFreeDistance(track);
   const triangle = estimateTriangleDistance(track);
-  const isTriangle = triangle && triangle.points > freeDist;
-  const distEstimate = isTriangle ? triangle.length : freeDist;
+  const isTriangle = triangle && triangle.points > freeDist.length;
+  const distEstimate = isTriangle ? triangle.length : freeDist.length;
   const routeType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
+  const routePath = isTriangle ? triangle.path : freeDist.path;
   return { maxAlt, minAlt, startAlt, endAlt, startPt, endPt, durationSec, durationStr, startTime, endTime,
-    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, distEstimate, routeType };
+    thermalCount: thermals.length, maxClimb, maxSinkRate, totalGain: Math.round(totalGain), hDiff, distEstimate, routeType, routePath };
 }
 
 // ── FlightMap ──────────────────────────────────────────────────────────────
@@ -624,7 +643,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide, onRoutePointChange }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -885,6 +904,66 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       } else if (sP && eP) {
         addMarker(sP, "#22c55e", "S");
         addMarker(eP, "#ef4444", "L");
+      }
+      // The auto-detected free-distance chain / triangle (see
+      // estimateFreeDistance/estimateTriangleDistance in analyzeIGC) drawn
+      // as a dashed yellow overlay on top of the raw blue track — for a
+      // triangle the closing leg back to the first point is drawn as its
+      // own separate, lighter dashed line since it isn't part of the scored
+      // distance, just a visual "back to start" cue. Turnpoints are only
+      // made draggable on the full-screen map (onRoutePointChange is only
+      // passed there) — dragging in the small preview would be impractical,
+      // and both maps sharing drag handlers would just fight over the same
+      // saved flight.routePts.
+      if (flight?.routePts?.length > 1) {
+        const routePts = flight.routePts;
+        const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck");
+        const legCoords = routePts.map(p => [p.lon, p.lat]);
+        map.addSource("route", {
+          type: "geojson",
+          data: { type: "Feature", geometry: { type: "LineString", coordinates: legCoords } },
+        });
+        map.addLayer({ id: "route-line", type: "line", source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#facc15", "line-width": 3, "line-dasharray": [2.5, 1.5] } });
+        if (isTriangleRoute && routePts.length > 2) {
+          map.addSource("route-closing", {
+            type: "geojson",
+            data: { type: "Feature", geometry: { type: "LineString",
+              coordinates: [legCoords[legCoords.length-1], legCoords[0]] } },
+          });
+          map.addLayer({ id: "route-closing-line", type: "line", source: "route-closing",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "rgba(250,204,21,0.55)", "line-width": 2, "line-dasharray": [1, 1.6] } });
+        }
+        const draggableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
+        const routeMarkers = routePts.map((p, idx) => {
+          const el = document.createElement("div");
+          el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid #78350f;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#78350f;font:800 10px system-ui;"
+            + (draggableHere ? "cursor:grab;" : "");
+          el.textContent = String(idx + 1);
+          return new sdk.Marker({ element: el, draggable: draggableHere }).setLngLat([p.lon, p.lat]).addTo(map);
+        });
+        if (draggableHere) {
+          // Redraws both line sources from the markers' live drag position
+          // so the connecting line visibly follows the point being dragged,
+          // rather than only jumping to the new shape once the drag ends.
+          const redrawRouteLines = () => {
+            const coords = routeMarkers.map(m => { const ll = m.getLngLat(); return [ll.lng, ll.lat]; });
+            map.getSource("route")?.setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords } });
+            if (isTriangleRoute && coords.length > 2) {
+              map.getSource("route-closing")?.setData({ type: "Feature", geometry: { type: "LineString",
+                coordinates: [coords[coords.length-1], coords[0]] } });
+            }
+          };
+          routeMarkers.forEach((marker, idx) => {
+            marker.on("drag", redrawRouteLines);
+            marker.on("dragend", () => {
+              const { lng, lat } = marker.getLngLat();
+              onRoutePointChange(idx, { lat, lon: lng });
+            });
+          });
+        }
       }
       readyRef.current = true;
       applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef, mapRefObj===previewMapRef ? previewHikeRefMarkerRef : fullHikeRefMarkerRef);
@@ -4233,7 +4312,23 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
 
           {/* Map */}
           <div data-no-swipe="true">
-            <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide} /></div>
+            <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide}
+              onRoutePointChange={(idx, newPt) => {
+                // Dragging a turnpoint re-sums the same legs the algorithm
+                // itself scores: for a triangle only the 3 real legs
+                // (0-1,1-2,2-3) — the closing segment back to the start is
+                // a visual cue only, never counted — for a free-distance
+                // chain the sum of all consecutive legs, however many
+                // points that chain happens to have.
+                const pts = [...(fl.routePts||[])];
+                pts[idx] = newPt;
+                const isTriangleRoute = (fl.customFields?.routenTyp || "").includes("Dreieck");
+                let newLen = 0;
+                const legCount = isTriangleRoute ? Math.min(pts.length, 4) : pts.length;
+                for (let i=1; i<legCount; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
+                newLen = +newLen.toFixed(2);
+                saveComputedField(fl, { routePts:pts, totalDist:newLen, customFields:{distKm:String(newLen)} });
+              }} /></div>
             <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
           </div>
           {/* Shared row: every control from both the map (play/speed/reset/
@@ -5608,6 +5703,7 @@ function FlugbuchApp() {
       durationStr: igcData.durationStr || existing.durationStr,
       startTime: (existing.startTime||"").trim() ? existing.startTime : igcData.startTime,
       endTime: (existing.endTime||"").trim() ? existing.endTime : igcData.endTime,
+      routePts: existing.routePts || igcData.routePath,
     };
     await saveFlight(updated);
     setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
@@ -5661,7 +5757,7 @@ function FlugbuchApp() {
               maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : "",
               distKm: igcData.distEstimate ? String(igcData.distEstimate) : "",
               routenTyp: igcData.routeType || ""},
-            ...igcData, startPt:igcData.startPt, endPt:igcData.endPt };
+            ...igcData, startPt:igcData.startPt, endPt:igcData.endPt, routePts:igcData.routePath };
           await saveFlight(newF);
           newFlights.push(newF);
         }
@@ -6075,7 +6171,7 @@ function FlugbuchApp() {
                 maxSinken: item.igcData.maxSinkRate ? String(item.igcData.maxSinkRate) : "",
                 distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : "",
                 routenTyp: item.igcData.routeType || ""},
-              ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt };
+              ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt, routePts:item.igcData.routePath };
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
             setPendingDateAmbiguous(q=>q.slice(1));
