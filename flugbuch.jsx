@@ -925,7 +925,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         });
         map.addLayer({ id: "route-line", type: "line", source: "route",
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": isTriangleRoute ? "#000000" : "#facc15", "line-width": isTriangleRoute ? 1.5 : 3, "line-dasharray": [2.5, 1.5] } });
+          paint: { "line-color": "#000000", "line-width": 1.5, "line-dasharray": [2.5, 1.5] } });
         if (isTriangleRoute && routePts.length > 2) {
           map.addSource("route-closing", {
             type: "geojson",
