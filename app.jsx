@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.2";
+const APP_VERSION = "5.7.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.3", note: "Fix: Routen-Linie auf der Karte konnte an den Wendepunkten sichtbar von der gelben Nummern-Markierung abweichen (schlimmer bei kleinem Zoom, besser aber nie ganz deckungsgleich bei starkem Zoom) — Ursache war eine interne Vereinfachung/Rundung der Linie durch die Kartenbibliothek, die bei nur 2-5 exakten Punkten unnötig ist und jetzt abgeschaltet ist." },
   { v: "5.7.2", note: "IGC-Import schlägt jetzt auch Startplatz und Landung vor: liegt der Start-/Landepunkt innerhalb 5km eines bereits bekannten, benannten Platzes aus einem anderen Flug, wird dessen Name übernommen (nur wenn das Feld leer ist) — bei einem komplett neuen Ort bleibt es leer statt zu raten." },
   { v: "5.7.1", note: "Kartenbearbeitung der Route (5.7): Punkte lassen sich jetzt auch hinzufügen (\"+ Punkt\"-Knopf im Vollbild, dann Karte antippen) und löschen (×-Symbol am Punkt) — nötig, um eine offene freie Strecke in ein tatsächlich geschlossenes Dreieck umzuwandeln oder umgekehrt. Ausserdem: Linie folgt beim Ziehen jetzt zuverlässig auch bei mehreren Änderungen hintereinander (vorher konnte eine zweite Korrektur die erste überschreiben)." },
   { v: "5.7", note: "Kartenansicht im Flugdetail zeigt jetzt die automatisch erkannte Route (freie Strecke/Dreieck) als gestrichelte gelbe Linie über dem Flug-Track, nummerierte Punkte für die einzelnen Wendepunkte. Im Vollbild sind diese Punkte per Drag verschiebbar — Distanz und Routenart werden dabei live neu berechnet, so lässt sich eine falsch erkannte Route direkt auf der Karte korrigieren." },
