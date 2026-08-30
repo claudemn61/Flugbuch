@@ -896,7 +896,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const editableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
     const routeMarkers = routePts.map((p, idx) => {
       const el = document.createElement("div");
-      el.style.cssText = "position:relative;width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid #78350f;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#78350f;font:800 10px system-ui;"
+      // position:absolute (nicht relative!) ist Pflicht: MapLibres eigene
+      // .maplibregl-marker-Regel setzt position:absolute;top:0;left:0 und
+      // positioniert exakt per transform:translate(...) relativ zur
+      // Karten-Ecke. Ein inline position:relative hier würde das
+      // überschreiben (inline schlägt Stylesheet) — das Element bliebe im
+      // normalen Dokumentfluss, transform würde nur noch relativ zu dessen
+      // Fluss-Position wirken statt zur wahren Kartenkoordinate. Genau das
+      // erklärt den (mit jedem weiteren Punkt wachsenden) Versatz zwischen
+      // Marker und Linie.
+      el.style.cssText = "position:absolute;width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid #78350f;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#78350f;font:800 10px system-ui;"
         + (editableHere ? "cursor:grab;" : "");
       el.textContent = String(idx + 1);
       // Deleting requires at least 2 points left (a "route" of 1 point is
@@ -1247,7 +1256,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       }
       if (!ref.current) {
         const el = document.createElement("div");
-        el.style.cssText = `position:relative;width:34px;height:34px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;`;
+        // position:absolute, nicht relative — siehe Kommentar bei den
+        // Routen-Punkt-Markern weiter oben, gleicher Mechanismus.
+        el.style.cssText = `position:absolute;width:34px;height:34px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;`;
         let img = null;
         if (showBoot) {
           el.style.fontSize = "26px";
