@@ -2478,6 +2478,26 @@ function haversineDistKm(a, b) {
   const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
 }
+// For a freshly IGC-imported Start-/Landepunkt: looks at every existing
+// flight's named place of the same kind (Startplatz from startPt, Landung
+// from customFields.landung/endPt) and suggests whichever name's point is
+// nearest, but only within 5km — close enough to be confidently the same
+// real-world site despite GPS drift between visits, far enough below
+// "could plausibly be a different site with a similar name" to stay a safe
+// suggestion. Beyond 5km (or no named place at all yet) intentionally
+// returns "" rather than guessing, since a genuinely new site should start
+// blank, not silently inherit an unrelated one.
+function nearbyKnownPlaceName(pt, flights, getName, getPt, maxKm = 5) {
+  if (!pt) return "";
+  let best = "", bestDist = Infinity;
+  for (const f of flights) {
+    const name = getName(f);
+    if (!name) continue;
+    const d = haversineDistKm(pt, getPt(f));
+    if (d != null && d < bestDist) { bestDist = d; best = name; }
+  }
+  return bestDist <= maxKm ? best : "";
+}
 // Compass bearing (0°=North, 90°=East, ...) from point a to point b —
 // used to rotate the glider reference marker to face the actual flight
 // direction at that point in the track.
@@ -5786,6 +5806,18 @@ function FlugbuchApp() {
     if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
     if (!(cf.distKm||"").trim() && igcData.distEstimate) cf.distKm = String(igcData.distEstimate);
     if (!(cf.routenTyp||"").trim() && igcData.routeType) cf.routenTyp = igcData.routeType;
+    // Startplatz/Landung: suggest the name of whichever already-known place
+    // (from any other flight) is nearest this IGC's actual start/landing
+    // coordinates, but only within 5km — see nearbyKnownPlaceName above.
+    // Left blank (never guessed) beyond that, e.g. for a genuinely new site.
+    if (!(existing.site||"").trim() && igcData.startPt) {
+      const suggested = nearbyKnownPlaceName(igcData.startPt, flights, f=>f.site, f=>f.startPt);
+      if (suggested) existing = { ...existing, site: suggested };
+    }
+    if (!(cf.landung||"").trim() && igcData.endPt) {
+      const suggested = nearbyKnownPlaceName(igcData.endPt, flights, f=>f.customFields?.landung, f=>f.endPt);
+      if (suggested) cf.landung = suggested;
+    }
     const updated = {
       ...existing, track, customFields: cf,
       pilot: (existing.pilot||"").trim() ? existing.pilot : (pilot||existing.pilot),
@@ -5805,7 +5837,7 @@ function FlugbuchApp() {
     await saveFlight(updated);
     setFlights(prev=>prev.map(f=>f.id===updated.id?updated:f));
     if (selected?.id===updated.id) setSelected(updated);
-  }, [selected, saveFlight]);
+  }, [selected, saveFlight, flights]);
 
   const processIGCFiles = useCallback(async (igcFiles) => {
     setImporting(true); setImportProgress({done:0,total:igcFiles.length});
@@ -5845,9 +5877,12 @@ function FlugbuchApp() {
           dateAmbiguous.push({ file, date: dateStr, track, pilot, glider, passagier, igcData, candidates: dateCandidates });
         } else {
           const newF = { id:`igc_${baseName}_${Date.now()}`, name:baseName, pdfOnly:false,
-            date:dateStr, rawDate:date, year:yr, month:mo, pilot:pilot||"",site:"",glider:glider||"",
+            date:dateStr, rawDate:date, year:yr, month:mo, pilot:pilot||"",
+            site: nearbyKnownPlaceName(igcData.startPt, flights, f=>f.site, f=>f.startPt),
+            glider:glider||"",
             startTime:"", endTime:"", comment:"", rating:0, notes:"",
-            customFields:{passagier:passagier||"",landung:"",
+            customFields:{passagier:passagier||"",
+              landung: nearbyKnownPlaceName(igcData.endPt, flights, f=>f.customFields?.landung, f=>f.endPt),
               hGew: igcData.totalGain ? String(igcData.totalGain) : "",
               hDiff: igcData.hDiff ? String(igcData.hDiff) : "",
               maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
@@ -6259,9 +6294,12 @@ function FlugbuchApp() {
             let yr="", mo="";
             if (dateParts.length===3) { yr=dateParts[2]; mo=dateParts[1]; }
             const newF = { id:`igc_${baseName}_${Date.now()}`, name:baseName, pdfOnly:false,
-              date:item.date, rawDate:item.date, year:yr, month:mo, pilot:item.pilot||"",site:"",glider:item.glider||"",
+              date:item.date, rawDate:item.date, year:yr, month:mo, pilot:item.pilot||"",
+              site: nearbyKnownPlaceName(item.igcData.startPt, flights, f=>f.site, f=>f.startPt),
+              glider:item.glider||"",
               startTime:"", endTime:"", comment:"", rating:0, notes:"",
-              customFields:{passagier:item.passagier||"",landung:"",
+              customFields:{passagier:item.passagier||"",
+                landung: nearbyKnownPlaceName(item.igcData.endPt, flights, f=>f.customFields?.landung, f=>f.endPt),
                 hGew: item.igcData.totalGain ? String(item.igcData.totalGain) : "",
                 hDiff: item.igcData.hDiff ? String(item.igcData.hDiff) : "",
                 maxSteigen: item.igcData.maxClimb ? String(item.igcData.maxClimb) : "",
