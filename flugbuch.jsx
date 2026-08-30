@@ -3816,6 +3816,14 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
   const [val, setVal] = useState(value||"");
   const inputRef = useRef(null);
   const committedByEnter = useRef(false);
+  // Dropdown of names containing the typed text anywhere, not just as a
+  // prefix (e.g. typing "heimat" finds "Fiescheralp Heimat") — separate
+  // from the inline ghost-completion below, which only ever fires for an
+  // actual prefix match and stays limited to that (its selected-tail
+  // behaviour doesn't make sense for a mid-string match).
+  const partialMatches = val.trim()
+    ? suggestions.filter(s => s !== val && s.toLowerCase().includes(val.trim().toLowerCase())).slice(0, 6)
+    : [];
 
   const applySuggestion = (typed) => {
     if (!typed) return typed;
@@ -3928,6 +3936,25 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
           style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
           {value||"—"}
         </span>
+      )}
+      {editing && partialMatches.length > 0 && (
+        <div
+          style={{position:"absolute",top:"100%",right:0,zIndex:20,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:160,maxWidth:260}}>
+          {partialMatches.map(s => (
+            <button key={s}
+              onMouseDown={e=>{
+                // mousedown (not click) so this fires before the input's
+                // onBlur would otherwise close editing and commit first.
+                e.preventDefault();
+                setVal(s);
+                setEditing(false);
+                if (s !== (value||"")) commitValue(s);
+              }}
+              style={{textAlign:"right",background:"transparent",border:"none",borderRadius:6,padding:"6px 8px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
+              {s}
+            </button>
+          ))}
+        </div>
       )}
       {coordChoice && (
         <div onClick={()=>setCoordChoice(null)}
