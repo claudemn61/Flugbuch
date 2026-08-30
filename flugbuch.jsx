@@ -923,6 +923,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         });
       });
     }
+    // A source/layer added right after "load" can occasionally miss the
+    // very first paint (a known MapLibre/Mapbox GL timing quirk) and only
+    // catch up once some other camera change forces a repaint — which is
+    // exactly why zooming appeared to "snap" the line onto the markers.
+    // Forcing one immediately here means the correct line is what actually
+    // shows up first, not whatever the map happened to already have queued.
+    // A second, next-frame repaint is cheap insurance in case the GPU
+    // hadn't actually finished uploading the new layer's buffers in time
+    // for the immediate one to have anything new to show yet.
+    map.triggerRepaint && map.triggerRepaint();
+    requestAnimationFrame(() => map.triggerRepaint && map.triggerRepaint());
   };
 
   // Creates ONE MapTiler map instance (and its one WebGL context) per
