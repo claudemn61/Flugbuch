@@ -643,7 +643,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide, onRoutePointChange }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide, onRoutePointChange, onRoutePointAdd, onRoutePointDelete }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -655,6 +655,20 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const fullHikeRefMarkerRef = useRef(null);
   const fullReadyRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // "Punkt hinzufügen" mode: while active, tapping the full-screen map
+  // appends a new turnpoint there instead of panning being the only thing
+  // a tap does. Read through a ref inside the map's click handler (bound
+  // once when the map is built) so toggling the button doesn't need to
+  // rebuild the whole map (a fresh WebGL context) just to pick it up.
+  const [addPointMode, setAddPointMode] = useState(false);
+  const addPointModeRef = useRef(false);
+  useEffect(() => { addPointModeRef.current = addPointMode; }, [addPointMode]);
+  // Route markers are redrawn onto the live map instance whenever the route
+  // data itself changes, without rebuilding the map — see drawRoute below.
+  // Tracked per map instance so a redraw can remove exactly its own old
+  // markers first.
+  const previewRouteMarkersRef = useRef([]);
+  const fullRouteMarkersRef = useRef([]);
   // Which glider marker to use — chosen in Settings > Schirme, shared
   // across the whole app via storage. Re-read on focus so a change made in
   // Settings (a different page) takes effect without needing a full reload
@@ -822,6 +836,88 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     return pts[bestIdx];
   }, [flight?.hikeTrack, highlightRange]);
 
+  // Draws (or redraws) the auto-detected free-distance chain / triangle —
+  // a dashed black overlay on top of the raw track, plus a lighter dashed
+  // "closing" line back to the first point for a triangle (visual only,
+  // never counted towards the scored distance). Called once when a map
+  // instance is first built, and again whenever flight.routePts changes
+  // (added/removed/dragged point) — recreating just these markers/sources
+  // on the existing map instance rather than the whole map, since rebuilding
+  // the map itself recreates its WebGL context (see buildMap below).
+  // Turnpoints are only made draggable/deletable on the full-screen map
+  // (onRoutePointChange is only passed there) — editing in the small
+  // preview would be impractical, and both maps sharing handlers would
+  // just fight over the same saved flight.routePts.
+  const drawRoute = (map, mapRefObj, markersRef) => {
+    if (!map || !map.getSource) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    ["route-line", "route-closing-line"].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    ["route", "route-closing"].forEach(id => { if (map.getSource(id)) map.removeSource(id); });
+    const routePts = flight?.routePts;
+    const sdk = window.maptilersdk;
+    if (!routePts || routePts.length < 2 || !sdk) return;
+    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck");
+    const legCoords = routePts.map(p => [p.lon, p.lat]);
+    map.addSource("route", {
+      type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: legCoords } },
+    });
+    map.addLayer({ id: "route-line", type: "line", source: "route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#000000", "line-width": 1.5, "line-dasharray": [2.5, 1.5] } });
+    if (isTriangleRoute && routePts.length > 2) {
+      map.addSource("route-closing", {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString",
+          coordinates: [legCoords[legCoords.length-1], legCoords[0]] } },
+      });
+      map.addLayer({ id: "route-closing-line", type: "line", source: "route-closing",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "rgba(0,0,0,0.55)", "line-width": 1, "line-dasharray": [1, 1.6] } });
+    }
+    const editableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
+    const routeMarkers = routePts.map((p, idx) => {
+      const el = document.createElement("div");
+      el.style.cssText = "position:relative;width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid #78350f;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#78350f;font:800 10px system-ui;"
+        + (editableHere ? "cursor:grab;" : "");
+      el.textContent = String(idx + 1);
+      // Deleting requires at least 2 points left (a "route" of 1 point is
+      // meaningless), so the badge simply isn't offered at that point.
+      if (editableHere && onRoutePointDelete && routePts.length > 2) {
+        const delBtn = document.createElement("div");
+        delBtn.textContent = "×";
+        delBtn.style.cssText = "position:absolute;top:-8px;right:-8px;width:15px;height:15px;border-radius:50%;background:#dc2626;color:#fff;font:800 11px system-ui;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.7);";
+        delBtn.addEventListener("mousedown", e => e.stopPropagation());
+        delBtn.addEventListener("touchstart", e => e.stopPropagation());
+        delBtn.addEventListener("click", e => { e.stopPropagation(); onRoutePointDelete(idx); });
+        el.appendChild(delBtn);
+      }
+      return new sdk.Marker({ element: el, draggable: editableHere }).setLngLat([p.lon, p.lat]).addTo(map);
+    });
+    markersRef.current = routeMarkers;
+    if (editableHere) {
+      // Redraws both line sources from the markers' live drag position so
+      // the connecting line visibly follows the point being dragged,
+      // rather than only jumping to the new shape once the drag ends.
+      const redrawRouteLines = () => {
+        const coords = routeMarkers.map(m => { const ll = m.getLngLat(); return [ll.lng, ll.lat]; });
+        map.getSource("route")?.setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords } });
+        if (isTriangleRoute && coords.length > 2) {
+          map.getSource("route-closing")?.setData({ type: "Feature", geometry: { type: "LineString",
+            coordinates: [coords[coords.length-1], coords[0]] } });
+        }
+      };
+      routeMarkers.forEach((marker, idx) => {
+        marker.on("drag", redrawRouteLines);
+        marker.on("dragend", () => {
+          const { lng, lat } = marker.getLngLat();
+          onRoutePointChange(idx, { lat, lon: lng });
+        });
+      });
+    }
+  };
+
   // Creates ONE MapTiler map instance (and its one WebGL context) per
   // flight: track line (white casing + blue line) and S/L markers, added
   // once the style finishes loading. Deliberately does NOT depend on
@@ -906,64 +1002,19 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         addMarker(eP, "#ef4444", "L");
       }
       // The auto-detected free-distance chain / triangle (see
-      // estimateFreeDistance/estimateTriangleDistance in analyzeIGC) drawn
-      // as a dashed yellow overlay on top of the raw blue track — for a
-      // triangle the closing leg back to the first point is drawn as its
-      // own separate, lighter dashed line since it isn't part of the scored
-      // distance, just a visual "back to start" cue. Turnpoints are only
-      // made draggable on the full-screen map (onRoutePointChange is only
-      // passed there) — dragging in the small preview would be impractical,
-      // and both maps sharing drag handlers would just fight over the same
-      // saved flight.routePts.
-      if (flight?.routePts?.length > 1) {
-        const routePts = flight.routePts;
-        const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck");
-        const legCoords = routePts.map(p => [p.lon, p.lat]);
-        map.addSource("route", {
-          type: "geojson",
-          data: { type: "Feature", geometry: { type: "LineString", coordinates: legCoords } },
+      // estimateFreeDistance/estimateTriangleDistance in analyzeIGC), drawn
+      // and made editable by drawRoute below.
+      drawRoute(map, mapRefObj, mapRefObj === previewMapRef ? previewRouteMarkersRef : fullRouteMarkersRef);
+      // Tapping the full-screen map while "+ Punkt" mode is active appends
+      // a new turnpoint at the tapped location — the only way to turn an
+      // open 2-point free-distance chain into an actual closed shape, or to
+      // add a missing 4th corner. Bound once here rather than inside
+      // drawRoute so toggling the mode doesn't need a redraw to take effect.
+      if (mapRefObj === fullMapRef) {
+        map.on("click", (e) => {
+          if (!addPointModeRef.current || !onRoutePointAdd) return;
+          onRoutePointAdd({ lat: e.lngLat.lat, lon: e.lngLat.lng });
         });
-        map.addLayer({ id: "route-line", type: "line", source: "route",
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#000000", "line-width": 1.5, "line-dasharray": [2.5, 1.5] } });
-        if (isTriangleRoute && routePts.length > 2) {
-          map.addSource("route-closing", {
-            type: "geojson",
-            data: { type: "Feature", geometry: { type: "LineString",
-              coordinates: [legCoords[legCoords.length-1], legCoords[0]] } },
-          });
-          map.addLayer({ id: "route-closing-line", type: "line", source: "route-closing",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "rgba(0,0,0,0.55)", "line-width": 1, "line-dasharray": [1, 1.6] } });
-        }
-        const draggableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
-        const routeMarkers = routePts.map((p, idx) => {
-          const el = document.createElement("div");
-          el.style.cssText = "width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid #78350f;box-shadow:0 1px 5px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#78350f;font:800 10px system-ui;"
-            + (draggableHere ? "cursor:grab;" : "");
-          el.textContent = String(idx + 1);
-          return new sdk.Marker({ element: el, draggable: draggableHere }).setLngLat([p.lon, p.lat]).addTo(map);
-        });
-        if (draggableHere) {
-          // Redraws both line sources from the markers' live drag position
-          // so the connecting line visibly follows the point being dragged,
-          // rather than only jumping to the new shape once the drag ends.
-          const redrawRouteLines = () => {
-            const coords = routeMarkers.map(m => { const ll = m.getLngLat(); return [ll.lng, ll.lat]; });
-            map.getSource("route")?.setData({ type: "Feature", geometry: { type: "LineString", coordinates: coords } });
-            if (isTriangleRoute && coords.length > 2) {
-              map.getSource("route-closing")?.setData({ type: "Feature", geometry: { type: "LineString",
-                coordinates: [coords[coords.length-1], coords[0]] } });
-            }
-          };
-          routeMarkers.forEach((marker, idx) => {
-            marker.on("drag", redrawRouteLines);
-            marker.on("dragend", () => {
-              const { lng, lat } = marker.getLngLat();
-              onRoutePointChange(idx, { lat, lon: lng });
-            });
-          });
-        }
       }
       readyRef.current = true;
       applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef, mapRefObj===previewMapRef ? previewHikeRefMarkerRef : fullHikeRefMarkerRef);
@@ -1072,6 +1123,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     if (previewReadyRef.current) applyHighlight(previewMapRef.current, previewRefMarkerRef, previewHikeRefMarkerRef);
     if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef, fullHikeRefMarkerRef);
   }, [highlightRange?.start, highlightRange?.end, highlightRange?.hikeStart, highlightRange?.hikeEnd, isFullscreen, isPlaying]);
+
+  // Redraws just the route overlay (see drawRoute above) whenever a
+  // turnpoint is added, deleted, or dragged — the saved flight.routePts
+  // array itself is what changed, not the flight's track, so only this
+  // needs to happen, not a full map rebuild. No-ops (via the readyRef
+  // guards) until the initial buildMap effect has actually finished.
+  useEffect(() => {
+    if (previewReadyRef.current) drawRoute(previewMapRef.current, previewMapRef, previewRouteMarkersRef);
+    if (isFullscreen && fullReadyRef.current) drawRoute(fullMapRef.current, fullMapRef, fullRouteMarkersRef);
+  }, [flight?.routePts, flight?.customFields?.routenTyp, isFullscreen]);
 
   // Cine playback: moves a dedicated glider marker along the track over
   // time, at playSpeed× real flight time. Works on the preview map too now
@@ -1368,6 +1429,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             <button onClick={openInGpsVisualizer}
               style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
               🗺️ GPS Visualizer
+            </button>
+          )}
+          {flight?.routePts?.length > 1 && onRoutePointAdd && (
+            <button onClick={()=>setAddPointMode(m=>!m)}
+              title="Punkt hinzufügen: Karte antippen, um an dieser Stelle einen neuen Wendepunkt einzufügen"
+              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              + Punkt{addPointMode ? " (antippen zum Setzen)" : ""}
             </button>
           )}
           <button onClick={()=>setIsFullscreen(false)}
@@ -3948,6 +4016,23 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
 
     const autoFields = customFieldDefs.filter(d=>d.formula).map(d=>({...d, value:evalFormula(d.formula,fl,flights)}));
     const manualFields = customFieldDefs.filter(d=>!d.formula);
+    // FlightMap's route-editing callbacks (move/add/delete a turnpoint) are
+    // bound once when its fullscreen map is built, not on every render — so
+    // if they closed over `fl` directly, a second edit in the same
+    // fullscreen session would silently work off the `fl` from before the
+    // first edit and overwrite it. Reading through a ref that's kept fresh
+    // every render sidesteps that regardless of when the callback was bound.
+    const flRef = useRef(fl);
+    flRef.current = fl;
+    const recomputeRoutePts = (pts) => {
+      const current = flRef.current;
+      const isTriangleRoute = (current.customFields?.routenTyp || "").includes("Dreieck");
+      let newLen = 0;
+      const legCount = isTriangleRoute ? Math.min(pts.length, 4) : pts.length;
+      for (let i=1; i<legCount; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
+      newLen = +newLen.toFixed(2);
+      saveComputedField(current, { routePts:pts, totalDist:newLen, customFields:{distKm:String(newLen)} });
+    };
     // Swipe navigation walks navFlights (the active search's results, when
     // a search is active) rather than the full flights list — so swiping
     // through a filtered result stays within those results instead of
@@ -4314,20 +4399,18 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           <div data-no-swipe="true">
             <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide}
               onRoutePointChange={(idx, newPt) => {
-                // Dragging a turnpoint re-sums the same legs the algorithm
-                // itself scores: for a triangle only the 3 real legs
-                // (0-1,1-2,2-3) — the closing segment back to the start is
-                // a visual cue only, never counted — for a free-distance
-                // chain the sum of all consecutive legs, however many
-                // points that chain happens to have.
-                const pts = [...(fl.routePts||[])];
+                const pts = [...(flRef.current.routePts||[])];
                 pts[idx] = newPt;
-                const isTriangleRoute = (fl.customFields?.routenTyp || "").includes("Dreieck");
-                let newLen = 0;
-                const legCount = isTriangleRoute ? Math.min(pts.length, 4) : pts.length;
-                for (let i=1; i<legCount; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
-                newLen = +newLen.toFixed(2);
-                saveComputedField(fl, { routePts:pts, totalDist:newLen, customFields:{distKm:String(newLen)} });
+                recomputeRoutePts(pts);
+              }}
+              onRoutePointAdd={(newPt) => {
+                const pts = [...(flRef.current.routePts||[]), newPt];
+                recomputeRoutePts(pts);
+              }}
+              onRoutePointDelete={(idx) => {
+                const pts = (flRef.current.routePts||[]).filter((_,i)=>i!==idx);
+                if (pts.length < 2) return; // never delete down to a single, meaningless point
+                recomputeRoutePts(pts);
               }} /></div>
             <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
           </div>
