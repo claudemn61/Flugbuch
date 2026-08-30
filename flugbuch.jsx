@@ -5865,6 +5865,10 @@ function FlugbuchApp() {
     if (!(cf.maxSinken||"").trim() && igcData.maxSinkRate) cf.maxSinken = String(igcData.maxSinkRate);
     if (!(cf.distKm||"").trim() && igcData.distEstimate) cf.distKm = String(igcData.distEstimate);
     if (!(cf.routenTyp||"").trim() && igcData.routeType) cf.routenTyp = igcData.routeType;
+    const effDurationSec = igcData.durationSec || existing.durationSec;
+    if (!(cf.kmh||"").trim() && parseFloat(cf.distKm) > 0 && effDurationSec > 0) {
+      cf.kmh = (parseFloat(cf.distKm) / (effDurationSec / 3600)).toFixed(1);
+    }
     // Startplatz/Landung: suggest the name of whichever already-known place
     // (from any other flight) is nearest this IGC's actual start/landing
     // coordinates, but only within 5km — see nearbyKnownPlaceName above.
@@ -5947,7 +5951,8 @@ function FlugbuchApp() {
               maxSteigen: igcData.maxClimb ? String(igcData.maxClimb) : "",
               maxSinken: igcData.maxSinkRate ? String(igcData.maxSinkRate) : "",
               distKm: igcData.distEstimate ? String(igcData.distEstimate) : "",
-              routenTyp: igcData.routeType || ""},
+              routenTyp: igcData.routeType || "",
+              kmh: (igcData.distEstimate > 0 && igcData.durationSec > 0) ? (igcData.distEstimate / (igcData.durationSec / 3600)).toFixed(1) : ""},
             ...igcData, startPt:igcData.startPt, endPt:igcData.endPt, routePts:igcData.routePath };
           await saveFlight(newF);
           newFlights.push(newF);
@@ -6364,7 +6369,8 @@ function FlugbuchApp() {
                 maxSteigen: item.igcData.maxClimb ? String(item.igcData.maxClimb) : "",
                 maxSinken: item.igcData.maxSinkRate ? String(item.igcData.maxSinkRate) : "",
                 distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : "",
-                routenTyp: item.igcData.routeType || ""},
+                routenTyp: item.igcData.routeType || "",
+                kmh: (item.igcData.distEstimate > 0 && item.igcData.durationSec > 0) ? (item.igcData.distEstimate / (item.igcData.durationSec / 3600)).toFixed(1) : ""},
               ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt, routePts:item.igcData.routePath };
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
