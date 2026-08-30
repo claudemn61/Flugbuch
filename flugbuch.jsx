@@ -866,9 +866,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // figure doesn't match.
     const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 4;
     const legCoords = routePts.map(p => [p.lon, p.lat]);
+    // tolerance:0 / maxzoom:24 — the route is only 2-5 exact turnpoints,
+    // not a dense track. Without this, MapLibre's internal geojson-vt
+    // tiler simplifies/quantizes the line per zoom tile (default
+    // tolerance 0.375, capped at maxzoom 18), which visibly shifts line
+    // vertices away from the (untiled, exact) Marker position — worse at
+    // low zoom, shrinking but never fully closing above z18.
     map.addSource("route", {
       type: "geojson",
       data: { type: "Feature", geometry: { type: "LineString", coordinates: legCoords } },
+      tolerance: 0,
+      maxzoom: 24,
     });
     map.addLayer({ id: "route-line", type: "line", source: "route",
       layout: { "line-join": "round", "line-cap": "round" },
@@ -878,6 +886,8 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         type: "geojson",
         data: { type: "Feature", geometry: { type: "LineString",
           coordinates: [legCoords[legCoords.length-1], legCoords[0]] } },
+        tolerance: 0,
+        maxzoom: 24,
       });
       map.addLayer({ id: "route-closing-line", type: "line", source: "route-closing",
         layout: { "line-join": "round", "line-cap": "round" },
