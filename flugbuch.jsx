@@ -2604,6 +2604,7 @@ function flightFieldValue(f, field){
     case "bemerkung": case "notes": case "notiz": return f.notes||"";
     case "dauer": case "duration": return (f.durationSec||parseDurToSec(f.durationStr))/3600; // hours (number)
     case "distanz": case "dist": case "km": return f.totalDist||parseFloat(cf.distKm||cf.dk||0)||0;
+    case "routenart": case "routentyp": return cf.routenTyp||"";
     case "höhe": case "hoehe": case "maxhöhe": case "maxhoehe": case "alt": return f.maxAlt||+(cf.hMax||cf.hm||0)||0;
     case "startalt": return f.startAlt||+(cf.msa||0)||0;
     case "endalt": return f.endAlt||+(cf.ml||0)||0;
@@ -2719,7 +2720,7 @@ function evalToken(f, tok){
     return fvStr.toLowerCase().includes(rawStr.toLowerCase());
   }
   // plain word => search across all text
-  const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
+  const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.customFields?.routenTyp,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
   return hay.includes(tok.toLowerCase());
 }
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
@@ -2741,6 +2742,7 @@ const GROUP_FIELDS = [
   { id: "reise",   label: "Reise" },
   { id: "hikeOrt", label: "Hike-Ort" },
   { id: "rating",  label: "Bewertung" },
+  { id: "routenTyp", label: "Routenart" },
 ];
 
 const SORT_OPTIONS = [
@@ -2759,6 +2761,7 @@ const SORT_OPTIONS = [
   { id: "reise",    label: "Reise" },
   { id: "duration", label: "Dauer" },
   { id: "dist",     label: "Distanz" },
+  { id: "routenTyp", label: "Routenart" },
   { id: "alt",      label: "Max. Höhe" },
   { id: "startAlt", label: "Start müM" },
   { id: "endAlt",   label: "Landung müM" },
@@ -2869,6 +2872,7 @@ function sortFieldValue(f, sortId) {
     case "endTime":  return parseDurToSec(f.endTime);
     case "duration": return f.durationSec || parseDurToSec(f.durationStr);
     case "dist":     return f.totalDist || parseFloat(cf.distKm || cf.dk || 0) || 0;
+    case "routenTyp": return (cf.routenTyp || "").toLowerCase();
     case "alt":      return f.maxAlt || +(cf.hMax || cf.hm || 0) || 0;
     case "startAlt": return f.startAlt || +(cf.msa || 0) || 0;
     case "endAlt":   return f.endAlt || +(cf.ml || 0) || 0;
@@ -2985,6 +2989,7 @@ function formatSortValue(f, sortId) {
     case "endTime":  return f.endTime || "—";
     case "duration": return f.durationStr || "—";
     case "dist":     return (f.totalDist || cf.distKm || cf.dk) ? (f.totalDist || cf.distKm || cf.dk) + " km" : "—";
+    case "routenTyp": return cf.routenTyp || "—";
     case "alt":      return (f.maxAlt || cf.hMax || cf.hm) ? (f.maxAlt || cf.hMax || cf.hm) + " m" : "—";
     case "startAlt": return (f.startAlt || cf.msa) ? (f.startAlt || cf.msa) + " m" : "—";
     case "endAlt":   return (f.endAlt || cf.ml) ? (f.endAlt || cf.ml) + " m" : "—";
@@ -3234,6 +3239,7 @@ const SEARCH_FIELDS = [
   { id: "bemerkung", label: "Bemerkung",      type: "text" },
   { id: "dauer",     label: "Dauer (h)",      type: "number" },
   { id: "distanz",   label: "Distanz (km)",   type: "number" },
+  { id: "routenart", label: "Routenart",      type: "text" },
   { id: "hoehe",     label: "Max. Höhe (m)",  type: "number" },
   { id: "startalt",  label: "Start müM",      type: "number" },
   { id: "endalt",    label: "Landung müM",    type: "number" },

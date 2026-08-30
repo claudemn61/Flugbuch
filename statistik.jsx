@@ -43,6 +43,7 @@ function flightFieldValue(f, field){
     case "bemerkung": case "notes": case "notiz": return f.notes||"";
     case "dauer": case "duration": return (f.durationSec||parseDurToSec(f.durationStr))/3600; // hours (number)
     case "distanz": case "dist": case "km": return f.totalDist||parseFloat(cf.distKm||cf.dk||0)||0;
+    case "routenart": case "routentyp": return cf.routenTyp||"";
     case "höhe": case "hoehe": case "maxhöhe": case "maxhoehe": case "alt": return f.maxAlt||+(cf.hMax||cf.hm||0)||0;
     case "startalt": return f.startAlt||+(cf.msa||0)||0;
     case "endalt": return f.endAlt||+(cf.ml||0)||0;
@@ -152,7 +153,7 @@ function evalToken(f, tok){
     return fvStr.toLowerCase().includes(rawStr.toLowerCase());
   }
   // plain word => search across all text
-  const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
+  const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.customFields?.routenTyp,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
   return hay.includes(tok.toLowerCase());
 }
 
@@ -237,6 +238,7 @@ const SEARCH_FIELDS = [
   { id: "bemerkung", label: "Bemerkung",      type: "text" },
   { id: "dauer",     label: "Dauer (h)",      type: "number" },
   { id: "distanz",   label: "Distanz (km)",   type: "number" },
+  { id: "routenart", label: "Routenart",      type: "text" },
   { id: "hoehe",     label: "Max. Höhe (m)",  type: "number" },
   { id: "startalt",  label: "Start müM",      type: "number" },
   { id: "endalt",    label: "Landung müM",    type: "number" },
@@ -1463,6 +1465,7 @@ const FLIGHT_LIST_SORT_OPTIONS = [
   { id: "number", label: "Nummer" },
   { id: "duration", label: "Dauer" },
   { id: "dist", label: "Distanz" },
+  { id: "routenTyp", label: "Routenart" },
 ];
 
 function flightListSortValue(f, sortId) {
@@ -1471,6 +1474,7 @@ function flightListSortValue(f, sortId) {
     case "number": return parseInt((f.name||"").match(/\d+/)?.[0]||"0",10);
     case "duration": return f.durationSec||0;
     case "dist": return f.totalDist||0;
+    case "routenTyp": return (f.customFields?.routenTyp||"").toLowerCase();
     default: return 0;
   }
 }
