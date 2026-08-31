@@ -1479,18 +1479,26 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             </button>
           )}
           {flight?.routePts?.length > 1 && (
-            <button onClick={()=>setShowRoutePoints(v=>!v)}
-              title="Wendepunkte ein-/ausblenden"
-              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,background:showRoutePoints?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              📍 Punkte
-            </button>
-          )}
-          {flight?.routePts?.length > 1 && onRoutePointAdd && showRoutePoints && (
-            <button onClick={()=>setAddPointMode(m=>!m)}
-              title="Punkt hinzufügen: Karte antippen, um an dieser Stelle einen neuen Wendepunkt einzufügen"
-              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 50px)",left:14,background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              + Punkt{addPointMode ? " (antippen zum Setzen)" : ""}
-            </button>
+            // Ein gemeinsamer Flex-Container statt zweier unabhängig mit
+            // festen px-Offsets positionierter Knöpfe — sonst können sich
+            // die beiden bei knappem Abstand überlappen/gegenseitig
+            // verdecken (auf iOS zusätzlich verschärft durch
+            // env(safe-area-inset-top), das sich beim Scrollen/Verschieben
+            // der Karte kurzzeitig ändert).
+            <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,display:"flex",flexDirection:"column",gap:8,zIndex:5}}>
+              <button onClick={()=>setShowRoutePoints(v=>!v)}
+                title="Wendepunkte ein-/ausblenden"
+                style={{background:showRoutePoints?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                📍 Punkte
+              </button>
+              {onRoutePointAdd && showRoutePoints && (
+                <button onClick={()=>setAddPointMode(m=>!m)}
+                  title="Punkt hinzufügen: Karte antippen, um an dieser Stelle einen neuen Wendepunkt einzufügen"
+                  style={{background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  + Punkt{addPointMode ? " (antippen zum Setzen)" : ""}
+                </button>
+              )}
+            </div>
           )}
           <button onClick={()=>setIsFullscreen(false)}
             style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer"}}>
