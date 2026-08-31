@@ -1440,7 +1440,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         >
           <div ref={fullDivRef} style={{width:"100%",height:"70vh"}} />
           {(flight?.track?.length > 1 || hasHike) && (
-            <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center"}}>
+            // transform:translateZ(0) zwingt den Browser, dieses Overlay in
+            // eine eigene Compositing-Ebene zu heben — auf iOS Safari kann
+            // sonst die WebGL-Canvas der Karte während einer aktiven
+            // Zoom-/Pan-Geste kurzzeitig über normal positionierte
+            // Geschwister-Elemente geraten, unabhängig von z-index.
+            <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center",transform:"translateZ(0)",zIndex:5}}>
               <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
                 style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0,boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
@@ -1474,7 +1479,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           )}
           {flight?.track?.length > 0 && (
             <button onClick={openInGpsVisualizer}
-              style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
               🗺️ GPS Visualizer
             </button>
           )}
@@ -1485,7 +1490,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             // verdecken (auf iOS zusätzlich verschärft durch
             // env(safe-area-inset-top), das sich beim Scrollen/Verschieben
             // der Karte kurzzeitig ändert).
-            <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,display:"flex",flexDirection:"column",gap:8,zIndex:5}}>
+            <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,display:"flex",flexDirection:"column",gap:8,zIndex:5,transform:"translateZ(0)"}}>
               <button onClick={()=>setShowRoutePoints(v=>!v)}
                 title="Wendepunkte ein-/ausblenden"
                 style={{background:showRoutePoints?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
@@ -1501,7 +1506,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             </div>
           )}
           <button onClick={()=>setIsFullscreen(false)}
-            style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer"}}>
+            style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
             ✕
           </button>
         </div>
