@@ -670,9 +670,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // Karte zeigt Punkte nie, dort gibt es ohnehin keine Bearbeitung.
   const [showRoutePoints, setShowRoutePoints] = useState(false);
   // Route markers are redrawn onto the live map instance whenever the route
-  // data itself changes, without rebuilding the map — see drawRoute below.
-  // Tracked per map instance so a redraw can remove exactly its own old
-  // markers first.
+  // data itself changes, without rebuilding the map — see drawRoutePoints
+  // below. Tracked per map instance so a redraw can remove exactly its own
+  // old markers first.
   const previewRouteMarkersRef = useRef([]);
   const fullRouteMarkersRef = useRef([]);
   // Which glider marker to use — chosen in Settings > Schirme, shared
@@ -854,15 +854,19 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // (onRoutePointChange is only passed there) — editing in the small
   // preview would be impractical, and both maps sharing handlers would
   // just fight over the same saved flight.routePts.
-  const drawRoute = (map, mapRefObj, markersRef, showPoints) => {
+  // Split from the marker drawing below on purpose: this only touches the
+  // line source/layer and only needs to rerun when the route DATA changes
+  // (points added/removed/dragged, or the shape reclassified). Toggling
+  // point visibility must never call this — removing and re-adding the
+  // line layer forces a repaint (see comment below), and that repaint
+  // landing at the exact moment the "+ Punkt" button first mounts is what
+  // was letting the map visually win the paint race over it.
+  const drawRouteLine = (map, mapRefObj) => {
     if (!map || !map.getSource) return;
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
     ["route-line", "route-closing-line"].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
     ["route", "route-closing"].forEach(id => { if (map.getSource(id)) map.removeSource(id); });
     const routePts = flight?.routePts;
-    const sdk = window.maptilersdk;
-    if (!routePts || routePts.length < 2 || !sdk) return;
+    if (!routePts || routePts.length < 2) return;
     // The dashed closing hint (and correspondingly, recomputeRoutePts
     // treating the last leg back to the start as not part of the scored
     // distance) only makes sense for an actual 4-point shape — an
@@ -907,11 +911,20 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // shows up first, not whatever the map happened to already have queued.
     // A second, next-frame repaint is cheap insurance in case the GPU
     // hadn't actually finished uploading the new layer's buffers in time
-    // for the immediate one to have anything new to show yet. Must happen
-    // regardless of whether points are shown — it's about the line layer.
+    // for the immediate one to have anything new to show yet.
     map.triggerRepaint && map.triggerRepaint();
     requestAnimationFrame(() => map.triggerRepaint && map.triggerRepaint());
-    if (!showPoints) return;
+  };
+  // Adds/removes just the numbered turnpoint markers — no source/layer
+  // work, no forced repaint, safe to call on every visibility toggle.
+  const drawRoutePoints = (map, mapRefObj, markersRef, showPoints) => {
+    if (!map || !map.getSource) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    const routePts = flight?.routePts;
+    const sdk = window.maptilersdk;
+    if (!routePts || routePts.length < 2 || !sdk || !showPoints) return;
+    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 4;
     const editableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
     const routeMarkers = routePts.map((p, idx) => {
       const el = document.createElement("div");
@@ -1048,13 +1061,14 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       }
       // The auto-detected free-distance chain / triangle (see
       // estimateFreeDistance/estimateTriangleDistance in analyzeIGC), drawn
-      // and made editable by drawRoute below.
-      drawRoute(map, mapRefObj, mapRefObj === previewMapRef ? previewRouteMarkersRef : fullRouteMarkersRef, mapRefObj === previewMapRef ? false : showRoutePoints);
+      // and made editable by drawRouteLine/drawRoutePoints below.
+      drawRouteLine(map, mapRefObj);
+      drawRoutePoints(map, mapRefObj, mapRefObj === previewMapRef ? previewRouteMarkersRef : fullRouteMarkersRef, mapRefObj === previewMapRef ? false : showRoutePoints);
       // Tapping the full-screen map while "+ Punkt" mode is active appends
       // a new turnpoint at the tapped location — the only way to turn an
       // open 2-point free-distance chain into an actual closed shape, or to
       // add a missing 4th corner. Bound once here rather than inside
-      // drawRoute so toggling the mode doesn't need a redraw to take effect.
+      // drawRoutePoints so toggling the mode doesn't need a redraw to take effect.
       if (mapRefObj === fullMapRef) {
         map.on("click", (e) => {
           if (!addPointModeRef.current || !onRoutePointAdd) return;
@@ -1169,14 +1183,24 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     if (isFullscreen && fullReadyRef.current) applyHighlight(fullMapRef.current, fullRefMarkerRef, fullHikeRefMarkerRef);
   }, [highlightRange?.start, highlightRange?.end, highlightRange?.hikeStart, highlightRange?.hikeEnd, isFullscreen, isPlaying]);
 
-  // Redraws just the route overlay (see drawRoute above) whenever a
+  // Redraws just the route LINE (see drawRouteLine above) whenever a
   // turnpoint is added, deleted, or dragged — the saved flight.routePts
   // array itself is what changed, not the flight's track, so only this
   // needs to happen, not a full map rebuild. No-ops (via the readyRef
   // guards) until the initial buildMap effect has actually finished.
+  // Deliberately does NOT depend on showRoutePoints — see drawRouteLine's
+  // own comment for why that must stay a separate, lighter-weight effect.
   useEffect(() => {
-    if (previewReadyRef.current) drawRoute(previewMapRef.current, previewMapRef, previewRouteMarkersRef, false);
-    if (isFullscreen && fullReadyRef.current) drawRoute(fullMapRef.current, fullMapRef, fullRouteMarkersRef, showRoutePoints);
+    if (previewReadyRef.current) drawRouteLine(previewMapRef.current, previewMapRef);
+    if (isFullscreen && fullReadyRef.current) drawRouteLine(fullMapRef.current, fullMapRef);
+  }, [flight?.routePts, flight?.customFields?.routenTyp, isFullscreen]);
+  // Redraws just the turnpoint MARKERS — on a real data change (so a newly
+  // added/dragged point actually shows up) and whenever the "Punkte"
+  // visibility toggle flips. Split out from the line redraw above so that
+  // toggling visibility never touches the line source/layer.
+  useEffect(() => {
+    if (previewReadyRef.current) drawRoutePoints(previewMapRef.current, previewMapRef, previewRouteMarkersRef, false);
+    if (isFullscreen && fullReadyRef.current) drawRoutePoints(fullMapRef.current, fullMapRef, fullRouteMarkersRef, showRoutePoints);
   }, [flight?.routePts, flight?.customFields?.routenTyp, isFullscreen, showRoutePoints]);
 
   // Cine playback: moves a dedicated glider marker along the track over
@@ -4151,8 +4175,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       // gaps in a 4-point array), correctly excluding the dashed closing
       // hint without needing to special-case it; for any other point count
       // (still 2-3 points mid-edit, or a 5th added by mistake) it's simply
-      // the full open chain — matching exactly what drawRoute puts on the
-      // map, so distance and line can never show something inconsistent
+      // the full open chain — matching exactly what drawRouteLine puts on
+      // the map, so distance and line can never show something inconsistent
       // with each other.
       const current = flRef.current;
       let newLen = 0;
