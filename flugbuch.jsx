@@ -2792,6 +2792,17 @@ function evalToken(f, tok){
   const hay=[f.name,f.site,f.glider,f.pilot,f.customFields?.passagier,f.customFields?.landung,f.customFields?.reise,f.customFields?.routenTyp,f.comment,f.notes,f.date,f.year].join(" ").toLowerCase();
   return hay.includes(tok.toLowerCase());
 }
+// Default row order of the "Flugdaten" block in the flight detail view —
+// matches what the fixed layout used to be before rows became drag-
+// reorderable. The saved order (service:flugdatenOrder, one global
+// preference for all flights) is merged against this on load: known ids
+// keep the saved order, anything new (a future added field) falls back to
+// its position here, and stale/removed ids are silently dropped.
+const FLUGDATEN_DEFAULT_ORDER = [
+  "date","glider","typ","startTime","endTime","site","landung","passagier","reise",
+  "startAlt","endAlt","maxAlt","distanz","routenTyp","dauer","hDiff","speed",
+  "maxSteigen","maxSinken","hGew","entfernungSL","rangDauer","pctDauer","rangStrecke","pctStrecke",
+];
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
 // Categorical fields offered for the optional second grouping level
 // (nested inside each year) — deliberately narrower than the full
@@ -4215,6 +4226,63 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const [confirmTypAuto, setConfirmTypAuto] = useState(null); // computed value pending confirmation, or null
     useEffect(() => { setTypRevealed(false); setConfirmTypAuto(null); }, [fl.id]);
 
+    // "Flugdaten"-Zeilenreihenfolge: eine global gespeicherte Präferenz
+    // (service:-Präfix, landet automatisch im Backup-Export), nicht pro
+    // Flug — gilt also für alle Flüge gleich. Direktes Drag&Drop statt
+    // Pfeilen, damit eine Zeile in einem Zug an eine beliebige Position
+    // verschoben werden kann, statt einzeln vorbeigeschoben zu werden.
+    const [flugdatenOrder, setFlugdatenOrderRaw] = useState(FLUGDATEN_DEFAULT_ORDER);
+    useEffect(() => {
+      (async () => {
+        try {
+          const r = await window.storage.get("service:flugdatenOrder");
+          if (!r) return;
+          const saved = JSON.parse(r.value);
+          if (!Array.isArray(saved) || !saved.length) return;
+          const known = new Set(FLUGDATEN_DEFAULT_ORDER);
+          // Bekannte IDs in der gespeicherten Reihenfolge, alles Neue (ein
+          // seither hinzugekommenes Feld) hinten dran, alles Veraltete
+          // (ein entferntes Feld) stillschweigend weggelassen.
+          const merged = [...saved.filter(id=>known.has(id)), ...FLUGDATEN_DEFAULT_ORDER.filter(id=>!saved.includes(id))];
+          setFlugdatenOrderRaw(merged);
+        } catch {}
+      })();
+    }, []);
+    const setFlugdatenOrder = (next) => {
+      setFlugdatenOrderRaw(next);
+      window.storage.set("service:flugdatenOrder", JSON.stringify(next)).catch(()=>{});
+    };
+    const flugdatenOrderRef = useRef(flugdatenOrder);
+    flugdatenOrderRef.current = flugdatenOrder;
+    const [draggingFlugdatenId, setDraggingFlugdatenId] = useState(null);
+    const flugdatenRowElsRef = useRef({});
+    const handleFlugdatenDragMove = (clientY) => {
+      const order = flugdatenOrderRef.current;
+      const draggedIdx = order.indexOf(draggingFlugdatenId);
+      if (draggedIdx === -1) return;
+      // Index in the CURRENT (pre-removal) order to insert before; defaults
+      // to order.length (one past the end — "insert last") if the pointer
+      // is below every row's midpoint.
+      let targetIdx = order.length;
+      for (let i = 0; i < order.length; i++) {
+        const node = flugdatenRowElsRef.current[order[i]];
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        if (clientY < rect.top + rect.height / 2) { targetIdx = i; break; }
+      }
+      if (targetIdx !== draggedIdx && targetIdx !== draggedIdx + 1) {
+        // Removing the dragged item first shifts every later index down by
+        // one, so a target computed against the pre-removal order needs
+        // that same adjustment before it's a valid post-removal insertion
+        // point — otherwise every downward drag overshoots by one row.
+        const insertAt = targetIdx > draggedIdx ? targetIdx - 1 : targetIdx;
+        const next = [...order];
+        next.splice(draggedIdx, 1);
+        next.splice(insertAt, 0, draggingFlugdatenId);
+        setFlugdatenOrder(next);
+      }
+    };
+
     // Swipe-to-navigate: replaces the small prev/next arrow buttons. Swipe
     // left moves to the next flight in the list (same direction as the old
     // "◀" button, which incremented flIdx), swipe right moves to the
@@ -4696,59 +4764,86 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           {/* Editierbare Felder */}
           <div id="flugdaten-section" style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Flugdaten</div>
-            <InlineField label="Datum" value={fl.date} onSave={v=>setConfirmDateChange(v)} />
-            <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})}
-              extra={(!fl.customFields?.typ && !typRevealed) ? (
-                <span onClick={(e)=>{ e.stopPropagation(); setTypRevealed(true); }}
-                  style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer"}}>
-                  + Typ
-                </span>
-              ) : null} />
-            {(fl.customFields?.typ || typRevealed) && (
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v, typAuto:false}})} />
-                </div>
-                {!fl.customFields?.typ && (
-                  <span onClick={()=>setTypRevealed(false)}
-                    style={{fontSize:13,color:"rgba(232,244,253,0.25)",cursor:"pointer",padding:"0 2px"}}>
-                    ✕
-                  </span>
-                )}
-              </div>
-            )}
-            <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} />
-            <InlineField label="Landezeit"   value={fl.endTime}                     onSave={v=>saveComputedField(fl,{endTime:v})} />
-            <PlaceInlineField label="Startplatz" value={fl.site} flights={flights} kind="start"
-              onSave={(v,extras)=>saveField({
-                site:v,
-                ...(extras ? { startPt: extras.pt, startAlt: extras.alt } : {}),
-              })}
-              suggestions={[...new Set(flights.map(f=>f.site).filter(Boolean))]} />
-            <PlaceInlineField label="Landeplatz" value={fl.customFields?.landung} flights={flights} kind="end"
-              onSave={(v,extras)=>saveField({
-                customFields:{landung:v},
-                ...(extras ? { endPt: extras.pt, endAlt: extras.alt } : {}),
-              })}
-              suggestions={[...new Set(flights.map(f=>f.customFields?.landung).filter(Boolean))]} />
-            <InlineField label="Passagier"   value={fl.customFields?.passagier}     onSave={v=>saveField({customFields:{passagier:v}})} />
-            <ReiseSelect value={fl.customFields?.reise} onSave={v=>saveField({customFields:{reise:v}})} />
-            <InlineField label="Start müM"   value={fl.startAlt>0?String(fl.startAlt):(fl.customFields?.msa||"")}  onSave={v=>saveComputedField(fl,{startAlt:+v,customFields:{msa:v}})} unit="m" />
-            <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" />
-            <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />
-            <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />
-            <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />
-            <StaticField label="Dauer"       value={fl.durationStr} />
-            <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />
-            <InlineField label="Ø Speed"     value={fl.customFields?.kmh}           onSave={v=>saveField({customFields:{kmh:v}})} unit="km/h" />
-            <InlineField label="Max.Steigen" value={fl.customFields?.maxSteigen}    onSave={v=>saveField({customFields:{maxSteigen:v}})} unit="m/s" />
-            <InlineField label="Max.Sinken"  value={fl.customFields?.maxSinken}     onSave={v=>saveField({customFields:{maxSinken:v}})} unit="m/s" />
-            <InlineField label="H.Gew."      value={fl.customFields?.hGew}          onSave={v=>saveField({customFields:{hGew:v}})} unit="m" />
-            <StaticField label="Entf. S-L"   value={fl.entfernungSL!=null?String(fl.entfernungSL):""} unit="km" />
-            <StaticField label="Rang Dauer"  value={fl.rangDauer!=null?`${fl.rangDauer} / ${flights.length}`:""} />
-            <StaticField label="% Dauer"     value={fl.pctDauer!=null?String(fl.pctDauer):""} unit="%" />
-            <StaticField label="Rang Strecke" value={fl.rangStrecke!=null?`${fl.rangStrecke} / ${flights.length}`:""} />
-            <StaticField label="% Strecke"   value={fl.pctStrecke!=null?String(fl.pctStrecke):""} unit="%" />
+            {(() => {
+              // Row renderers, keyed by the same ids as FLUGDATEN_DEFAULT_ORDER
+              // — a plain object literal so every row's onSave/value logic
+              // stays exactly as it was, just addressable by id for the
+              // reorderable list below instead of being a fixed JSX sequence.
+              const rows = {
+                date: () => <InlineField label="Datum" value={fl.date} onSave={v=>setConfirmDateChange(v)} />,
+                glider: () => <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})}
+                  extra={(!fl.customFields?.typ && !typRevealed) ? (
+                    <span onClick={(e)=>{ e.stopPropagation(); setTypRevealed(true); }}
+                      style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer"}}>
+                      + Typ
+                    </span>
+                  ) : null} />,
+                typ: () => (fl.customFields?.typ || typRevealed) ? (
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <InlineField label="Typ" value={fl.customFields?.typ||""} onSave={v=>saveField({customFields:{typ:v, typAuto:false}})} />
+                    </div>
+                    {!fl.customFields?.typ && (
+                      <span onClick={()=>setTypRevealed(false)}
+                        style={{fontSize:13,color:"rgba(232,244,253,0.25)",cursor:"pointer",padding:"0 2px"}}>
+                        ✕
+                      </span>
+                    )}
+                  </div>
+                ) : null,
+                startTime: () => <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} />,
+                endTime: () => <InlineField label="Landezeit"   value={fl.endTime}                     onSave={v=>saveComputedField(fl,{endTime:v})} />,
+                site: () => <PlaceInlineField label="Startplatz" value={fl.site} flights={flights} kind="start"
+                  onSave={(v,extras)=>saveField({
+                    site:v,
+                    ...(extras ? { startPt: extras.pt, startAlt: extras.alt } : {}),
+                  })}
+                  suggestions={[...new Set(flights.map(f=>f.site).filter(Boolean))]} />,
+                landung: () => <PlaceInlineField label="Landeplatz" value={fl.customFields?.landung} flights={flights} kind="end"
+                  onSave={(v,extras)=>saveField({
+                    customFields:{landung:v},
+                    ...(extras ? { endPt: extras.pt, endAlt: extras.alt } : {}),
+                  })}
+                  suggestions={[...new Set(flights.map(f=>f.customFields?.landung).filter(Boolean))]} />,
+                passagier: () => <InlineField label="Passagier"   value={fl.customFields?.passagier}     onSave={v=>saveField({customFields:{passagier:v}})} />,
+                reise: () => <ReiseSelect value={fl.customFields?.reise} onSave={v=>saveField({customFields:{reise:v}})} />,
+                startAlt: () => <InlineField label="Start müM"   value={fl.startAlt>0?String(fl.startAlt):(fl.customFields?.msa||"")}  onSave={v=>saveComputedField(fl,{startAlt:+v,customFields:{msa:v}})} unit="m" />,
+                endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" />,
+                maxAlt: () => <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />,
+                distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />,
+                routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />,
+                dauer: () => <StaticField label="Dauer"       value={fl.durationStr} />,
+                hDiff: () => <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />,
+                speed: () => <InlineField label="Ø Speed"     value={fl.customFields?.kmh}           onSave={v=>saveField({customFields:{kmh:v}})} unit="km/h" />,
+                maxSteigen: () => <InlineField label="Max.Steigen" value={fl.customFields?.maxSteigen}    onSave={v=>saveField({customFields:{maxSteigen:v}})} unit="m/s" />,
+                maxSinken: () => <InlineField label="Max.Sinken"  value={fl.customFields?.maxSinken}     onSave={v=>saveField({customFields:{maxSinken:v}})} unit="m/s" />,
+                hGew: () => <InlineField label="H.Gew."      value={fl.customFields?.hGew}          onSave={v=>saveField({customFields:{hGew:v}})} unit="m" />,
+                entfernungSL: () => <StaticField label="Entf. S-L"   value={fl.entfernungSL!=null?String(fl.entfernungSL):""} unit="km" />,
+                rangDauer: () => <StaticField label="Rang Dauer"  value={fl.rangDauer!=null?`${fl.rangDauer} / ${flights.length}`:""} />,
+                pctDauer: () => <StaticField label="% Dauer"     value={fl.pctDauer!=null?String(fl.pctDauer):""} unit="%" />,
+                rangStrecke: () => <StaticField label="Rang Strecke" value={fl.rangStrecke!=null?`${fl.rangStrecke} / ${flights.length}`:""} />,
+                pctStrecke: () => <StaticField label="% Strecke"   value={fl.pctStrecke!=null?String(fl.pctStrecke):""} unit="%" />,
+              };
+              return flugdatenOrder.map(id => {
+                const content = rows[id]?.();
+                if (!content) return null;
+                const isDragging = draggingFlugdatenId === id;
+                return (
+                  <div key={id} ref={el => { flugdatenRowElsRef.current[id] = el; }}
+                    style={{display:"flex",alignItems:"center",gap:2,background:isDragging?"rgba(125,211,252,0.08)":"transparent",opacity:isDragging?0.6:1}}>
+                    <span
+                      onPointerDown={e=>{ e.currentTarget.setPointerCapture(e.pointerId); setDraggingFlugdatenId(id); }}
+                      onPointerMove={e=>{ if (draggingFlugdatenId===id) handleFlugdatenDragMove(e.clientY); }}
+                      onPointerUp={()=>setDraggingFlugdatenId(null)}
+                      onPointerCancel={()=>setDraggingFlugdatenId(null)}
+                      style={{cursor:"grab",touchAction:"none",padding:"6px 6px 6px 0",color:"rgba(232,244,253,0.3)",fontSize:15,flexShrink:0,userSelect:"none",lineHeight:1}}>
+                      ☰
+                    </span>
+                    <div style={{flex:1,minWidth:0}}>{content}</div>
+                  </div>
+                );
+              });
+            })()}
           </div>
 
           {/* Auto fields */}
