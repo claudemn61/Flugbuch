@@ -995,9 +995,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     container.innerHTML = "";
     readyRef.current = false;
     const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
+    // Vollbild-Karte ist randlos (siehe fullDivRef unten) — MapTilers
+    // eigene Standard-Steuerung (Zoom +/-, Kompass, Standort) landet dabei
+    // standardmässig exakt oben rechts, wo bereits unser ✕-Knopf sitzt, und
+    // jede andere Ecke ist ebenfalls schon mit eigenen Buttons belegt.
+    // Statt fragiler Pixel-Abstimmung: für die Vollbild-Karte ganz
+    // abgeschaltet — Pinch-Zoom und Ziehen funktionieren ohnehin ohne sie.
+    const isFullscreenMap = mapRefObj === fullMapRef;
     const map = new sdk.Map({
       container, apiKey: MAPTILER_API_KEY, style: sdk.MapStyle.OUTDOOR,
       language: "de", center: initialCenter, zoom: 11,
+      ...(isFullscreenMap ? { navigationControl: false, geolocateControl: false } : {}),
     });
     mapRefObj.current = map;
 
