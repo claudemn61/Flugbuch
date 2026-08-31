@@ -4263,31 +4263,38 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const [flugdatenEditMode, setFlugdatenEditMode] = useState(false);
     const [draggingFlugdatenId, setDraggingFlugdatenId] = useState(null);
     const flugdatenRowElsRef = useRef({});
-    const handleFlugdatenDragMove = (clientY) => {
+    // Target index is computed as a delta from a FIXED reference captured
+    // once at pointerdown (start Y position, start index, row height) —
+    // not by re-scanning every other row's live (and, mid-drag, already
+    // reordered) bounding rect on every single pointermove. The scanning
+    // approach turned out to behave asymmetrically in practice (reported:
+    // dragging upward could skip several rows at once, downward was
+    // capped at one row per gesture no matter how far the drag went) —
+    // likely because a row's rect used for the comparison could itself
+    // already reflect an earlier reorder step from the same gesture,
+    // which the scan doesn't distinguish from a genuinely-unmoved row.
+    // Plain arithmetic against a start snapshot has no such state to get
+    // out of sync, and up/down fall out of the same formula symmetrically.
+    const flugdatenDragStartRef = useRef({ y: 0, index: 0, rowHeight: 40 });
+    const handleFlugdatenDragStart = (id, clientY) => {
+      const rowEl = flugdatenRowElsRef.current[id];
+      flugdatenDragStartRef.current = {
+        y: clientY,
+        index: flugdatenOrderRef.current.indexOf(id),
+        rowHeight: rowEl ? (rowEl.getBoundingClientRect().height || 40) : 40,
+      };
+    };
+    const handleFlugdatenDragMove = (id, clientY) => {
+      const { y: startY, index: startIndex, rowHeight } = flugdatenDragStartRef.current;
       const order = flugdatenOrderRef.current;
-      const draggedIdx = order.indexOf(draggingFlugdatenId);
-      if (draggedIdx === -1) return;
-      // Index in the CURRENT (pre-removal) order to insert before; defaults
-      // to order.length (one past the end — "insert last") if the pointer
-      // is below every row's midpoint.
-      let targetIdx = order.length;
-      for (let i = 0; i < order.length; i++) {
-        const node = flugdatenRowElsRef.current[order[i]];
-        if (!node) continue;
-        const rect = node.getBoundingClientRect();
-        if (clientY < rect.top + rect.height / 2) { targetIdx = i; break; }
-      }
-      if (targetIdx !== draggedIdx && targetIdx !== draggedIdx + 1) {
-        // Removing the dragged item first shifts every later index down by
-        // one, so a target computed against the pre-removal order needs
-        // that same adjustment before it's a valid post-removal insertion
-        // point — otherwise every downward drag overshoots by one row.
-        const insertAt = targetIdx > draggedIdx ? targetIdx - 1 : targetIdx;
-        const next = [...order];
-        next.splice(draggedIdx, 1);
-        next.splice(insertAt, 0, draggingFlugdatenId);
-        setFlugdatenOrder(next);
-      }
+      const steps = Math.round((clientY - startY) / rowHeight);
+      const targetIdx = Math.max(0, Math.min(order.length - 1, startIndex + steps));
+      const currentIdx = order.indexOf(id);
+      if (targetIdx === currentIdx || currentIdx === -1) return;
+      const next = [...order];
+      next.splice(currentIdx, 1);
+      next.splice(targetIdx, 0, id);
+      setFlugdatenOrder(next);
     };
 
     // Swipe-to-navigate: replaces the small prev/next arrow buttons. Swipe
@@ -4846,8 +4853,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   <div key={id} ref={el => { flugdatenRowElsRef.current[id] = el; }}
                     style={{display:"flex",alignItems:"center",gap:2,background:isDragging?"rgba(125,211,252,0.08)":"transparent",opacity:isDragging?0.6:1,userSelect:"none",WebkitUserSelect:"none"}}>
                     <span
-                      onPointerDown={e=>{ e.currentTarget.setPointerCapture(e.pointerId); setDraggingFlugdatenId(id); }}
-                      onPointerMove={e=>{ if (draggingFlugdatenId===id) handleFlugdatenDragMove(e.clientY); }}
+                      onPointerDown={e=>{ e.currentTarget.setPointerCapture(e.pointerId); handleFlugdatenDragStart(id, e.clientY); setDraggingFlugdatenId(id); }}
+                      onPointerMove={e=>{ if (draggingFlugdatenId===id) handleFlugdatenDragMove(id, e.clientY); }}
                       onPointerUp={()=>setDraggingFlugdatenId(null)}
                       onPointerCancel={()=>setDraggingFlugdatenId(null)}
                       style={{cursor:"grab",touchAction:"none",padding:"6px 6px 6px 0",color:"rgba(232,244,253,0.3)",fontSize:15,flexShrink:0,userSelect:"none",WebkitUserSelect:"none",lineHeight:1}}>
