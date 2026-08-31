@@ -1462,14 +1462,23 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         <div
           style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}
         >
-          <div ref={fullDivRef} style={{width:"100%",height:"70vh"}} />
+          {/* height:100% statt einem vh-Anteil — vh berechnet sich auf iOS
+              Safari gegen die grösstmögliche (Chrome eingeklappte)
+              Viewport-Höhe, nicht gegen die gerade tatsächlich sichtbare.
+              Der äussere Wrapper (position:fixed, inset:0) folgt dem echten
+              aktuellen Viewport zuverlässig; height:100% übernimmt das 1:1,
+              ohne das Rätselraten um vh. War vermutlich die eigentliche
+              Ursache dafür, dass die Karte je nach Safari-Chrome-Zustand
+              unterschiedlich hoch wurde und in den Button-Bereich oben
+              hineinwuchs. */}
+          <div ref={fullDivRef} style={{width:"100%",height:"100%"}} />
           {(flight?.track?.length > 1 || hasHike) && (
             // transform:translateZ(0) zwingt den Browser, dieses Overlay in
             // eine eigene Compositing-Ebene zu heben — auf iOS Safari kann
             // sonst die WebGL-Canvas der Karte während einer aktiven
             // Zoom-/Pan-Geste kurzzeitig über normal positionierte
             // Geschwister-Elemente geraten, unabhängig von z-index.
-            <div style={{position:"absolute",bottom:"calc(15vh + 10px)",right:14,display:"flex",gap:6,alignItems:"center",transform:"translateZ(0)",zIndex:5}}>
+            <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 10px)",right:14,display:"flex",gap:6,alignItems:"center",transform:"translateZ(0)",zIndex:5}}>
               <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
                 style={{background:isPlaying?"#dc2626":"#16a34a",border:"none",borderRadius:20,width:40,height:40,color:"#fff",fontSize:17,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0,boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
@@ -1503,7 +1512,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           )}
           {flight?.track?.length > 0 && (
             <button onClick={openInGpsVisualizer}
-              style={{position:"absolute",bottom:"calc(15vh + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
+              style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
               🗺️ GPS Visualizer
             </button>
           )}
