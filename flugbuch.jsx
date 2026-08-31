@@ -3743,7 +3743,7 @@ function parseHikeDauerToHours(s) {
 function StaticField({label, value, unit}) {
   return (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>{label}</span>
+      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>{label}</span>
       <span style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",textAlign:"right"}}>
         {value ? value+(unit?" "+unit:"") : "—"}
       </span>
@@ -3838,7 +3838,7 @@ function EditableLabelField({label, onLabelSave, value, onSave, unit}) {
           style={{flex:"0 1 90px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 6px",color:"#7dd3fc",fontSize:13}} />
       ) : (
         <span onClick={()=>{setLabelVal(label||"");setLabelEditing(true);}}
-          style={{fontSize:13,color:"rgba(125,211,252,0.7)",minWidth:90,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textDecorationColor:"rgba(125,211,252,0.35)"}}>
+          style={{fontSize:13,color:"rgba(125,211,252,0.7)",minWidth:90,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textDecorationColor:"rgba(125,211,252,0.35)",userSelect:"none",WebkitUserSelect:"none"}}>
           {label}
         </span>
       )}
@@ -3899,7 +3899,7 @@ function InlineField({label, value, onSave, multiline, unit}) {
   };
   return (
     <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>{label}</span>
+      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>{label}</span>
       {editing ? (
         multiline
           ? <textarea value={val} onChange={e=>setVal(e.target.value)} onBlur={commit} autoFocus
@@ -4038,7 +4038,7 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
 
   return (
     <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",position:"relative"}}>
-      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>{label}</span>
+      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>{label}</span>
       {editing ? (
         <input ref={inputRef} value={val} onChange={onChange} onBlur={commit} autoFocus
           data-inline-field
@@ -4117,7 +4117,7 @@ function ReiseSelect({ value, onSave }) {
   }, []);
   return (
     <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Reise</span>
+      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Reise</span>
       <select value={value||""} onChange={e=>onSave(e.target.value)}
         style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"4px 8px",color:value?"#e8f4fd":"rgba(232,244,253,0.4)",fontSize:13,textAlign:"right",maxWidth:180}}>
         <option value="" style={{background:"#0a1628"}}>—</option>
@@ -4161,7 +4161,7 @@ function SchirmSelect({ value, onSave, extra }) {
       <div data-inline-row onClick={()=>setEditing(true)}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
         <span style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Schirm</span>
+          <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
           {extra}
         </span>
         <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
@@ -4171,7 +4171,7 @@ function SchirmSelect({ value, onSave, extra }) {
 
   return (
     <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90}}>Schirm</span>
+      <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
       <select value={value||""} autoFocus onBlur={()=>setEditing(false)}
         onChange={e=>{ onSave(e.target.value); setEditing(false); }}
         style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"4px 8px",color:value?"#e8f4fd":"rgba(232,244,253,0.4)",fontSize:13,textAlign:"right",maxWidth:180}}>
@@ -4254,6 +4254,13 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     };
     const flugdatenOrderRef = useRef(flugdatenOrder);
     flugdatenOrderRef.current = flugdatenOrder;
+    // Der ☰-Griff ist nur in diesem Modus überhaupt vorhanden — sonst
+    // konkurrierte er auf Touch-Geräten ständig mit der Textmarkierung
+    // (ein Tap-Hold auf/nahe dem Griff löste teils die native
+    // Text-Auswahl statt des Drags aus). Ausserhalb des Edit-Modus ist
+    // eine Zeile also gar nicht ziehbar, dafür Werte wie gewohnt frei
+    // markierbar.
+    const [flugdatenEditMode, setFlugdatenEditMode] = useState(false);
     const [draggingFlugdatenId, setDraggingFlugdatenId] = useState(null);
     const flugdatenRowElsRef = useRef({});
     const handleFlugdatenDragMove = (clientY) => {
@@ -4763,7 +4770,13 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
 
           {/* Editierbare Felder */}
           <div id="flugdaten-section" style={{background:"rgba(255,255,255,0.04)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(255,255,255,0.06)"}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>Flugdaten</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Flugdaten</div>
+              <span onClick={()=>{ setFlugdatenEditMode(v=>!v); setDraggingFlugdatenId(null); }}
+                style={{fontSize:11,fontWeight:700,color:flugdatenEditMode?"#78350f":"rgba(125,211,252,0.7)",background:flugdatenEditMode?"#facc15":"rgba(125,211,252,0.12)",borderRadius:12,padding:"3px 9px",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}>
+                {flugdatenEditMode ? "✓ Fertig" : "☰ Sortieren"}
+              </span>
+            </div>
             {(() => {
               // Row renderers, keyed by the same ids as FLUGDATEN_DEFAULT_ORDER
               // — a plain object literal so every row's onSave/value logic
@@ -4827,19 +4840,20 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               return flugdatenOrder.map(id => {
                 const content = rows[id]?.();
                 if (!content) return null;
+                if (!flugdatenEditMode) return <div key={id}>{content}</div>;
                 const isDragging = draggingFlugdatenId === id;
                 return (
                   <div key={id} ref={el => { flugdatenRowElsRef.current[id] = el; }}
-                    style={{display:"flex",alignItems:"center",gap:2,background:isDragging?"rgba(125,211,252,0.08)":"transparent",opacity:isDragging?0.6:1}}>
+                    style={{display:"flex",alignItems:"center",gap:2,background:isDragging?"rgba(125,211,252,0.08)":"transparent",opacity:isDragging?0.6:1,userSelect:"none",WebkitUserSelect:"none"}}>
                     <span
                       onPointerDown={e=>{ e.currentTarget.setPointerCapture(e.pointerId); setDraggingFlugdatenId(id); }}
                       onPointerMove={e=>{ if (draggingFlugdatenId===id) handleFlugdatenDragMove(e.clientY); }}
                       onPointerUp={()=>setDraggingFlugdatenId(null)}
                       onPointerCancel={()=>setDraggingFlugdatenId(null)}
-                      style={{cursor:"grab",touchAction:"none",padding:"6px 6px 6px 0",color:"rgba(232,244,253,0.3)",fontSize:15,flexShrink:0,userSelect:"none",lineHeight:1}}>
+                      style={{cursor:"grab",touchAction:"none",padding:"6px 6px 6px 0",color:"rgba(232,244,253,0.3)",fontSize:15,flexShrink:0,userSelect:"none",WebkitUserSelect:"none",lineHeight:1}}>
                       ☰
                     </span>
-                    <div style={{flex:1,minWidth:0}}>{content}</div>
+                    <div style={{flex:1,minWidth:0,pointerEvents:"none"}}>{content}</div>
                   </div>
                 );
               });
