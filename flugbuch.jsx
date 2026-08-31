@@ -1504,7 +1504,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
               {playElapsedSec > 0 && (
                 <button onClick={()=>{setIsPlaying(false);setPlayElapsedSec(0);}}
                   title="Zurück zum Start"
-                  style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,width:40,height:40,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
+                  style={{background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,width:40,height:40,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                   ↺
                 </button>
               )}
@@ -1512,7 +1512,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           )}
           {flight?.track?.length > 0 && (
             <button onClick={openInGpsVisualizer}
-              style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 10px)",left:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
+              style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 10px)",left:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
               🗺️ GPS Visualizer
             </button>
           )}
@@ -1526,20 +1526,20 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,display:"flex",flexDirection:"column",gap:8,zIndex:5,transform:"translateZ(0)"}}>
               <button onClick={()=>setShowRoutePoints(v=>!v)}
                 title="Wendepunkte ein-/ausblenden"
-                style={{background:showRoutePoints?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                style={{background:showRoutePoints?"#facc15":"rgba(10,15,25,0.7)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.25)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                 📍 Punkte
               </button>
               {onRoutePointAdd && showRoutePoints && (
                 <button onClick={()=>setAddPointMode(m=>!m)}
                   title="Punkt hinzufügen: Karte antippen, um an dieser Stelle einen neuen Wendepunkt einzufügen"
-                  style={{background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  style={{background:addPointMode?"#facc15":"rgba(10,15,25,0.7)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.25)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
                   + Punkt{addPointMode ? " (antippen zum Setzen)" : ""}
                 </button>
               )}
             </div>
           )}
           <button onClick={()=>setIsFullscreen(false)}
-            style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",transform:"translateZ(0)",zIndex:5}}>
+            style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
             ✕
           </button>
         </div>
