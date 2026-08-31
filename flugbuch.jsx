@@ -663,6 +663,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const [addPointMode, setAddPointMode] = useState(false);
   const addPointModeRef = useRef(false);
   useEffect(() => { addPointModeRef.current = addPointMode; }, [addPointMode]);
+  // Route-Wendepunkte (nummerierte Marker) sind standardmässig ausgeblendet
+  // — nur die gestrichelte Linie ist auf Anhieb sichtbar, weniger Unruhe
+  // auf der Karte. Über den "Punkte"-Knopf im Vollbild einblendbar, sobald
+  // man tatsächlich editieren will (verschieben/löschen). Die Vorschau-
+  // Karte zeigt Punkte nie, dort gibt es ohnehin keine Bearbeitung.
+  const [showRoutePoints, setShowRoutePoints] = useState(false);
   // Route markers are redrawn onto the live map instance whenever the route
   // data itself changes, without rebuilding the map — see drawRoute below.
   // Tracked per map instance so a redraw can remove exactly its own old
@@ -848,7 +854,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // (onRoutePointChange is only passed there) — editing in the small
   // preview would be impractical, and both maps sharing handlers would
   // just fight over the same saved flight.routePts.
-  const drawRoute = (map, mapRefObj, markersRef) => {
+  const drawRoute = (map, mapRefObj, markersRef, showPoints) => {
     if (!map || !map.getSource) return;
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
@@ -893,6 +899,19 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "rgba(0,0,0,0.55)", "line-width": 1, "line-dasharray": [1, 1.6] } });
     }
+    // A source/layer added right after "load" can occasionally miss the
+    // very first paint (a known MapLibre/Mapbox GL timing quirk) and only
+    // catch up once some other camera change forces a repaint — which is
+    // exactly why zooming appeared to "snap" the line onto the markers.
+    // Forcing one immediately here means the correct line is what actually
+    // shows up first, not whatever the map happened to already have queued.
+    // A second, next-frame repaint is cheap insurance in case the GPU
+    // hadn't actually finished uploading the new layer's buffers in time
+    // for the immediate one to have anything new to show yet. Must happen
+    // regardless of whether points are shown — it's about the line layer.
+    map.triggerRepaint && map.triggerRepaint();
+    requestAnimationFrame(() => map.triggerRepaint && map.triggerRepaint());
+    if (!showPoints) return;
     const editableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
     const routeMarkers = routePts.map((p, idx) => {
       const el = document.createElement("div");
@@ -942,17 +961,6 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         });
       });
     }
-    // A source/layer added right after "load" can occasionally miss the
-    // very first paint (a known MapLibre/Mapbox GL timing quirk) and only
-    // catch up once some other camera change forces a repaint — which is
-    // exactly why zooming appeared to "snap" the line onto the markers.
-    // Forcing one immediately here means the correct line is what actually
-    // shows up first, not whatever the map happened to already have queued.
-    // A second, next-frame repaint is cheap insurance in case the GPU
-    // hadn't actually finished uploading the new layer's buffers in time
-    // for the immediate one to have anything new to show yet.
-    map.triggerRepaint && map.triggerRepaint();
-    requestAnimationFrame(() => map.triggerRepaint && map.triggerRepaint());
   };
 
   // Creates ONE MapTiler map instance (and its one WebGL context) per
@@ -1041,7 +1049,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       // The auto-detected free-distance chain / triangle (see
       // estimateFreeDistance/estimateTriangleDistance in analyzeIGC), drawn
       // and made editable by drawRoute below.
-      drawRoute(map, mapRefObj, mapRefObj === previewMapRef ? previewRouteMarkersRef : fullRouteMarkersRef);
+      drawRoute(map, mapRefObj, mapRefObj === previewMapRef ? previewRouteMarkersRef : fullRouteMarkersRef, mapRefObj === previewMapRef ? false : showRoutePoints);
       // Tapping the full-screen map while "+ Punkt" mode is active appends
       // a new turnpoint at the tapped location — the only way to turn an
       // open 2-point free-distance chain into an actual closed shape, or to
@@ -1167,9 +1175,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // needs to happen, not a full map rebuild. No-ops (via the readyRef
   // guards) until the initial buildMap effect has actually finished.
   useEffect(() => {
-    if (previewReadyRef.current) drawRoute(previewMapRef.current, previewMapRef, previewRouteMarkersRef);
-    if (isFullscreen && fullReadyRef.current) drawRoute(fullMapRef.current, fullMapRef, fullRouteMarkersRef);
-  }, [flight?.routePts, flight?.customFields?.routenTyp, isFullscreen]);
+    if (previewReadyRef.current) drawRoute(previewMapRef.current, previewMapRef, previewRouteMarkersRef, false);
+    if (isFullscreen && fullReadyRef.current) drawRoute(fullMapRef.current, fullMapRef, fullRouteMarkersRef, showRoutePoints);
+  }, [flight?.routePts, flight?.customFields?.routenTyp, isFullscreen, showRoutePoints]);
 
   // Cine playback: moves a dedicated glider marker along the track over
   // time, at playSpeed× real flight time. Works on the preview map too now
@@ -1470,10 +1478,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
               🗺️ GPS Visualizer
             </button>
           )}
-          {flight?.routePts?.length > 1 && onRoutePointAdd && (
+          {flight?.routePts?.length > 1 && (
+            <button onClick={()=>setShowRoutePoints(v=>!v)}
+              title="Wendepunkte ein-/ausblenden"
+              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,background:showRoutePoints?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${showRoutePoints?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:showRoutePoints?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              📍 Punkte
+            </button>
+          )}
+          {flight?.routePts?.length > 1 && onRoutePointAdd && showRoutePoints && (
             <button onClick={()=>setAddPointMode(m=>!m)}
               title="Punkt hinzufügen: Karte antippen, um an dieser Stelle einen neuen Wendepunkt einzufügen"
-              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",left:14,background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 50px)",left:14,background:addPointMode?"#facc15":"rgba(255,255,255,0.12)",border:`1px solid ${addPointMode?"#78350f":"rgba(255,255,255,0.2)"}`,borderRadius:20,padding:"6px 14px",color:addPointMode?"#78350f":"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
               + Punkt{addPointMode ? " (antippen zum Setzen)" : ""}
             </button>
           )}
