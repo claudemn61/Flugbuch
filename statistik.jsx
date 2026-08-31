@@ -1421,7 +1421,9 @@ function StatTable({ table, sortOptions }) {
                   // dieselbe Statistik-Kachel landet statt auf Home.
                   const field = STAT_TABLE_FILTER_FIELD[id];
                   try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: id, rowName: null })); } catch {}
-                  window.location.href = `flugbuch.html?filter=${encodeURIComponent(field+':"'+r.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
+                  // "=" (exakt), nicht ":" (enthält) — sonst zieht z.B.
+                  // "Fiesch" auch "Fiescheralp" mit in den Drilldown.
+                  window.location.href = `flugbuch.html?filter=${encodeURIComponent(field+'="'+r.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
                 }}
                 style={{fontSize:14,fontWeight:700,cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(232,244,253,0.25)",textUnderlineOffset:3}}>
                 {r.name}
