@@ -3650,6 +3650,32 @@ function renumberAllFlights(flights) {
   return flights.map(f => ({ ...f, name: renumberFlightName(f.name, numberById.get(f.id)) }));
 }
 
+// Höhe für eine Koordinate abfragen. Innerhalb einer groben Schweiz-
+// Bounding-Box zuerst swisstopo (swissALTI3D, ~2m Auflösung) versucht —
+// Open-Meteos weltweites Höhenraster (~90m) lag speziell bei Grat-/
+// Kuppen-Startplätzen systematisch zu tief, gegen swisstopo und
+// OpenStreetMap-Kartenmaterial verglichen. Open-Meteo bleibt der
+// Fallback (Ausland, oder falls swisstopo nicht erreichbar ist) — wirft
+// nie, gibt bei jedem Fehler einfach null zurück statt einen Aufrufer
+// abstürzen zu lassen.
+async function fetchElevation(lat, lon) {
+  const inSwitzerland = lat >= 45.7 && lat <= 47.9 && lon >= 5.8 && lon <= 10.6;
+  if (inSwitzerland) {
+    try {
+      const res = await fetch(`https://api3.geo.admin.ch/rest/services/height?easting=${lon}&northing=${lat}&sr=4326`);
+      const data = await res.json();
+      const h = parseFloat(data.height);
+      if (Number.isFinite(h)) return Math.round(h);
+    } catch {} // fällt durch auf Open-Meteo
+  }
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+    const data = await res.json();
+    if (Array.isArray(data.elevation) && data.elevation[0] != null) return Math.round(data.elevation[0]);
+  } catch {}
+  return null;
+}
+
 // Parses either "47.219903, 8.453543" or "41.86336° 21.52994°" (and
 // anything in between, e.g. no comma, no degree signs, extra spaces) —
 // strip degree symbols, then split on any run of commas/whitespace and
@@ -3800,12 +3826,10 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
-        const data = await res.json();
+        const elev = await fetchElevation(lat, lon);
         if (cancelled) return;
-        const elev = Array.isArray(data.elevation) ? data.elevation[0] : null;
         if (elev != null) {
-          onSaveHoehe(String(Math.round(elev)));
+          onSaveHoehe(String(elev));
           fetchedForRef.current = startpunkt;
         }
         // else: unexpected response shape — leave any existing Starthöhe as is
@@ -6762,28 +6786,16 @@ function FlugbuchApp() {
         const applyBulkEdit = async () => {
           const d = bulkEditData;
           // Wenn Koordinaten angegeben sind, aber keine explizite Höhe, die
-          // Höhe aus genau diesen Koordinaten berechnen (dieselbe Open-Meteo-
-          // Elevation-API wie bei Hike-Startpunkt) — einmal pro Bearbeitung,
-          // nicht pro Flug, da dieselbe Koordinate ohnehin für alle
-          // ausgewählten Flüge gilt. Eine explizit eingetippte Höhe hat immer
-          // Vorrang vor der berechneten.
+          // Höhe aus genau diesen Koordinaten berechnen (siehe fetchElevation
+          // — swisstopo innerhalb der Schweiz, sonst Open-Meteo) — einmal pro
+          // Bearbeitung, nicht pro Flug, da dieselbe Koordinate ohnehin für
+          // alle ausgewählten Flüge gilt. Eine explizit eingetippte Höhe hat
+          // immer Vorrang vor der berechneten.
           const startCoordParsed = d.startCoord ? parseLatLon(d.startCoord) : null;
           const endCoordParsed = d.endCoord ? parseLatLon(d.endCoord) : null;
           let startElev = null, endElev = null;
-          if (startCoordParsed && !d.startAlt) {
-            try {
-              const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${startCoordParsed.lat}&longitude=${startCoordParsed.lon}`);
-              const data = await res.json();
-              if (Array.isArray(data.elevation) && data.elevation[0] != null) startElev = Math.round(data.elevation[0]);
-            } catch {} // offline/blockiert — Höhe bleibt einfach unberechnet, kein Abbruch
-          }
-          if (endCoordParsed && !d.endAlt) {
-            try {
-              const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${endCoordParsed.lat}&longitude=${endCoordParsed.lon}`);
-              const data = await res.json();
-              if (Array.isArray(data.elevation) && data.elevation[0] != null) endElev = Math.round(data.elevation[0]);
-            } catch {}
-          }
+          if (startCoordParsed && !d.startAlt) startElev = await fetchElevation(startCoordParsed.lat, startCoordParsed.lon);
+          if (endCoordParsed && !d.endAlt) endElev = await fetchElevation(endCoordParsed.lat, endCoordParsed.lon);
           const effStartAlt = d.startAlt || (startElev!=null ? String(startElev) : "");
           const effEndAlt = d.endAlt || (endElev!=null ? String(endElev) : "");
           let updated = flights.map(f => {
