@@ -6761,6 +6761,31 @@ function FlugbuchApp() {
         const manualCustomFieldDefs = customFieldDefs.filter(d => !d.formula && d.id!=="passagier" && d.id!=="typ");
         const applyBulkEdit = async () => {
           const d = bulkEditData;
+          // Wenn Koordinaten angegeben sind, aber keine explizite Höhe, die
+          // Höhe aus genau diesen Koordinaten berechnen (dieselbe Open-Meteo-
+          // Elevation-API wie bei Hike-Startpunkt) — einmal pro Bearbeitung,
+          // nicht pro Flug, da dieselbe Koordinate ohnehin für alle
+          // ausgewählten Flüge gilt. Eine explizit eingetippte Höhe hat immer
+          // Vorrang vor der berechneten.
+          const startCoordParsed = d.startCoord ? parseLatLon(d.startCoord) : null;
+          const endCoordParsed = d.endCoord ? parseLatLon(d.endCoord) : null;
+          let startElev = null, endElev = null;
+          if (startCoordParsed && !d.startAlt) {
+            try {
+              const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${startCoordParsed.lat}&longitude=${startCoordParsed.lon}`);
+              const data = await res.json();
+              if (Array.isArray(data.elevation) && data.elevation[0] != null) startElev = Math.round(data.elevation[0]);
+            } catch {} // offline/blockiert — Höhe bleibt einfach unberechnet, kein Abbruch
+          }
+          if (endCoordParsed && !d.endAlt) {
+            try {
+              const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${endCoordParsed.lat}&longitude=${endCoordParsed.lon}`);
+              const data = await res.json();
+              if (Array.isArray(data.elevation) && data.elevation[0] != null) endElev = Math.round(data.elevation[0]);
+            } catch {}
+          }
+          const effStartAlt = d.startAlt || (startElev!=null ? String(startElev) : "");
+          const effEndAlt = d.endAlt || (endElev!=null ? String(endElev) : "");
           let updated = flights.map(f => {
             if (!selectedIds.has(f.id)) return f;
             const patch = {};
@@ -6771,19 +6796,19 @@ function FlugbuchApp() {
             if (d.notes) patch.notes = d.notes;
             if (d.maxAlt) patch.maxAlt = +d.maxAlt;
             if (d.totalDist) patch.totalDist = parseFloat(d.totalDist)||0;
-            if (d.startAlt) patch.startAlt = +d.startAlt;
-            if (d.endAlt) patch.endAlt = +d.endAlt;
-            // Wie bei CoordEdit in der Einzelbearbeitung: nur Lat/Lon aus
-            // dem Freitext übernehmen, die Höhe (gpsAlt) bleibt unangetastet
-            // — die wird bei Bedarf über die eigenen Start/Landung-müM-
-            // Felder oben gesetzt, nicht hier mit überschrieben.
+            if (effStartAlt) patch.startAlt = +effStartAlt;
+            if (effEndAlt) patch.endAlt = +effEndAlt;
+            // Wie bei CoordEdit in der Einzelbearbeitung: Lat/Lon aus dem
+            // Freitext übernehmen, gpsAlt auf die berechnete (oder explizit
+            // eingetippte) Höhe mitsetzen, damit Koordinate und Höhe
+            // zusammen konsistent bleiben statt gpsAlt stehen zu lassen.
             if (d.startCoord) {
               const p = parseLatLon(d.startCoord);
-              if (p) patch.startPt = { ...(f.startPt||{}), lat: p.lat, lon: p.lon };
+              if (p) patch.startPt = { ...(f.startPt||{}), lat: p.lat, lon: p.lon, ...(effStartAlt ? {gpsAlt:+effStartAlt} : {}) };
             }
             if (d.endCoord) {
               const p = parseLatLon(d.endCoord);
-              if (p) patch.endPt = { ...(f.endPt||{}), lat: p.lat, lon: p.lon };
+              if (p) patch.endPt = { ...(f.endPt||{}), lat: p.lat, lon: p.lon, ...(effEndAlt ? {gpsAlt:+effEndAlt} : {}) };
             }
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
@@ -6811,8 +6836,8 @@ function FlugbuchApp() {
             // verhält.
             if (d.startTime) patch.startTime = d.startTime;
             if (d.endTime) patch.endTime = d.endTime;
-            if (d.startAlt) cfPatch.msa = d.startAlt;
-            if (d.endAlt) cfPatch.ml = d.endAlt;
+            if (effStartAlt) cfPatch.msa = effStartAlt;
+            if (effEndAlt) cfPatch.ml = effEndAlt;
             if (d.maxAlt) cfPatch.hm = d.maxAlt;
             if (d.totalDist) cfPatch.distKm = d.totalDist;
             // Dauer, H.Diff. und Ø Speed werden bei der Einzel-Bearbeitung
@@ -6836,9 +6861,9 @@ function FlugbuchApp() {
                 patch.durationStr = `${h}h ${String(m).padStart(2,"0")}m`;
               }
             }
-            if (d.startAlt || d.endAlt) {
-              const startAltNum = +(d.startAlt || f.startAlt) || 0;
-              const endAltNum = +(d.endAlt || f.endAlt) || 0;
+            if (effStartAlt || effEndAlt) {
+              const startAltNum = +(effStartAlt || f.startAlt) || 0;
+              const endAltNum = +(effEndAlt || f.endAlt) || 0;
               if (startAltNum && endAltNum) cfPatch.hDiff = String(Math.abs(startAltNum - endAltNum));
             }
             if (d.totalDist && !d.kmh && newDurationSec > 0) {
@@ -6883,8 +6908,8 @@ function FlugbuchApp() {
               {field("Landeplatz", "landung")}
               {field("Start-Koordinaten", "startCoord", { placeholder: "unverändert lassen (Lat, Lon)" })}
               {field("Landung-Koordinaten", "endCoord", { placeholder: "unverändert lassen (Lat, Lon)" })}
-              {field("Start müM", "startAlt", { placeholder: "unverändert lassen (m)" })}
-              {field("Landung müM", "endAlt", { placeholder: "unverändert lassen (m)" })}
+              {field("Start müM", "startAlt", { placeholder: bulkEditData.startCoord ? "leer = aus Koordinaten berechnen" : "unverändert lassen (m)" })}
+              {field("Landung müM", "endAlt", { placeholder: bulkEditData.endCoord ? "leer = aus Koordinaten berechnen" : "unverändert lassen (m)" })}
               {field("Max. Höhe", "maxAlt", { placeholder: "unverändert lassen (m)" })}
               {field("Distanz", "totalDist", { placeholder: "unverändert lassen (km)" })}
               {field("Ø Speed", "kmh", { placeholder: "unverändert lassen (km/h)" })}
