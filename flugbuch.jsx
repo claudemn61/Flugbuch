@@ -3650,23 +3650,26 @@ function renumberAllFlights(flights) {
   return flights.map(f => ({ ...f, name: renumberFlightName(f.name, numberById.get(f.id)) }));
 }
 
+// Parses either "47.219903, 8.453543" or "41.86336° 21.52994°" (and
+// anything in between, e.g. no comma, no degree signs, extra spaces) —
+// strip degree symbols, then split on any run of commas/whitespace and
+// take the first two numbers as lat/lon. Shared by CoordEdit (single-
+// flight edit) and the Massen-Bearbeitung's Start-/Landung-Koordinaten
+// fields, so both accept exactly the same input formats.
+function parseLatLon(str) {
+  if (!str) return null;
+  const tokens = str.replace(/°/g, " ").split(/[,\s]+/).map(t=>t.trim()).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const plat = parseFloat(tokens[0]);
+  const plon = parseFloat(tokens[1]);
+  if (isNaN(plat) || isNaN(plon)) return null;
+  return { lat: plat, lon: plon };
+}
+
 function CoordEdit({lat, lon, alt, color, onSave}) {
   const [editing, setEditing] = useState(false);
   const [combined, setCombined] = useState(lat!=null&&lon!=null ? `${lat}, ${lon}` : "");
   const [al, setAl] = useState(alt!=null&&alt>0?String(alt):"");
-  // Parses either "47.219903, 8.453543" or "41.86336° 21.52994°" (and
-  // anything in between, e.g. no comma, no degree signs, extra spaces) —
-  // strip degree symbols, then split on any run of commas/whitespace and
-  // take the first two numbers as lat/lon.
-  const parseLatLon = (str) => {
-    if (!str) return null;
-    const tokens = str.replace(/°/g, " ").split(/[,\s]+/).map(t=>t.trim()).filter(Boolean);
-    if (tokens.length < 2) return null;
-    const plat = parseFloat(tokens[0]);
-    const plon = parseFloat(tokens[1]);
-    if (isNaN(plat) || isNaN(plon)) return null;
-    return { lat: plat, lon: plon };
-  };
   const start = () => {
     setCombined(lat!=null&&lon!=null ? `${lat}, ${lon}` : "");
     setAl(alt!=null&&alt>0?String(alt):"");
@@ -6770,6 +6773,18 @@ function FlugbuchApp() {
             if (d.totalDist) patch.totalDist = parseFloat(d.totalDist)||0;
             if (d.startAlt) patch.startAlt = +d.startAlt;
             if (d.endAlt) patch.endAlt = +d.endAlt;
+            // Wie bei CoordEdit in der Einzelbearbeitung: nur Lat/Lon aus
+            // dem Freitext übernehmen, die Höhe (gpsAlt) bleibt unangetastet
+            // — die wird bei Bedarf über die eigenen Start/Landung-müM-
+            // Felder oben gesetzt, nicht hier mit überschrieben.
+            if (d.startCoord) {
+              const p = parseLatLon(d.startCoord);
+              if (p) patch.startPt = { ...(f.startPt||{}), lat: p.lat, lon: p.lon };
+            }
+            if (d.endCoord) {
+              const p = parseLatLon(d.endCoord);
+              if (p) patch.endPt = { ...(f.endPt||{}), lat: p.lat, lon: p.lon };
+            }
             const cfPatch = {};
             if (d.landung) cfPatch.landung = d.landung;
             if (d.passagier) cfPatch.passagier = d.passagier;
@@ -6866,6 +6881,8 @@ function FlugbuchApp() {
               {field("Landezeit", "endTime", { placeholder: "unverändert lassen (hh:mm)" })}
               {field("Startplatz", "site")}
               {field("Landeplatz", "landung")}
+              {field("Start-Koordinaten", "startCoord", { placeholder: "unverändert lassen (Lat, Lon)" })}
+              {field("Landung-Koordinaten", "endCoord", { placeholder: "unverändert lassen (Lat, Lon)" })}
               {field("Start müM", "startAlt", { placeholder: "unverändert lassen (m)" })}
               {field("Landung müM", "endAlt", { placeholder: "unverändert lassen (m)" })}
               {field("Max. Höhe", "maxAlt", { placeholder: "unverändert lassen (m)" })}
