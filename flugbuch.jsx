@@ -1454,12 +1454,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
                 🗺️
               </button>
               <button onClick={()=>setGpsvColorBy("altitude")} title="Höhe"
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="altitude"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:14,cursor:"pointer"}}>
-                📈
+                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="altitude"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                ASL
               </button>
               <button onClick={()=>setGpsvColorBy("climb")} title="Steigen/Sinken"
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="climb"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:14,cursor:"pointer"}}>
-                📊
+                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="climb"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                m/s
               </button>
             </>
           )}
