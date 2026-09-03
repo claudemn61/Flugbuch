@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.6";
+const APP_VERSION = "5.7.7";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.7", note: "Flugdetail: GPS-Visualizer-Link und die ASL/m/s-Filter zu einer gemeinsamen Kachel zusammengefasst und ans rechte Ende der Reihe verschoben, die Zoom-Kachel rückt dadurch nach links vor." },
   { v: "5.7.6", note: "Flugdetail: Startzeit, Startplatz und Start müM sind jetzt grün eingefärbt, Landezeit, Landeplatz und Landung müM rot — wie schon bei den Start-/Landung-Koordinaten-Kacheln, zur besseren Übersicht in der Flugdaten-Liste." },
   { v: "5.7.5", note: "Fix: Antippen eines Eintrags in Statistik (Schirm/Start-/Landeplatz/Passagier/Hike-Ort) filterte die Flugliste auf \"enthält\" statt \"exakt\" — z.B. zog \"Fiesch\" auch alle \"Fiescheralp\"-Flüge mit rein." },
   { v: "5.7.4", note: "Fix (eigentliche Ursache des Marker/Linie-Versatzes): die Routen-Punkte hatten ein inline position:relative statt position:absolute im Marker-Element — das überschrieb MapLibres eigene Positionierungs-Regel, wodurch der Marker statt exakt auf der Kartenkoordinate an seiner Position im Dokumentfluss landete (Versatz wuchs mit jedem weiteren Punkt). Gleicher Fix auch beim Flug-Positionsmarker (Gleitschirm-/Wanderschuh-Symbol) während der Wiedergabe angewendet." },
