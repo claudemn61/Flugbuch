@@ -643,7 +643,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
 }
 
 
-function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide, onRoutePointChange, onRoutePointAdd, onRoutePointDelete }) {
+function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybackActiveChange, onPlaybackPhaseChange, controlsSlot, isWide, onRoutePointChange, onRoutePointAdd, onRoutePointDelete, gpsvColorBy, onGpsvColorByChange }) {
   const previewDivRef = useRef(null);
   const previewMapRef = useRef(null);
   const previewRefMarkerRef = useRef(null);
@@ -717,7 +717,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const previewPlayMarkerRef = useRef(null);
   const playRafRef = useRef(null);
   const playLastTsRef = useRef(null);
-  const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
+  // gpsvColorBy jetzt vom übergeordneten DetailContent übergeben (statt
+  // hier lokal gehalten) — FlightProfile braucht denselben Modus für die
+  // lokale Höhen-/Steigrate-Anzeige an der Y-Achse.
+  const setGpsvColorBy = onGpsvColorByChange;
 
   // Combined Hike+Flug playback: if a Hike-GPX exists, cine playback runs
   // the hike first, auto-pauses at the transition to the flight (so the
@@ -1650,7 +1653,7 @@ function HikeProfile({ flight, playbackDistanceKm, isPlaybackActive, playbackPha
   );
 }
 
-function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlaybackDistanceKm, isPlaybackActive, playbackPhase, controlsSlot, isWide }) {
+function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlaybackDistanceKm, isPlaybackActive, playbackPhase, controlsSlot, isWide, gpsvColorBy }) {
   const canvasRef = useRef(null);
   const [groundProfile, setGroundProfile] = useState(null);
   const [groundError, setGroundError] = useState(false);
@@ -1712,6 +1715,31 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
   // totalDist] is the flight.
   const distances = useMemo(() => rawDistances.map(d => d*scale + hikeOffsetKm), [rawDistances, scale, hikeOffsetKm]);
   const totalDist = distances[distances.length-1] || hikeOffsetKm || 0;
+
+  // Geglättete Steig-/Sinkrate pro Trackpunkt (m/s) — gleicher 30-Sample-
+  // Moving-Average-Ansatz wie Max.Steigen/Max.Sinken in analyzeIGC, hier
+  // aber für jeden Punkt statt nur den Extremwert, damit die lokale Anzeige
+  // an der Y-Achse (im m/s-Modus) einen Wert zum jeweiligen Track-Index hat.
+  const flightClimbRates = useMemo(() => {
+    if (track.length < 2) return [];
+    const hasBaro = track.some(p => p.pAlt != null);
+    const altKey = hasBaro ? "pAlt" : "gpsAlt";
+    const SMA_SAMPLES = 30;
+    const rates = new Array(track.length).fill(0);
+    let sum = 0;
+    const buf = [];
+    for (let i = 1; i < track.length; i++) {
+      const a = track[i-1][altKey], b = track[i][altKey];
+      const dt = track[i].timeSec - track[i-1].timeSec;
+      if (a == null || b == null || dt <= 0) { rates[i] = rates[i-1]; continue; }
+      const rate = (b - a) / dt;
+      buf.push(rate); sum += rate;
+      if (buf.length > SMA_SAMPLES) sum -= buf.shift();
+      rates[i] = sum / buf.length;
+    }
+    rates[0] = rates[1] || 0;
+    return rates;
+  }, [track]);
 
   // Converts a playback position (reported as hike-relative km during the
   // hike phase, or flight-relative km during the flight phase — see
@@ -1972,10 +2000,51 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
       ctx.restore();
     }
 
+    // Altitude (und im m/s-Modus: Steigrate) where the track crosses the
+    // centre of the visible window — same point the map's red reference
+    // marker sits at — shown on the Y-axis alongside the min/max labels,
+    // positioned at its own height. While cine playback is actively
+    // running, this follows the moving marker instead (same combined-axis
+    // basis as everything else here), so the red label always matches
+    // whichever marker is actually visible on the map right now. Shown at
+    // every zoom level, including the overview (1×) — not just once
+    // actually zoomed in. Reads from whichever segment (hike or flight)
+    // the centre point actually falls into. Computed before the grey
+    // max/min labels below so their overlap with this can be checked.
+    const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm : (visStart+visEnd)/2;
+    const inHike = centerDist <= hikeOffsetKm && hikeDist.length > 0;
+    let centerAlt = null, centerLabel = "", centerClimb = null;
+    if (inHike) {
+      let ci = 0, cd = Infinity;
+      for (let i=0;i<hikeDist.length;i++) { const diff = Math.abs(hikeDist[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
+      centerAlt = hikeElev[ci];
+      centerLabel = `🥾 ${centerDist.toFixed(1)}km`;
+    } else if (distances.length) {
+      let ci = 0, cd = Infinity;
+      for (let i=0;i<distances.length;i++) { const diff = Math.abs(distances[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
+      centerAlt = track[ci]?.gpsAlt;
+      centerClimb = flightClimbRates[ci] ?? null;
+      const utcStartSec = track[0]?.timeSec, rawTime = track[ci]?.timeSec;
+      if (rawTime != null && utcStartSec != null) {
+        const elapsedSec = Math.max(0, rawTime - utcStartSec);
+        const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
+        const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
+        const flightKm = (centerDist-hikeOffsetKm)/(scale||1);
+        centerLabel = `${hh}:${mm}/${flightKm.toFixed(1)}km`;
+      }
+    }
+    const cy = centerAlt != null ? Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt))) : null;
+    // Die graue Max./Min.-Höhenanzeige bleibt immer (unabhängig vom
+    // ASL/m/s-Modus) — ausser die lokale rote Anzeige würde sie an
+    // derselben Stelle überlagern, dann wird die betroffene ausgeblendet.
+    const OVERLAP_PX = 11*dpr;
+    const hideMaxLabel = cy != null && Math.abs(cy-(padT+9*dpr)) < OVERLAP_PX;
+    const hideMinLabel = cy != null && Math.abs(cy-(padT+plotH)) < OVERLAP_PX;
+
     ctx.fillStyle = "rgba(232,244,253,0.5)"; ctx.font = `${10*dpr}px -apple-system,sans-serif`;
     ctx.textAlign = "right";
-    ctx.fillText(Math.round(maxA)+"m", padL-4*dpr, padT+9*dpr);
-    ctx.fillText(Math.round(minA)+"m", padL-4*dpr, padT+plotH);
+    if (!hideMaxLabel) ctx.fillText(Math.round(maxA)+"m", padL-4*dpr, padT+9*dpr);
+    if (!hideMinLabel) ctx.fillText(Math.round(minA)+"m", padL-4*dpr, padT+plotH);
     ctx.textAlign = "left"; ctx.fillText(visStartLabel.toFixed(1)+" km", padL, padT+plotH+15*dpr);
     ctx.textAlign = "right"; ctx.fillText(visEndLabel.toFixed(1)+" km", padL+plotW, padT+plotH+15*dpr);
     if (viewScale > 1.02) {
@@ -1990,42 +2059,12 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
       ctx.restore();
     }
 
-    // Altitude where the track crosses the centre of the visible window —
-    // same point the map's red reference marker sits at — shown on the
-    // Y-axis alongside the min/max labels, positioned at its own height.
-    // While cine playback is actively running, this follows the moving
-    // marker instead (same combined-axis basis as everything else here),
-    // so the red label always matches whichever marker is actually
-    // visible on the map right now. Shown at every zoom level, including
-    // the overview (1×) — not just once actually zoomed in. Reads from
-    // whichever segment (hike or flight) the centre point actually falls
-    // into.
-    const centerDist = (isPlaybackActive && playbackDistanceKm != null) ? playbackDistanceKm : (visStart+visEnd)/2;
-    const inHike = centerDist <= hikeOffsetKm && hikeDist.length > 0;
-    let centerAlt = null, centerLabel = "";
-    if (inHike) {
-      let ci = 0, cd = Infinity;
-      for (let i=0;i<hikeDist.length;i++) { const diff = Math.abs(hikeDist[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
-      centerAlt = hikeElev[ci];
-      centerLabel = `🥾 ${centerDist.toFixed(1)}km`;
-    } else if (distances.length) {
-      let ci = 0, cd = Infinity;
-      for (let i=0;i<distances.length;i++) { const diff = Math.abs(distances[i]-centerDist); if (diff<cd) { cd=diff; ci=i; } }
-      centerAlt = track[ci]?.gpsAlt;
-      const utcStartSec = track[0]?.timeSec, rawTime = track[ci]?.timeSec;
-      if (rawTime != null && utcStartSec != null) {
-        const elapsedSec = Math.max(0, rawTime - utcStartSec);
-        const hh = String(Math.floor(elapsedSec/3600)).padStart(2,"0");
-        const mm = String(Math.floor((elapsedSec%3600)/60)).padStart(2,"0");
-        const flightKm = (centerDist-hikeOffsetKm)/(scale||1);
-        centerLabel = `${hh}:${mm}/${flightKm.toFixed(1)}km`;
-      }
-    }
     if (centerAlt != null) {
-      const cy = Math.max(padT+9*dpr, Math.min(padT+plotH, yPos(centerAlt)));
+      const showClimb = gpsvColorBy === "climb" && !inHike && centerClimb != null;
+      const label = showClimb ? `${centerClimb>=0?"+":""}${centerClimb.toFixed(1)}m/s` : Math.round(centerAlt)+"m";
       ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
       ctx.textAlign = "right";
-      ctx.fillText(Math.round(centerAlt)+"m", padL-4*dpr, cy);
+      ctx.fillText(label, padL-4*dpr, cy);
     }
     if (centerLabel) {
       ctx.fillStyle = "#dc2626"; ctx.font = `bold ${10*dpr}px -apple-system,sans-serif`;
@@ -2114,7 +2153,7 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
       ctx.lineTo(xPos(distances[i]), yPos(track[i].gpsAlt));
       ctx.stroke();
     }
-  }, [track, distances, hikeDist, hikeElev, hikeOffsetKm, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm, isPlaybackActive]);
+  }, [track, distances, hikeDist, hikeElev, hikeOffsetKm, totalDist, groundProfile, viewStart, viewScale, playbackDistanceKm, isPlaybackActive, gpsvColorBy, flightClimbRates]);
 
   if (!track.length && hikePts.length < 2) return null;
 
@@ -4476,6 +4515,9 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const controlsSlotRef = useCallback(node => { if (node) setControlsSlotEl(node); }, []);
     const [isPlaybackActive, setIsPlaybackActive] = useState(false);
     const [playbackPhase, setPlaybackPhase] = useState("flight");
+    // Hier statt in FlightMap gehalten, weil FlightProfile denselben Modus
+    // für die lokale Höhen-/Steigrate-Anzeige an der Y-Achse braucht.
+    const [gpsvColorBy, setGpsvColorBy] = useState("altitude"); // "altitude" | "climb"
     const [tileConfig, setTileConfig] = useState(DEFAULT_TILE_KEYS);
     const [tilePickerIdx, setTilePickerIdx] = useState(null);
     useEffect(() => {
@@ -4706,7 +4748,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
 
           {/* Map */}
           <div data-no-swipe="true">
-            <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide}
+            <div style={{borderRadius:14,marginBottom:14,border:"1px solid rgba(100,180,255,0.12)"}}><FlightMap flight={fl} highlightRange={profileRange} onPlaybackPositionChange={setPlaybackDistance} onPlaybackActiveChange={setIsPlaybackActive} onPlaybackPhaseChange={setPlaybackPhase} controlsSlot={controlsSlotEl} isWide={isWide} gpsvColorBy={gpsvColorBy} onGpsvColorByChange={setGpsvColorBy}
               onRoutePointChange={(idx, newPt) => {
                 const pts = [...(flRef.current.routePts||[])];
                 pts[idx] = newPt;
@@ -4721,7 +4763,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 if (pts.length < 2) return; // never delete down to a single, meaningless point
                 recomputeRoutePts(pts);
               }} /></div>
-            <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} />
+            <FlightProfile flight={fl} onPositionChange={setProfileRange} playbackDistanceKm={playbackDistance} isPlaybackActive={isPlaybackActive} playbackPhase={playbackPhase} controlsSlot={controlsSlotEl} isWide={isWide} gpsvColorBy={gpsvColorBy} />
           </div>
           {/* Shared row: every control from both the map (play/speed/reset/
               GPS Visualizer/Höhe·Steigen-Sinken) and the profile (Zoom/Zoom
