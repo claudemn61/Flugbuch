@@ -1448,20 +1448,24 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             </>
           )}
           {flight?.track?.length > 0 && (
-            <>
+            // Zu einer gemeinsamen Kachel zusammengefasst (gehören inhaltlich
+            // zusammen: GPS-Visualizer-Link + dessen Einfärbungs-Modus) und
+            // per order ans Ende der Reihe verschoben — die Zoom-Kachel(n)
+            // (order:0, Standard) rücken dadurch automatisch nach links vor.
+            <div style={{flex:"3 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,display:"flex",overflow:"hidden",order:1}}>
               <button onClick={openInGpsVisualizer} title="In GPS Visualizer öffnen"
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"rgba(232,244,253,0.7)",fontSize:15,cursor:"pointer"}}>
+                style={{flex:"1 1 0",minWidth:0,height:"100%",boxSizing:"border-box",background:"transparent",border:"none",borderRight:"1px solid rgba(255,255,255,0.1)",color:"rgba(232,244,253,0.7)",fontSize:15,cursor:"pointer"}}>
                 🗺️
               </button>
               <button onClick={()=>setGpsvColorBy("altitude")} title="Höhe"
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="altitude"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                style={{flex:"1 1 0",minWidth:0,height:"100%",boxSizing:"border-box",background:gpsvColorBy==="altitude"?"rgba(125,211,252,0.25)":"transparent",border:"none",borderRight:"1px solid rgba(255,255,255,0.1)",color:gpsvColorBy==="altitude"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 ASL
               </button>
               <button onClick={()=>setGpsvColorBy("climb")} title="Steigen/Sinken"
-                style={{flex:"1 1 0",minWidth:0,height:34,boxSizing:"border-box",background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.05)",border:`1px solid ${gpsvColorBy==="climb"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                style={{flex:"1 1 0",minWidth:0,height:"100%",boxSizing:"border-box",background:gpsvColorBy==="climb"?"rgba(125,211,252,0.25)":"transparent",border:"none",color:gpsvColorBy==="climb"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 m/s
               </button>
-            </>
+            </div>
           )}
         </>,
         controlsSlot
