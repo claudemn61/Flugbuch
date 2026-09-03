@@ -3733,6 +3733,34 @@ function CoordEdit({lat, lon, alt, color, onSave}) {
   );
 }
 
+// Kleiner Kopier-Button für die Start-/Landung-Koordinaten-Kacheln —
+// kopiert "lat, lon" in die Zwischenablage, mit kurzem ✓-Feedback.
+function CopyCoordButton({lat, lon, color}) {
+  const [copied, setCopied] = useState(false);
+  if (lat==null || lon==null) return null;
+  const doCopy = async (e) => {
+    e.stopPropagation();
+    const text = `${lat}, ${lon}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 1200);
+    } catch {}
+  };
+  return (
+    <button onClick={doCopy} title="Koordinaten kopieren"
+      style={{background:"none",border:"none",color,opacity:copied?1:0.55,fontSize:12,cursor:"pointer",padding:0,lineHeight:1}}>
+      {copied ? "✓" : "📋"}
+    </button>
+  );
+}
+
 function EditableTitle({ value, onSave }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value||"");
@@ -4740,7 +4768,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
           {/* Koordinaten-Badges */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
             <div style={{background:"rgba(34,197,94,0.07)",borderRadius:12,padding:"10px",border:"1px solid rgba(34,197,94,0.18)"}}>
-              <div style={{fontSize:9,fontWeight:700,color:"#4ade80",letterSpacing:1.2,textTransform:"uppercase",marginBottom:5}}>📍 Start</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+                <div style={{fontSize:9,fontWeight:700,color:"#4ade80",letterSpacing:1.2,textTransform:"uppercase"}}>📍 Start</div>
+                <CopyCoordButton lat={fl.startPt?.lat} lon={fl.startPt?.lon} color="#4ade80" />
+              </div>
               <CoordEdit
                 lat={fl.startPt?.lat} lon={fl.startPt?.lon} alt={fl.startAlt}
                 color="#4ade80"
@@ -4753,7 +4784,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 }} />
             </div>
             <div style={{background:"rgba(239,68,68,0.07)",borderRadius:12,padding:"10px",border:"1px solid rgba(239,68,68,0.18)"}}>
-              <div style={{fontSize:9,fontWeight:700,color:"#f87171",letterSpacing:1.2,textTransform:"uppercase",marginBottom:5}}>🏁 Landung</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+                <div style={{fontSize:9,fontWeight:700,color:"#f87171",letterSpacing:1.2,textTransform:"uppercase"}}>🏁 Landung</div>
+                <CopyCoordButton lat={fl.endPt?.lat} lon={fl.endPt?.lon} color="#f87171" />
+              </div>
               <CoordEdit
                 lat={fl.endPt?.lat} lon={fl.endPt?.lon} alt={fl.endAlt}
                 color="#f87171"
