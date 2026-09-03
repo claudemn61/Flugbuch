@@ -3891,7 +3891,7 @@ function InlineFieldValueOnly({value, onSave, unit}) {
   );
 }
 
-function InlineField({label, value, onSave, multiline, unit}) {
+function InlineField({label, value, onSave, multiline, unit, valueColor}) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value||"");
   const committedByEnter = useRef(false);
@@ -3942,7 +3942,7 @@ function InlineField({label, value, onSave, multiline, unit}) {
               style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right"}} />
       ) : (
         <span data-inline-field-trigger onClick={()=>{setVal(value||"");setEditing(true);}}
-          style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
+          style={{fontSize:13,fontWeight:500,color:value?(valueColor||"#e8f4fd"):"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
           {value||(unit?"— "+unit:"—")}
         </span>
       )}
@@ -3956,7 +3956,7 @@ function InlineField({label, value, onSave, multiline, unit}) {
 // Enter/Tab accepts it) — used for Startplatz/Landeplatz so a long list of
 // previously-used places never has to be scrolled through; only the single
 // best-matching suggestion appears, inline, as part of the text itself.
-function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
+function PlaceInlineField({label, value, onSave, suggestions, flights, kind, valueColor}) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value||"");
   const inputRef = useRef(null);
@@ -4078,7 +4078,7 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind}) {
           style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right"}} />
       ) : (
         <span data-inline-field-trigger onClick={()=>{setVal(value||"");setEditing(true);}}
-          style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
+          style={{fontSize:13,fontWeight:500,color:value?(valueColor||"#e8f4fd"):"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
           {value||"—"}
         </span>
       )}
@@ -4838,24 +4838,27 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                     )}
                   </div>
                 ) : null,
-                startTime: () => <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} />,
-                endTime: () => <InlineField label="Landezeit"   value={fl.endTime}                     onSave={v=>saveComputedField(fl,{endTime:v})} />,
+                // Grün/Rot wie die Start-/Landung-Koordinaten-Kacheln weiter
+                // oben (#4ade80 / #f87171) — zur besseren Übersicht auf
+                // Anhieb erkennbar, welche Werte zu Start bzw. Landung gehören.
+                startTime: () => <InlineField label="Startzeit"   value={fl.startTime}                   onSave={v=>saveComputedField(fl,{startTime:v})} valueColor="#4ade80" />,
+                endTime: () => <InlineField label="Landezeit"   value={fl.endTime}                     onSave={v=>saveComputedField(fl,{endTime:v})} valueColor="#f87171" />,
                 site: () => <PlaceInlineField label="Startplatz" value={fl.site} flights={flights} kind="start"
                   onSave={(v,extras)=>saveField({
                     site:v,
                     ...(extras ? { startPt: extras.pt, startAlt: extras.alt } : {}),
                   })}
-                  suggestions={[...new Set(flights.map(f=>f.site).filter(Boolean))]} />,
+                  suggestions={[...new Set(flights.map(f=>f.site).filter(Boolean))]} valueColor="#4ade80" />,
                 landung: () => <PlaceInlineField label="Landeplatz" value={fl.customFields?.landung} flights={flights} kind="end"
                   onSave={(v,extras)=>saveField({
                     customFields:{landung:v},
                     ...(extras ? { endPt: extras.pt, endAlt: extras.alt } : {}),
                   })}
-                  suggestions={[...new Set(flights.map(f=>f.customFields?.landung).filter(Boolean))]} />,
+                  suggestions={[...new Set(flights.map(f=>f.customFields?.landung).filter(Boolean))]} valueColor="#f87171" />,
                 passagier: () => <InlineField label="Passagier"   value={fl.customFields?.passagier}     onSave={v=>saveField({customFields:{passagier:v}})} />,
                 reise: () => <ReiseSelect value={fl.customFields?.reise} onSave={v=>saveField({customFields:{reise:v}})} />,
-                startAlt: () => <InlineField label="Start müM"   value={fl.startAlt>0?String(fl.startAlt):(fl.customFields?.msa||"")}  onSave={v=>saveComputedField(fl,{startAlt:+v,customFields:{msa:v}})} unit="m" />,
-                endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" />,
+                startAlt: () => <InlineField label="Start müM"   value={fl.startAlt>0?String(fl.startAlt):(fl.customFields?.msa||"")}  onSave={v=>saveComputedField(fl,{startAlt:+v,customFields:{msa:v}})} unit="m" valueColor="#4ade80" />,
+                endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" valueColor="#f87171" />,
                 maxAlt: () => <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />,
                 distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />,
                 routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />,
