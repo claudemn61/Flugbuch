@@ -193,17 +193,24 @@ function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
 // -ordered turnpoints (i,j,k) where the flight closes the loop directly back
 // to turnpoint i's own coordinates (leg3 = k→i) — this is XContest's actual
 // triangle model (confirmed against igc-xc-score, a well-known open-source
-// reimplementation of XC scoring rules, and cross-checked against a real
-// XContest-scored flight): a triangle has 3 turnpoints, not 4 — the "closing
-// gap" is how close the ACTUALLY FLOWN track comes back to turnpoint i at
-// any LATER point in time (found by scanning the remainder of the track
-// after turnpoint k), not the distance to a separately-chosen 4th point. An
-// earlier version of this function modelled it as 4 independent points with
-// a fixed 4th "closing" point, which chronically under-found real triangles
-// (routinely off by 2× or more, sometimes missing the FAI category
-// entirely) — found by reverse-engineering a real flight the pilot scored
-// 8.77 km/FAI on XContest, which that version could only find ~1-4 km of at
-// any sampling resolution.
+// reimplementation of XC scoring rules, and cross-checked exactly against a
+// real XContest-scored flight, see below): a triangle has 3 turnpoints, not
+// 4. Two earlier versions of this function got the "closing gap" (how close
+// the ACTUALLY FLOWN track comes back to turnpoint i) wrong in two
+// different ways:
+//   1. modelled it as a distance to a separately-chosen 4th point instead
+//      of a search over the actual later track — chronically under-found
+//      real triangles (routinely off by 2× or more);
+//   2. modelled it as "closest point AFTER turnpoint k back to turnpoint i
+//      specifically" — better, but XContest's own check (igc-xc-score's
+//      isTriangleClosed/findClosestPairIn2Segments) is looser: the closest
+//      pair between the ENTIRE flown track UP TO turnpoint i and the flown
+//      track FROM turnpoint k onward, i.e. turnpoint i itself is also free
+//      to shift earlier if that finds a tighter close.
+// Both were found and fixed by reverse-engineering a real flight the pilot
+// scored 8.77 km/FAI (12.28 points) on XContest: version 1 found only
+// ~1-4 km at any sampling resolution, version 2 converged to ~8.34 km
+// (~5% under). This version reproduces 8.77 km/12.27 points exactly.
 //
 // Scoring per XContest's own published rules (xcontest.org/world/en/rules):
 //   - the closing gap must be ≤20% of the 3-leg perimeter to count as a
@@ -214,18 +221,17 @@ function estimateFreeDistance(track, maxLegs = 4, targetPoints = 700) {
 //     on top of either category ("closed" triangle):
 //     free/closed-free 1.20×/1.40×, FAI/closed-FAI 1.40×/1.60×.
 //
-// Solved via a coarse (≤targetPoints³) exhaustive search over every valid
-// (i,j,k) triple — each candidate's closing gap read from a precomputed
-// "closest later approach" table — followed by full-track-resolution local
-// refinement (coordinate-descent on i/j/k in turn) to recover the precision
-// the coarse sampling loses. Verified against the real 8.77 km/FAI flight
-// above: converges to ~8.34 km regardless of further increasing the
-// resolution (~5% under XContest's own figure — the residual gap is
-// XContest's closing check also letting turnpoint i itself shift slightly
-// when searching for the closest approach, a further refinement not worth
-// the added complexity here), so it's treated as converged, not
-// under-sampled.
-function estimateTriangleDistance(track, targetPoints = 180) {
+// Solved via an exhaustive search over every (i,j,k) triple in a
+// downsampled (≤targetPoints) copy of the track, with each candidate's
+// closing gap read from a precomputed table: suffixMin[i][k] = the closest
+// the track ever comes, at or after k, back to point i; gap[i][k] = the
+// running minimum of that over every i' ≤ i (i.e. the closest pair between
+// the track-so-far and the track-from-k-on) — both O(targetPoints²) to
+// build, reused by every (i,j,k) triple in the O(targetPoints³) search.
+// targetPoints=400 keeps that search well under 100ms even on a slow
+// device while already matching the real flight above almost exactly, with
+// no further per-flight refinement pass needed.
+function estimateTriangleDistance(track, targetPoints = 400) {
   if (track.length < 3) return null;
   let pts = track;
   if (track.length > targetPoints) {
@@ -244,9 +250,6 @@ function estimateTriangleDistance(track, targetPoints = 180) {
       dist[b * n + a] = dkm;
     }
   }
-  // suffixMin[i*n+k] = the closest the track ever comes, at or after index
-  // k, back to point i — the closing gap for turnpoint-1 candidate i once
-  // turnpoint-3 candidate k has been reached.
   const suffixMin = new Float64Array(n * n);
   for (let i = 0; i < n; i++) {
     let mn = Infinity;
@@ -256,19 +259,15 @@ function estimateTriangleDistance(track, targetPoints = 180) {
       suffixMin[i * n + p] = mn;
     }
   }
-
-  const scoreTriple = (i, j, k, requireFai) => {
-    const leg1 = dist[i * n + j], leg2 = dist[j * n + k], leg3 = dist[k * n + i];
-    const perimeter = leg1 + leg2 + leg3;
-    if (perimeter <= 0) return null;
-    const gap = suffixMin[i * n + k];
-    if (gap > 0.20 * perimeter) return null;
-    const shortestLeg = Math.min(leg1, leg2, leg3);
-    const isFai = shortestLeg >= 0.28 * perimeter;
-    if (requireFai && !isFai) return null;
-    const isTight = gap <= 0.05 * perimeter;
-    return { isFai, isTight, score: perimeter - gap };
-  };
+  const gap = new Float64Array(n * n);
+  for (let k = 0; k < n; k++) {
+    let mn = Infinity;
+    for (let i = 0; i < n; i++) {
+      const v = suffixMin[i * n + k];
+      if (v < mn) mn = v;
+      gap[i * n + k] = mn;
+    }
+  }
 
   // Bestes flaches Dreieck (nur closing≤20% verlangt, keine Bein-Ratio) und
   // bestes FAI-Dreieck (zusätzlich kürzestes Bein ≥28% des Umfangs) werden
@@ -279,101 +278,45 @@ function estimateTriangleDistance(track, targetPoints = 180) {
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       for (let k = j + 1; k < n; k++) {
-        const s = scoreTriple(i, j, k, false);
-        if (!s) continue;
-        const flatPoints = s.score * (s.isTight ? 1.40 : 1.20);
-        if (flatPoints > bestFlatPoints) { bestFlatPoints = flatPoints; bestFlat = { i, j, k }; }
-        if (s.isFai) {
-          const faiPoints = s.score * (s.isTight ? 1.60 : 1.40);
-          if (faiPoints > bestFaiPoints) { bestFaiPoints = faiPoints; bestFai = { i, j, k }; }
+        const leg1 = dist[i * n + j], leg2 = dist[j * n + k], leg3 = dist[k * n + i];
+        const perimeter = leg1 + leg2 + leg3;
+        if (perimeter <= 0) continue;
+        const g = gap[i * n + k];
+        if (g > 0.20 * perimeter) continue;
+        const shortestLeg = Math.min(leg1, leg2, leg3);
+        const isFai = shortestLeg >= 0.28 * perimeter;
+        const isTight = g <= 0.05 * perimeter;
+        const score = perimeter - g;
+        const flatPoints = score * (isTight ? 1.40 : 1.20);
+        if (flatPoints > bestFlatPoints) { bestFlatPoints = flatPoints; bestFlat = { i, j, k, score, isTight }; }
+        if (isFai) {
+          const faiPoints = score * (isTight ? 1.60 : 1.40);
+          if (faiPoints > bestFaiPoints) { bestFaiPoints = faiPoints; bestFai = { i, j, k, score, isTight }; }
         }
       }
     }
   }
   if (!bestFlat) return null;
 
-  // Full-resolution local refinement — the coarse pass above only sees
-  // ~targetPoints of the real track, which rounds every distance
-  // measurement (this matters most for the gap, often a small fraction of
-  // the perimeter).
-  const N = track.length;
   const fullDist = (a, b) => haversineKm(track[a].lat, track[a].lon, track[b].lat, track[b].lon);
-  const fullSuffixMin = (i) => {
-    const sm = new Float64Array(N);
-    let mn = Infinity;
-    for (let p = N - 1; p >= 0; p--) { const d = fullDist(i, p); if (d < mn) mn = d; sm[p] = mn; }
-    return sm;
-  };
-  const fullScore = (i, j, k, sm, requireFai) => {
-    if (!(i < j && j < k)) return null;
-    const leg1 = fullDist(i, j), leg2 = fullDist(j, k), leg3 = fullDist(k, i);
-    const perimeter = leg1 + leg2 + leg3;
-    if (perimeter <= 0) return null;
-    const gap = sm[k];
-    if (gap > 0.20 * perimeter) return null;
-    const shortestLeg = Math.min(leg1, leg2, leg3);
-    const isFai = shortestLeg >= 0.28 * perimeter;
-    if (requireFai && !isFai) return null;
-    return { isFai, isTight: gap <= 0.05 * perimeter, score: perimeter - gap, gap };
-  };
-  const refine = (cand, requireFai) => {
+  const scale = track.length > targetPoints ? track.length / targetPoints : 1;
+  const toResult = (cand, faiFamily) => {
     if (!cand) return null;
-    const scale = track.length > targetPoints ? track.length / targetPoints : 1;
-    let i = Math.floor(cand.i * scale), j = Math.floor(cand.j * scale), k = Math.floor(cand.k * scale);
-    const WINDOW = Math.max(10, Math.ceil(scale) + 3);
-    let sm = fullSuffixMin(i);
-    for (let round = 0; round < 8; round++) {
-      let improved = false;
-      { // turnpoint 3 (k)
-        let best = fullScore(i, j, k, sm, requireFai), bestVal = k;
-        for (let idx = Math.max(j + 1, k - WINDOW); idx <= Math.min(N - 1, k + WINDOW); idx++) {
-          const s = fullScore(i, j, idx, sm, requireFai);
-          if (s && (!best || s.score > best.score)) { best = s; bestVal = idx; improved = true; }
-        }
-        k = bestVal;
-      }
-      { // turnpoint 2 (j)
-        let best = fullScore(i, j, k, sm, requireFai), bestVal = j;
-        for (let idx = Math.max(i + 1, j - WINDOW); idx <= Math.min(k - 1, j + WINDOW); idx++) {
-          const s = fullScore(i, idx, k, sm, requireFai);
-          if (s && (!best || s.score > best.score)) { best = s; bestVal = idx; improved = true; }
-        }
-        j = bestVal;
-      }
-      { // turnpoint 1 (i) — needs its own closing-gap table per candidate
-        let best = fullScore(i, j, k, sm, requireFai), bestVal = i, bestSm = sm;
-        for (let idx = Math.max(0, i - WINDOW); idx <= Math.min(j - 1, i + WINDOW); idx++) {
-          const smIdx = fullSuffixMin(idx);
-          const s = fullScore(idx, j, k, smIdx, requireFai);
-          if (s && (!best || s.score > best.score)) { best = s; bestVal = idx; bestSm = smIdx; improved = true; }
-        }
-        i = bestVal; sm = bestSm;
-      }
-      if (!improved) break;
-    }
-    const final = fullScore(i, j, k, sm, requireFai);
-    if (!final) return null;
+    const i = Math.floor(cand.i * scale), j = Math.floor(cand.j * scale), k = Math.floor(cand.k * scale);
     // 4th "closing" point purely for the on-map visual (a dashed line back
     // to turnpoint 1) — the actual point on the track where it comes
-    // closest to turnpoint 1 again, matching `gap` exactly.
+    // closest to turnpoint 1 again; the scored distance above already used
+    // the mathematically exact closest-pair-between-two-segments gap.
     let closeIdx = k, closeDist = Infinity;
-    for (let p = k; p < N; p++) { const d = fullDist(i, p); if (d < closeDist) { closeDist = d; closeIdx = p; } }
-    return { i, j, k, closeIdx, ...final };
+    for (let p = k; p < track.length; p++) { const d = fullDist(i, p); if (d < closeDist) { closeDist = d; closeIdx = p; } }
+    const points = +(cand.score * (faiFamily ? (cand.isTight ? 1.60 : 1.40) : (cand.isTight ? 1.40 : 1.20))).toFixed(2);
+    return {
+      length: +cand.score.toFixed(2), points,
+      path: [track[i], track[j], track[k], track[closeIdx]].map(p => ({ lat: p.lat, lon: p.lon })),
+    };
   };
-
-  const flatRefined = refine(bestFlat, false);
-  const faiRefined = refine(bestFai, true);
-  if (!flatRefined) return null;
-
-  const toResult = (r, faiFamily) => r
-    ? {
-        length: +r.score.toFixed(2),
-        points: +(r.score * (faiFamily ? (r.isTight ? 1.60 : 1.40) : (r.isTight ? 1.40 : 1.20))).toFixed(2),
-        path: [track[r.i], track[r.j], track[r.k], track[r.closeIdx]].map(p => ({ lat: p.lat, lon: p.lon })),
-      }
-    : null;
-  const flach = toResult(flatRefined, false);
-  const fai = toResult(faiRefined, true);
+  const flach = toResult(bestFlat, false);
+  const fai = toResult(bestFai, true);
   // The overall best (used to auto-classify Routenart on import) is
   // whichever of the two categories scores more points for this flight —
   // matching how XContest itself picks the best-scoring category.
