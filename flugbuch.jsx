@@ -298,7 +298,6 @@ function estimateTriangleDistance(track, targetPoints = 400) {
   }
   if (!bestFlat) return null;
 
-  const fullDist = (a, b) => haversineKm(track[a].lat, track[a].lon, track[b].lat, track[b].lon);
   // scale muss auf n (die tatsächliche Länge von pts) statt auf targetPoints
   // gehen — das Downsampling oben trifft targetPoints wegen Fliesskomma-
   // Rundung nicht immer exakt (n kann z.B. targetPoints+1 sein), sonst
@@ -310,16 +309,19 @@ function estimateTriangleDistance(track, targetPoints = 400) {
   const toResult = (cand, faiFamily) => {
     if (!cand) return null;
     const i = clamp(Math.floor(cand.i * scale)), j = clamp(Math.floor(cand.j * scale)), k = clamp(Math.floor(cand.k * scale));
-    // 4th "closing" point purely for the on-map visual (a dashed line back
-    // to turnpoint 1) — the actual point on the track where it comes
-    // closest to turnpoint 1 again; the scored distance above already used
-    // the mathematically exact closest-pair-between-two-segments gap.
-    let closeIdx = k, closeDist = Infinity;
-    for (let p = k; p < track.length; p++) { const d = fullDist(i, p); if (d < closeDist) { closeDist = d; closeIdx = p; } }
     const points = +(cand.score * (faiFamily ? (cand.isTight ? 1.60 : 1.40) : (cand.isTight ? 1.40 : 1.20))).toFixed(2);
+    // Nur die 3 echten Turnpoints — die Schliessung ist die direkte Strecke
+    // vom 3. zurück zum 1. Turnpoint (leg3 = dist(k,i), Teil des oben
+    // gescorten Umfangs). Eine frühere Version zeichnete stattdessen einen
+    // künstlichen 4. Punkt ein (den nächstgelegenen späteren Trackpunkt zu
+    // Turnpoint 1) — das ergab bei manchen Flügen eine irreführende, viel
+    // zu "offen" wirkende Karte: die tatsächlich für die Gültigkeitsprüfung
+    // (20%-Regel) verwendete Schliessungs-Lücke kann nämlich einen Punkt
+    // VOR Turnpoint 1 als engste Annäherung finden (siehe gap-Tabelle
+    // oben), der mit dem 4.-Punkt-Modell gar nicht sichtbar war.
     return {
       length: +cand.score.toFixed(2), points,
-      path: [track[i], track[j], track[k], track[closeIdx]].map(p => ({ lat: p.lat, lon: p.lon })),
+      path: [track[i], track[j], track[k]].map(p => ({ lat: p.lat, lon: p.lon })),
     };
   };
   const flach = toResult(bestFlat, false);
@@ -917,14 +919,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     ["route", "route-closing"].forEach(id => { if (map.getSource(id)) map.removeSource(id); });
     const routePts = flight?.routePts;
     if (!routePts || routePts.length < 2) return;
-    // The dashed closing hint (and correspondingly, recomputeRoutePts
-    // treating the last leg back to the start as not part of the scored
-    // distance) only makes sense for an actual 4-point shape — an
-    // in-progress edit (still 2-3 points) or a stray extra point (5+)
+    // The dashed closing hint only makes sense for an actual 3-point shape
+    // (the real turnpoints — see estimateTriangleDistance) — an
+    // in-progress edit (still 1-2 points) or a stray extra point (4+)
     // isn't a real triangle regardless of what the Routenart label says,
     // and drawing a closing line for it would show a shape the distance
     // figure doesn't match.
-    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 4;
+    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 3;
     const legCoords = routePts.map(p => [p.lon, p.lat]);
     // tolerance:0 / maxzoom:24 — the route is only 2-5 exact turnpoints,
     // not a dense track. Without this, MapLibre's internal geojson-vt
@@ -974,7 +975,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const routePts = flight?.routePts;
     const sdk = window.maptilersdk;
     if (!routePts || routePts.length < 2 || !sdk || !showPoints) return;
-    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 4;
+    const isTriangleRoute = (flight.customFields?.routenTyp || "").includes("Dreieck") && routePts.length === 3;
     const editableHere = mapRefObj === fullMapRef && !!onRoutePointChange;
     const routeMarkers = routePts.map((p, idx) => {
       const el = document.createElement("div");
@@ -4362,18 +4363,20 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     const flRef = useRef(fl);
     flRef.current = fl;
     const recomputeRoutePts = (pts) => {
-      // Always just the sum of the actually-drawn legs between consecutive
-      // points — never a truncated/capped count. For an exact 4-point
-      // triangle that's automatically the 3 real sides (there are only 3
-      // gaps in a 4-point array), correctly excluding the dashed closing
-      // hint without needing to special-case it; for any other point count
-      // (still 2-3 points mid-edit, or a 5th added by mistake) it's simply
-      // the full open chain — matching exactly what drawRouteLine puts on
-      // the map, so distance and line can never show something inconsistent
-      // with each other.
+      // Sum of the actually-drawn legs between consecutive points. For an
+      // exact 3-point triangle (the real turnpoints — see
+      // estimateTriangleDistance), the closing leg back from the 3rd to
+      // the 1st point is a genuine part of the scored perimeter (not just
+      // a visual hint), so it's added on top; for any other point count
+      // (still 1-2 points mid-edit, a free-distance chain, or a 4th+ point
+      // added by mistake) it's simply the open chain — matching exactly
+      // what drawRouteLine puts on the map, so distance and line can never
+      // show something inconsistent with each other.
       const current = flRef.current;
+      const isTriangleRoute = (current.customFields?.routenTyp || "").includes("Dreieck") && pts.length === 3;
       let newLen = 0;
       for (let i=1; i<pts.length; i++) newLen += haversineDistKm(pts[i-1], pts[i]) || 0;
+      if (isTriangleRoute) newLen += haversineDistKm(pts[pts.length-1], pts[0]) || 0;
       newLen = +newLen.toFixed(2);
       saveComputedField(current, { routePts:pts, totalDist:newLen, customFields:{distKm:String(newLen)} });
     };
@@ -5903,7 +5906,7 @@ function FlugbuchApp() {
       })();
 
       // Vierte, ebenfalls nur EINMALIGE und nicht blockierende Nachkorrektur
-      // (service:distanzSyncDone_v2, gleiches Muster wie oben — Flug für
+      // (service:distanzSyncDone_v3, gleiches Muster wie oben — Flug für
       // Flug mit Pause dazwischen): Distanz UND die auf der Karte
       // gezeichnete Route (routePts) an die aktuell gesetzte Routenart
       // angleichen. Rührt nur Flüge mit GPS-Track an, deren Routenart
@@ -5915,12 +5918,14 @@ function FlugbuchApp() {
       // dem Dreieck-Algorithmus-Fix) — Distanz bleibt danach ganz normal
       // frei überschreibbar, exakt wie eine manuelle Eingabe.
       // (v2 statt v1: lief zunächst nur für Distanz, jetzt zusätzlich für
-      // routePts — daher neuer Flag-Name, damit sie sicher noch einmal für
-      // alle Flüge durchläuft.)
+      // routePts. v3 statt v2: estimateTriangleDistance liefert jetzt nur
+      // noch die 3 echten Turnpoints statt zuvor 4 inkl. eines künstlichen,
+      // teils irreführenden "Schliessungspunkts" — jeweils neuer Flag-Name,
+      // damit die Migration sicher noch einmal für alle Flüge durchläuft.)
       (async () => {
         let distSyncDone = true;
         try {
-          const r = await window.storage.get("service:distanzSyncDone_v2");
+          const r = await window.storage.get("service:distanzSyncDone_v3");
           distSyncDone = !!(r && r.value === "1");
         } catch { return; }
         if (distSyncDone) return;
@@ -5955,7 +5960,7 @@ function FlugbuchApp() {
           }
           await new Promise(res => setTimeout(res, 0));
         }
-        try { await window.storage.set("service:distanzSyncDone_v2", "1"); } catch {}
+        try { await window.storage.set("service:distanzSyncDone_v3", "1"); } catch {}
       })();
     })();
   }, []);

@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.15";
+const APP_VERSION = "5.7.16";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.16", note: "Fix Dreieck-Route auf der Karte: zeichnete bisher einen künstlichen 4. Punkt ein (nächster späterer Trackpunkt zu Turnpoint 1), der bei manchen Flügen eine viel zu weit offen wirkende, irreführende Form ergab, obwohl die berechnete FAI-/Flach-Einstufung selbst stimmte. Zeigt jetzt das echte, geschlossene 3-Punkte-Dreieck (Turnpoint 1-2-3, Schliessung direkt zurück zu Turnpoint 1) — wie auf XContest selbst. Einmalige Nachkorrektur beim nächsten App-Start aktualisiert bestehende Flüge entsprechend." },
   { v: "5.7.15", note: "Beim Setzen der Routenart zieht jetzt auch die auf der Karte gezeichnete Route (nicht nur Distanz) automatisch mit — bleibt weiterhin über die Kartenansicht editierbar. Einmalige Nachkorrektur beim nächsten App-Start gleicht das bei allen bestehenden Flügen mit einer der drei automatisch vergebenen Routenarten entsprechend an." },
   { v: "5.7.14", note: "Distanz passt sich beim Setzen der Routenart (Freie Strecke/Flaches Dreieck/FAI-Dreieck) automatisch an die dazu berechnete Streckenlänge an, bleibt danach aber ganz normal frei überschreibbar. Einmalige Nachkorrektur beim nächsten App-Start gleicht Distanz bei allen bestehenden Flügen mit einer der drei Routenarten entsprechend an." },
   { v: "5.7.13", note: "Fix: die Nachkorrektur-Migration (5.7.11/12) blockierte bei vielen Flügen mit GPS-Track den Hauptthread so lange, dass die App beim Start einfror. Läuft jetzt erst nach dem ersten Render, Flug für Flug mit kurzer Pause dazwischen — die Liste erscheint sofort und aktualisiert sich währenddessen laufend." },
