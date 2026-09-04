@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.17";
+const APP_VERSION = "5.7.18";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.18", note: "Fix: der Zeilen-Baukasten der Suche übernahm eine über Suchen/Sortieren-Panel geladene gespeicherte Darstellung, einen freien Text-Edit im Suchfeld oder ✕ Löschen nicht — bearbeitete man danach eine Baukasten-Zeile, wurde der gerade erst gesetzte Filter durch den alten, im Baukasten noch hinterlegten Stand überschrieben. Baukasten gleicht sich jetzt bei jeder externen Änderung des Suchtexts korrekt ab." },
   { v: "5.7.17", note: "Flugliste: vor der Distanz-Anzeige (egal ob als Haupt- oder Nebenwert, je nach Sortierung) erscheint jetzt bei bekannter Routenart ein kleines Symbol — ▲ für ein Dreieck (grün bei FAI, sonst wie die Distanz-Anzeige eingefärbt), ▬ für eine Freie Strecke." },
   { v: "5.7.16", note: "Fix Dreieck-Route auf der Karte: zeichnete bisher einen künstlichen 4. Punkt ein (nächster späterer Trackpunkt zu Turnpoint 1), der bei manchen Flügen eine viel zu weit offen wirkende, irreführende Form ergab, obwohl die berechnete FAI-/Flach-Einstufung selbst stimmte. Zeigt jetzt das echte, geschlossene 3-Punkte-Dreieck (Turnpoint 1-2-3, Schliessung direkt zurück zu Turnpoint 1) — wie auf XContest selbst. Einmalige Nachkorrektur beim nächsten App-Start aktualisiert bestehende Flüge entsprechend." },
   { v: "5.7.15", note: "Beim Setzen der Routenart zieht jetzt auch die auf der Karte gezeichnete Route (nicht nur Distanz) automatisch mit — bleibt weiterhin über die Kartenansicht editierbar. Einmalige Nachkorrektur beim nächsten App-Start gleicht das bei allen bestehenden Flügen mit einer der drei automatisch vergebenen Routenarten entsprechend an." },

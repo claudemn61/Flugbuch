@@ -3624,10 +3624,23 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
   // via the explicit ✓ button below.
   const [advOpen, setAdvOpen] = useState(false);
   const [rows, setRows] = useState(() => parseQueryToRows(filterText));
+  // Tracks the filterText that "rows" currently reflects, so external changes
+  // (gespeicherte Darstellung anwenden, freier Text-Input, ✕ löschen) can be
+  // detected and re-parsed into rows — ohne das lazy useState-Init wäre rows
+  // sonst dauerhaft auf dem allerersten Mount-Wert eingefroren.
+  const rowsFilterTextRef = useRef(filterText);
+  useEffect(() => {
+    if (filterText !== rowsFilterTextRef.current) {
+      setRows(parseQueryToRows(filterText));
+      rowsFilterTextRef.current = filterText;
+    }
+  }, [filterText]);
 
   const applyRows = (nextRows) => {
     setRows(nextRows);
-    setFilterText(buildAdvancedQuery(nextRows));
+    const next = buildAdvancedQuery(nextRows);
+    rowsFilterTextRef.current = next;
+    setFilterText(next);
   };
   const updateRow = (idx, patch) => applyRows(rows.map((r,i)=> i===idx ? {...r, ...patch} : r));
   const addRow = () => applyRows([...rows, newSearchRow()]);
