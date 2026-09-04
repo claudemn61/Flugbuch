@@ -950,9 +950,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         tolerance: 0,
         maxzoom: 24,
       });
+      // Diese Seite (Turnpoint 3 zurück zu Turnpoint 1) ist bei einem
+      // echten Dreieck ein ganz regulärer, mitgezählter Teil des Umfangs —
+      // seit dem 3-Punkte-Fix kein reiner "Schliessungs-Hinweis" mehr wie
+      // früher. Daher im selben Stil wie die anderen beiden Seiten statt
+      // dünner/heller/feiner gestrichelt, sonst wirkt sie fälschlich
+      // "weniger echt". (Dieser ganze Block läuft nur, wenn isTriangleRoute
+      // zutrifft — die alte dezente Variante war ohnehin nie für eine
+      // Freie Strecke gedacht, die bekommt gar keine Schliessungslinie.)
       map.addLayer({ id: "route-closing-line", type: "line", source: "route-closing",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "rgba(0,0,0,0.55)", "line-width": 1, "line-dasharray": [1, 1.6] } });
+        paint: { "line-color": "#000000", "line-width": 1.5, "line-dasharray": [2.5, 1.5] } });
     }
     // A source/layer added right after "load" can occasionally miss the
     // very first paint (a known MapLibre/Mapbox GL timing quirk) and only
