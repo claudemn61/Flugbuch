@@ -3231,6 +3231,21 @@ const SECONDARY_VALUE_FOR_SORT = {
   rating: "duration",
 };
 
+// Kleines Symbol unmittelbar vor der Distanz in der Flugliste, wenn die
+// Routenart einer der drei automatisch bestimmbaren Kategorien entspricht:
+// ▲ für ein Dreieck (grün bei FAI, sonst ohne eigene Farbe — übernimmt
+// dadurch exakt die Farbe der umgebenden Distanz-Anzeige, ob grau als
+// Sekundärwert oder blau als Primärwert), ▬ für eine Freie Strecke. Bewusst
+// reine Unicode-Symbole statt Emoji (🔺 hat eine feste Eigenfarbe und liesse
+// sich nicht wie gewünscht einfärben).
+function routeTypeGlyph(f) {
+  const typ = (f.customFields?.routenTyp || "").trim();
+  if (typ === "FAI-Dreieck") return <span style={{color:"#4ade80"}}>▲ </span>;
+  if (typ === "Flaches Dreieck") return <span>▲ </span>;
+  if (typ === "Freie Strecke") return <span>▬ </span>;
+  return null;
+}
+
 function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel, isWide }) {
   const pax = f.customFields?.passagier;
   const showSortValue = sortId && sortId !== "date" && sortId !== "number";
@@ -3265,12 +3280,12 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
         </span>
         <span style={{flex:1}} />
         <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
-          {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{f.totalDist} km</span> : null}
+          {!showSortValue && f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{routeTypeGlyph(f)}{f.totalDist} km</span> : null}
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
             <span style={{color:"#4ade80",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
           )}
           {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{fontSize:"0.85em"}}>⭐️</span></span>}
-          <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
+          <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue && sortId==="dist" && routeTypeGlyph(f)}{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
       </div>
     );
@@ -3310,10 +3325,10 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
             <span style={{color:"#4ade80",fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:54,display:"inline-block",verticalAlign:"bottom"}}>🥾{f.customFields.hikeDauer}</span>
           )}
-          <span>{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
+          <span>{showSortValue && sortId==="dist" && routeTypeGlyph(f)}{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
         {secondaryText !== "—" && (
-          <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{secondaryText}</div>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{secondaryId==="dist" && routeTypeGlyph(f)}{secondaryText}</div>
         )}
       </div>
     </div>
