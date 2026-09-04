@@ -5749,9 +5749,30 @@ function FlugbuchApp() {
       // zwingend einen Track) — bei denen ist "Freie Strecke" also immer
       // korrekt, sobald überhaupt eine Distanz vorliegt und Routenart noch
       // leer ist. Betrifft v.a. alte, manuell erfasste Flüge ohne IGC.
+      //
+      // Dritte, wirklich nur EINMALIGE Nachkorrektur (nicht bei jedem
+      // Start, da estimateTriangleDistance pro Flug spürbar Rechenzeit
+      // braucht): Routenart + eingezeichnete Route wurden bei Flügen mit
+      // GPS-Track ursprünglich mit einem fehlerhaften Dreieck-Algorithmus
+      // bestimmt (siehe estimateTriangleDistance-Historie). Läuft dank
+      // service:triangleFixDone_v1 nur beim allerersten Start nach diesem
+      // Fix, und rührt dabei nur Flüge an, deren Routenart noch exakt
+      // einem der drei automatisch vergebenen Werte entspricht (leer
+      // zählt als "noch nie gesetzt") — von Hand eingetragener/geänderter
+      // Text bleibt unangetastet. Aktualisiert routePts (die gezeichneten
+      // Wendepunkte) nur zusammen mit einer tatsächlichen Änderung der
+      // Routenart, um von Hand auf der Karte verschobene Punkte bei sonst
+      // gleicher Einstufung nicht zu überschreiben.
+      let triangleFixDone = true;
+      try {
+        const r = await window.storage.get("service:triangleFixDone_v1");
+        triangleFixDone = !!(r && r.value === "1");
+      } catch { triangleFixDone = true; }
+      const AUTO_ROUTE_VALUES = ["FAI-Dreieck", "Flaches Dreieck", "Freie Strecke"];
       const migrated = sorted.map(f => {
         const cf = f.customFields || {};
-        let next = f, nextCf = cf;
+        let nextCf = cf;
+        let nextRoutePts = f.routePts;
         const dist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
         if (!(cf.kmh||"").trim() && dist > 0 && f.durationSec > 0) {
           nextCf = { ...nextCf, kmh: (dist / (f.durationSec/3600)).toFixed(1) };
@@ -5760,9 +5781,25 @@ function FlugbuchApp() {
         if (!(cf.routenTyp||"").trim() && dist > 0 && !hasTrack) {
           nextCf = { ...nextCf, routenTyp: "Freie Strecke" };
         }
-        if (nextCf !== cf) next = { ...f, customFields: nextCf };
-        return next;
+        if (!triangleFixDone && hasTrack) {
+          const currentTyp = (nextCf.routenTyp||"").trim();
+          if (!currentTyp || AUTO_ROUTE_VALUES.includes(currentTyp)) {
+            const freeDist = estimateFreeDistance(f.track);
+            const triangle = estimateTriangleDistance(f.track);
+            const isTriangle = triangle && triangle.points > freeDist.length;
+            const newRouteType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
+            if (newRouteType !== currentTyp) {
+              nextCf = { ...nextCf, routenTyp: newRouteType };
+              nextRoutePts = isTriangle ? triangle.path : freeDist.path;
+            }
+          }
+        }
+        if (nextCf === cf && nextRoutePts === f.routePts) return f;
+        return { ...f, customFields: nextCf, routePts: nextRoutePts };
       });
+      if (!triangleFixDone) {
+        try { await window.storage.set("service:triangleFixDone_v1", "1"); } catch {}
+      }
       const changed = migrated.filter((f,i) => f !== sorted[i]);
       if (changed.length) {
         Promise.all(changed.map(f => window.storage.set(`flight:${f.id}`, JSON.stringify(f)))).catch(()=>{});
