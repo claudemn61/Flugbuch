@@ -2890,7 +2890,7 @@ function evalToken(f, tok){
 // its position here, and stale/removed ids are silently dropped.
 const FLUGDATEN_DEFAULT_ORDER = [
   "date","glider","typ","startTime","endTime","site","landung","passagier","reise",
-  "startAlt","endAlt","maxAlt","distanz","maxFlachesDreieck","maxFaiDreieck","routenTyp","dauer","hDiff","speed",
+  "startAlt","endAlt","maxAlt","distanz","maxFreieStrecke","maxFlachesDreieck","maxFaiDreieck","routenTyp","dauer","hDiff","speed",
   "maxSteigen","maxSinken","hGew","entfernungSL","rangDauer","pctDauer","rangStrecke","pctStrecke",
 ];
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
@@ -4009,7 +4009,7 @@ function InlineFieldValueOnly({value, onSave, unit}) {
   );
 }
 
-function InlineField({label, value, onSave, multiline, unit, valueColor}) {
+function InlineField({label, value, onSave, multiline, unit, valueColor, placeholder}) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value||"");
   const committedByEnter = useRef(false);
@@ -4061,7 +4061,7 @@ function InlineField({label, value, onSave, multiline, unit, valueColor}) {
       ) : (
         <span data-inline-field-trigger onClick={()=>{setVal(value||"");setEditing(true);}}
           style={{fontSize:13,fontWeight:500,color:value?(valueColor||"#e8f4fd"):"rgba(232,244,253,0.25)",cursor:"pointer",minWidth:60,textAlign:"right"}}>
-          {value||(unit?"— "+unit:"—")}
+          {value||placeholder||(unit?"— "+unit:"—")}
         </span>
       )}
     </div>
@@ -4339,6 +4339,20 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     // muss. Nur bei einem tatsächlichen GPS-Track (fl.track) überhaupt
     // möglich, sonst bleiben beide Felder leer.
     const triangleEstimate = useMemo(() => estimateTriangleDistance(fl.track||[]), [fl.id, fl.track]);
+    // Freie Strecke (immer 1.0 Pkt./km, siehe estimateFreeDistance) als
+    // dritte Kategorie neben Flach/FAI — zusammen ergeben sie den Vorschlag
+    // für "Routenart" unten: welche der drei Punktzahlen am höchsten ist.
+    const freeDistEstimate = useMemo(() => estimateFreeDistance(fl.track||[]), [fl.id, fl.track]);
+    const routenTypSuggestion = useMemo(() => {
+      const freiePkt = freeDistEstimate?.length || 0;
+      const flachPkt = triangleEstimate?.flach?.points || 0;
+      const faiPkt = triangleEstimate?.fai?.points || 0;
+      const best = Math.max(freiePkt, flachPkt, faiPkt);
+      if (best <= 0) return "";
+      if (faiPkt === best) return "FAI-Dreieck";
+      if (flachPkt === best) return "Flaches Dreieck";
+      return "Freie Strecke";
+    }, [freeDistEstimate, triangleEstimate]);
     // FlightMap's route-editing callbacks (move/add/delete a turnpoint) are
     // bound once when its fullscreen map is built, not on every render — so
     // if they closed over `fl` directly, a second edit in the same
@@ -4994,9 +5008,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" valueColor="#f87171" />,
                 maxAlt: () => <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />,
                 distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />,
+                maxFreieStrecke: () => <StaticField label="Max. Freie Strecke" value={freeDistEstimate?.length>0 ? `${freeDistEstimate.length.toFixed(2)} km (${freeDistEstimate.length.toFixed(1)} Pkt.)` : ""} />,
                 maxFlachesDreieck: () => <StaticField label="Max. Flaches Dreieck" value={triangleEstimate?.flach ? `${triangleEstimate.flach.length.toFixed(2)} km (${triangleEstimate.flach.points.toFixed(1)} Pkt.)` : ""} />,
                 maxFaiDreieck: () => <StaticField label="Max. FAI-Dreieck" value={triangleEstimate?.fai ? `${triangleEstimate.fai.length.toFixed(2)} km (${triangleEstimate.fai.points.toFixed(1)} Pkt.)` : ""} />,
-                routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />,
+                routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} placeholder={routenTypSuggestion} />,
                 dauer: () => <StaticField label="Dauer"       value={fl.durationStr} />,
                 hDiff: () => <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />,
                 speed: () => <InlineField label="Ø Speed"     value={fl.customFields?.kmh}           onSave={v=>saveField({customFields:{kmh:v}})} unit="km/h" />,
