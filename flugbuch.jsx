@@ -258,6 +258,15 @@ function estimateTriangleDistance(track, targetPoints = 150) {
     }
   }
   let bestPoints = -1, bestLen = 0, bestIsFai = false, bestQuad = null;
+  // Bestes flaches Dreieck (nur closing≤20% verlangt, keine Bein-Ratio) und
+  // bestes FAI-Dreieck (zusätzlich kürzestes Bein ≥28% des Umfangs) werden
+  // unabhängig voneinander mitgeführt — XContest bewertet einen Flug in
+  // beiden Kategorien separat, die jeweils gewinnende Form kann sich also
+  // unterscheiden (ein Kandidat mit maximaler Gesamtlänge muss die
+  // FAI-Bein-Ratio nicht erfüllen, während eine etwas kürzere, aber
+  // ratio-konforme Form dort mehr Punkte bringt).
+  let bestFlatPoints = -1, bestFlatLen = 0, bestFlatQuad = null;
+  let bestFaiPoints = -1, bestFaiLen = 0, bestFaiQuad = null;
   for (let i = 0; i < n; i++) {
     for (let m = i + 3; m < n; m++) {
       const total = L2[i * n + m];
@@ -272,16 +281,31 @@ function estimateTriangleDistance(track, targetPoints = 150) {
       const mult = (isFai && isTight) ? 1.60 : (isFai || isTight) ? 1.40 : 1.20;
       const points = total * mult;
       if (points > bestPoints) { bestPoints = points; bestLen = total; bestIsFai = isFai; bestQuad = [i, j, k, m]; }
+
+      const flatPoints = total * (isTight ? 1.40 : 1.20);
+      if (flatPoints > bestFlatPoints) { bestFlatPoints = flatPoints; bestFlatLen = total; bestFlatQuad = [i, j, k, m]; }
+
+      if (isFai) {
+        const faiPoints = total * (isTight ? 1.60 : 1.40);
+        if (faiPoints > bestFaiPoints) { bestFaiPoints = faiPoints; bestFaiLen = total; bestFaiQuad = [i, j, k, m]; }
+      }
     }
   }
   // path is the 4 actual turnpoints (i,j,k,m) — the app draws the closing
   // leg back from the 4th to the 1st itself, it isn't a 5th path entry.
   const path = bestQuad ? bestQuad.map(idx => ({ lat: pts[idx].lat, lon: pts[idx].lon })) : [];
+  const toResult = (quad, len, points) => quad
+    ? { length: +len.toFixed(2), points: +points.toFixed(2), path: quad.map(idx => ({ lat: pts[idx].lat, lon: pts[idx].lon })) }
+    : null;
   // isFai collapses the closing-tightness distinction (which only affects
   // the point bonus, 1.4 vs 1.6) into the 2 shape categories the app
   // actually shows the pilot: "Flaches Dreieck" vs "FAI-Dreieck".
   return bestPoints > 0
-    ? { length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2), category: bestIsFai ? "fai" : "flach", path }
+    ? {
+        length: +bestLen.toFixed(2), points: +bestPoints.toFixed(2), category: bestIsFai ? "fai" : "flach", path,
+        flach: toResult(bestFlatQuad, bestFlatLen, bestFlatPoints),
+        fai: toResult(bestFaiQuad, bestFaiLen, bestFaiPoints),
+      }
     : null;
 }
 
@@ -2843,7 +2867,7 @@ function evalToken(f, tok){
 // its position here, and stale/removed ids are silently dropped.
 const FLUGDATEN_DEFAULT_ORDER = [
   "date","glider","typ","startTime","endTime","site","landung","passagier","reise",
-  "startAlt","endAlt","maxAlt","distanz","routenTyp","dauer","hDiff","speed",
+  "startAlt","endAlt","maxAlt","distanz","maxFlachesDreieck","maxFaiDreieck","routenTyp","dauer","hDiff","speed",
   "maxSteigen","maxSinken","hGew","entfernungSL","rangDauer","pctDauer","rangStrecke","pctStrecke",
 ];
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
@@ -4286,6 +4310,12 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
 
     const autoFields = customFieldDefs.filter(d=>d.formula).map(d=>({...d, value:evalFormula(d.formula,fl,flights)}));
     const manualFields = customFieldDefs.filter(d=>!d.formula);
+    // Bestes flaches Dreieck und bestes FAI-Dreieck laut XContest-Vorgaben
+    // (siehe estimateTriangleDistance) — unabhängig voneinander berechnet,
+    // da die optimale Form für die beiden Kategorien nicht dieselbe sein
+    // muss. Nur bei einem tatsächlichen GPS-Track (fl.track) überhaupt
+    // möglich, sonst bleiben beide Felder leer.
+    const triangleEstimate = useMemo(() => estimateTriangleDistance(fl.track||[]), [fl.id, fl.track]);
     // FlightMap's route-editing callbacks (move/add/delete a turnpoint) are
     // bound once when its fullscreen map is built, not on every render — so
     // if they closed over `fl` directly, a second edit in the same
@@ -4941,6 +4971,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" valueColor="#f87171" />,
                 maxAlt: () => <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />,
                 distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />,
+                maxFlachesDreieck: () => <StaticField label="Max. Flaches Dreieck" value={triangleEstimate?.flach ? `${triangleEstimate.flach.length.toFixed(2)} km (${triangleEstimate.flach.points.toFixed(1)} Pkt.)` : ""} />,
+                maxFaiDreieck: () => <StaticField label="Max. FAI-Dreieck" value={triangleEstimate?.fai ? `${triangleEstimate.fai.length.toFixed(2)} km (${triangleEstimate.fai.points.toFixed(1)} Pkt.)` : ""} />,
                 routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} />,
                 dauer: () => <StaticField label="Dauer"       value={fl.durationStr} />,
                 hDiff: () => <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />,
