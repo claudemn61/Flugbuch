@@ -3284,7 +3284,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
             <span style={{color:"#4ade80",fontSize:11,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64,display:"inline-block"}}>🥾{f.customFields.hikeDauer}</span>
           )}
-          {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
+          {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047",fontSize:10}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
           <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{showSortValue && sortId==="dist" && routeTypeGlyph(f)}{showSortValue ? formatSortValue(f, sortId) : (f.durationStr||"—")}</span>
         </div>
       </div>
@@ -3321,7 +3321,7 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
       </div>
       <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
         <div style={{fontSize:13,fontWeight:600,color:"#7dd3fc",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}>
-          {f.rating>0 && <span><span style={{color:"#fde047"}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
+          {f.rating>0 && <span><span style={{color:"#fde047",fontSize:12}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
           {f.hikeTrack?.length>1 && f.customFields?.hikeDauer && (
             <span style={{color:"#4ade80",fontSize:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:54,display:"inline-block",verticalAlign:"bottom"}}>🥾{f.customFields.hikeDauer}</span>
           )}
@@ -5298,7 +5298,7 @@ function SidebarFlightRow({ f, selectedId, longestId, onSelect, registerRef }) {
         {f.id===longestId && <span style={{fontSize:11}}>🏆</span>}
         <span style={{fontWeight:700,fontSize:13,color:"#e8f4fd"}}>{f.name}</span>
         <span style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{f.date}</span>
-        {f.rating>0 && <span style={{fontSize:11}}><span style={{color:"#fde047"}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
+        {f.rating>0 && <span style={{fontSize:11}}><span style={{color:"#fde047",fontSize:10}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
       </div>
       <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginTop:2}}>{f.site}</div>
     </div>
