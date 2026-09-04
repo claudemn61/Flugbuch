@@ -5756,30 +5756,11 @@ function FlugbuchApp() {
       // zwingend einen Track) — bei denen ist "Freie Strecke" also immer
       // korrekt, sobald überhaupt eine Distanz vorliegt und Routenart noch
       // leer ist. Betrifft v.a. alte, manuell erfasste Flüge ohne IGC.
-      //
-      // Dritte, wirklich nur EINMALIGE Nachkorrektur (nicht bei jedem
-      // Start, da estimateTriangleDistance pro Flug spürbar Rechenzeit
-      // braucht): Routenart + eingezeichnete Route wurden bei Flügen mit
-      // GPS-Track ursprünglich mit einem fehlerhaften Dreieck-Algorithmus
-      // bestimmt (siehe estimateTriangleDistance-Historie). Läuft dank
-      // service:triangleFixDone_v1 nur beim allerersten Start nach diesem
-      // Fix, und rührt dabei nur Flüge an, deren Routenart noch exakt
-      // einem der drei automatisch vergebenen Werte entspricht (leer
-      // zählt als "noch nie gesetzt") — von Hand eingetragener/geänderter
-      // Text bleibt unangetastet. Aktualisiert routePts (die gezeichneten
-      // Wendepunkte) nur zusammen mit einer tatsächlichen Änderung der
-      // Routenart, um von Hand auf der Karte verschobene Punkte bei sonst
-      // gleicher Einstufung nicht zu überschreiben.
-      let triangleFixDone = true;
-      try {
-        const r = await window.storage.get("service:triangleFixDone_v1");
-        triangleFixDone = !!(r && r.value === "1");
-      } catch { triangleFixDone = true; }
-      const AUTO_ROUTE_VALUES = ["FAI-Dreieck", "Flaches Dreieck", "Freie Strecke"];
+      // Beide sind reine String-/Zahlen-Checks, spürbar schnell — laufen
+      // synchron vor dem ersten Render.
       const migrated = sorted.map(f => {
         const cf = f.customFields || {};
         let nextCf = cf;
-        let nextRoutePts = f.routePts;
         const dist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
         if (!(cf.kmh||"").trim() && dist > 0 && f.durationSec > 0) {
           nextCf = { ...nextCf, kmh: (dist / (f.durationSec/3600)).toFixed(1) };
@@ -5788,33 +5769,9 @@ function FlugbuchApp() {
         if (!(cf.routenTyp||"").trim() && dist > 0 && !hasTrack) {
           nextCf = { ...nextCf, routenTyp: "Freie Strecke" };
         }
-        if (!triangleFixDone && hasTrack) {
-          // Pro Flug abgesichert: ein einzelner problematischer Track darf
-          // nie das Laden der ganzen Flugliste verhindern (siehe Vorfall,
-          // bei dem ein ungefangener Fehler hier setFlights nie erreichen
-          // liess und die App "Noch keine Flüge" zeigte).
-          try {
-            const currentTyp = (nextCf.routenTyp||"").trim();
-            if (!currentTyp || AUTO_ROUTE_VALUES.includes(currentTyp)) {
-              const freeDist = estimateFreeDistance(f.track);
-              const triangle = estimateTriangleDistance(f.track);
-              const isTriangle = triangle && triangle.points > freeDist.length;
-              const newRouteType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
-              if (newRouteType !== currentTyp) {
-                nextCf = { ...nextCf, routenTyp: newRouteType };
-                nextRoutePts = isTriangle ? triangle.path : freeDist.path;
-              }
-            }
-          } catch (e) {
-            console.error("Dreieck-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
-          }
-        }
-        if (nextCf === cf && nextRoutePts === f.routePts) return f;
-        return { ...f, customFields: nextCf, routePts: nextRoutePts };
+        if (nextCf === cf) return f;
+        return { ...f, customFields: nextCf };
       });
-      if (!triangleFixDone) {
-        try { await window.storage.set("service:triangleFixDone_v1", "1"); } catch {}
-      }
       const changed = migrated.filter((f,i) => f !== sorted[i]);
       if (changed.length) {
         Promise.all(changed.map(f => window.storage.set(`flight:${f.id}`, JSON.stringify(f)))).catch(()=>{});
@@ -5853,6 +5810,61 @@ function FlugbuchApp() {
       // last setState call, so the load's own render/effect pass doesn't
       // get mistaken for an unbacked-up change.
       setTimeout(() => { dirtyTrackingReadyRef.current = true; }, 500);
+
+      // Dritte, wirklich nur EINMALIGE Nachkorrektur — bewusst NICHT Teil
+      // des synchronen Blocks oben: estimateTriangleDistance braucht pro
+      // Flug spürbar Rechenzeit, und bei vielen Flügen mit GPS-Track hat
+      // das die App vorher komplett einfrieren lassen (blockierte den
+      // Hauptthread ununterbrochen, bevor überhaupt etwas gerendert wurde).
+      // Läuft daher erst NACH dem ersten Render, Flug für Flug mit einer
+      // Pause dazwischen (gibt den Hauptthread jedes Mal kurz frei), und
+      // aktualisiert die Liste laufend statt erst ganz am Schluss — die
+      // App bleibt währenddessen bedienbar. Rührt nur Flüge an, deren
+      // Routenart noch exakt einem der drei automatisch vergebenen Werte
+      // entspricht (leer zählt als "noch nie gesetzt") — von Hand
+      // eingetragener/geänderter Text bleibt unangetastet. Aktualisiert
+      // routePts nur zusammen mit einer tatsächlichen Änderung der
+      // Routenart, um von Hand auf der Karte verschobene Punkte bei sonst
+      // gleicher Einstufung nicht zu überschreiben. service:
+      // triangleFixDone_v1 wird erst ganz am Ende gesetzt, damit ein
+      // vorzeitig geschlossener Tab beim nächsten Start einfach weitermacht
+      // (bereits korrigierte Flüge sind für den erneuten Durchlauf ein
+      // No-op).
+      (async () => {
+        let triangleFixDone = true;
+        try {
+          const r = await window.storage.get("service:triangleFixDone_v1");
+          triangleFixDone = !!(r && r.value === "1");
+        } catch { return; }
+        if (triangleFixDone) return;
+        const AUTO_ROUTE_VALUES = ["FAI-Dreieck", "Flaches Dreieck", "Freie Strecke"];
+        const candidates = migrated.filter(f => f.track && f.track.length > 1);
+        for (let idx = 0; idx < candidates.length; idx++) {
+          const f = candidates[idx];
+          try {
+            const cf = f.customFields || {};
+            const currentTyp = (cf.routenTyp||"").trim();
+            if (currentTyp && !AUTO_ROUTE_VALUES.includes(currentTyp)) continue;
+            const freeDist = estimateFreeDistance(f.track);
+            const triangle = estimateTriangleDistance(f.track);
+            const isTriangle = triangle && triangle.points > freeDist.length;
+            const newRouteType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
+            if (newRouteType !== currentTyp) {
+              const nextRoutePts = isTriangle ? triangle.path : freeDist.path;
+              const updated = { ...f, customFields: { ...cf, routenTyp: newRouteType }, routePts: nextRoutePts };
+              setFlights(prev => prev.map(pf => pf.id === f.id ? updated : pf));
+              window.storage.set(`flight:${f.id}`, JSON.stringify(updated)).catch(()=>{});
+            }
+          } catch (e) {
+            console.error("Dreieck-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
+          }
+          // Hauptthread nach jedem Flug kurz freigeben, statt alle
+          // Flüge in einem einzigen ununterbrochenen Rechenblock
+          // abzuarbeiten.
+          await new Promise(res => setTimeout(res, 0));
+        }
+        try { await window.storage.set("service:triangleFixDone_v1", "1"); } catch {}
+      })();
     })();
   }, []);
 
