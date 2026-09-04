@@ -6769,7 +6769,7 @@ function FlugbuchApp() {
         </button>
         <button onClick={()=>{ setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${selectMode?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:"#fff",fontSize:34,cursor:"pointer"}}>
-          {selectMode?"✕":"☑"}
+          {selectMode?"✕":"☑️"}
         </button>
         <button onClick={()=>setView("worldmap")} title="Weltkarte"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
