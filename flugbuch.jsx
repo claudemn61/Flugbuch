@@ -5011,7 +5011,22 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 maxFreieStrecke: () => <StaticField label="Max. Freie Strecke" value={freeDistEstimate?.length>0 ? `${freeDistEstimate.length.toFixed(2)} km (${freeDistEstimate.length.toFixed(1)} Pkt.)` : ""} />,
                 maxFlachesDreieck: () => <StaticField label="Max. Flaches Dreieck" value={triangleEstimate?.flach ? `${triangleEstimate.flach.length.toFixed(2)} km (${triangleEstimate.flach.points.toFixed(1)} Pkt.)` : ""} />,
                 maxFaiDreieck: () => <StaticField label="Max. FAI-Dreieck" value={triangleEstimate?.fai ? `${triangleEstimate.fai.length.toFixed(2)} km (${triangleEstimate.fai.points.toFixed(1)} Pkt.)` : ""} />,
-                routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}     onSave={v=>saveField({customFields:{routenTyp:v}})} placeholder={routenTypSuggestion} />,
+                routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}
+                  onSave={v=>{
+                    // Bei einer der drei automatisch berechenbaren Kategorien
+                    // gleich auch Distanz auf die dazu passende, live
+                    // berechnete Streckenlänge setzen — bleibt danach ganz
+                    // normal frei überschreibbar, exakt wie eine manuelle
+                    // Distanz-Eingabe.
+                    const typ = (v||"").trim();
+                    const matchDist = typ==="Freie Strecke" ? freeDistEstimate?.length
+                      : typ==="Flaches Dreieck" ? triangleEstimate?.flach?.length
+                      : typ==="FAI-Dreieck" ? triangleEstimate?.fai?.length
+                      : null;
+                    if (matchDist > 0) saveField({totalDist: matchDist, customFields:{routenTyp:v, distKm:String(matchDist)}});
+                    else saveField({customFields:{routenTyp:v}});
+                  }}
+                  placeholder={routenTypSuggestion} />,
                 dauer: () => <StaticField label="Dauer"       value={fl.durationStr} />,
                 hDiff: () => <StaticField label="H.Diff."     value={fl.customFields?.hDiff} unit="m" />,
                 speed: () => <InlineField label="Ø Speed"     value={fl.customFields?.kmh}           onSave={v=>saveField({customFields:{kmh:v}})} unit="km/h" />,
@@ -5879,6 +5894,55 @@ function FlugbuchApp() {
           await new Promise(res => setTimeout(res, 0));
         }
         try { await window.storage.set("service:triangleFixDone_v1", "1"); } catch {}
+      })();
+
+      // Vierte, ebenfalls nur EINMALIGE und nicht blockierende Nachkorrektur
+      // (service:distanzSyncDone_v1, gleiches Muster wie oben — Flug für
+      // Flug mit Pause dazwischen): Distanz an die aktuell gesetzte
+      // Routenart angleichen. Rührt nur Flüge mit GPS-Track an, deren
+      // Routenart exakt einem der drei automatisch vergebenen Werte
+      // entspricht — bei denen ist "die zur Routenart passende berechnete
+      // Distanz" eindeutig. Ändert bewusst nicht die Routenart selbst
+      // (das macht bereits die Migration oben) und überschreibt Distanz
+      // auch dann, wenn dort schon ein Wert steht — Distanz bleibt danach
+      // ganz normal frei überschreibbar, exakt wie eine manuelle Eingabe.
+      (async () => {
+        let distSyncDone = true;
+        try {
+          const r = await window.storage.get("service:distanzSyncDone_v1");
+          distSyncDone = !!(r && r.value === "1");
+        } catch { return; }
+        if (distSyncDone) return;
+        const AUTO_ROUTE_VALUES2 = ["FAI-Dreieck", "Flaches Dreieck", "Freie Strecke"];
+        const candidates2 = migrated.filter(f => f.track && f.track.length > 1 && AUTO_ROUTE_VALUES2.includes((f.customFields?.routenTyp||"").trim()));
+        for (let idx = 0; idx < candidates2.length; idx++) {
+          const f = candidates2[idx];
+          try {
+            const cf = f.customFields || {};
+            const typ = (cf.routenTyp||"").trim();
+            let newDist = null;
+            if (typ === "Freie Strecke") {
+              const fd = estimateFreeDistance(f.track);
+              if (fd?.length > 0) newDist = fd.length;
+            } else {
+              const tri = estimateTriangleDistance(f.track);
+              const cat = typ === "FAI-Dreieck" ? tri?.fai : tri?.flach;
+              if (cat?.length > 0) newDist = cat.length;
+            }
+            if (newDist != null) {
+              const curDist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
+              if (Math.abs(curDist - newDist) > 0.004) {
+                const updated = { ...f, totalDist: newDist, customFields: { ...cf, distKm: String(newDist) } };
+                setFlights(prev => prev.map(pf => pf.id === f.id ? updated : pf));
+                window.storage.set(`flight:${f.id}`, JSON.stringify(updated)).catch(()=>{});
+              }
+            }
+          } catch (e) {
+            console.error("Distanz-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
+          }
+          await new Promise(res => setTimeout(res, 0));
+        }
+        try { await window.storage.set("service:distanzSyncDone_v1", "1"); } catch {}
       })();
     })();
   }, []);
