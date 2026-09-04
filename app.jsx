@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.8";
+const APP_VERSION = "5.7.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.9", note: "Fix Flaches/FAI-Dreieck-Berechnung: Grundlegend falsches Modell korrigiert (XContest-Dreiecke haben 3 Turnpoints, nicht 4 — die Schliessungs-Lücke ist der Abstand, den der geflogene Track später zum ersten Turnpoint wieder erreicht, kein separat gewählter 4. Punkt). An einem realen 8.77-km-FAI-Flug verifiziert: statt vorher 1.16 km jetzt 8.33 km (~5% Näherung)." },
   { v: "5.7.8", note: "Flugdetail: unter Distanz werden jetzt (bei vorhandenem GPS-Track) zusätzlich das grösstmögliche Flache Dreieck und das grösstmögliche FAI-Dreieck gemäss XContest-Vorgaben berechnet und mit ihren XContest-Punkten angezeigt." },
   { v: "5.7.7", note: "Flugdetail: GPS-Visualizer-Link und die ASL/m/s-Filter zu einer gemeinsamen Kachel zusammengefasst und ans rechte Ende der Reihe verschoben, die Zoom-Kachel rückt dadurch nach links vor." },
   { v: "5.7.6", note: "Flugdetail: Startzeit, Startplatz und Start müM sind jetzt grün eingefärbt, Landezeit, Landeplatz und Landung müM rot — wie schon bei den Start-/Landung-Koordinaten-Kacheln, zur besseren Übersicht in der Flugdaten-Liste." },
