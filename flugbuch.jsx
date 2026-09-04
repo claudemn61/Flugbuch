@@ -3240,7 +3240,7 @@ const SECONDARY_VALUE_FOR_SORT = {
 // sich nicht wie gewünscht einfärben).
 function routeTypeGlyph(f) {
   const typ = (f.customFields?.routenTyp || "").trim();
-  if (typ === "FAI-Dreieck") return <span style={{color:"#4ade80"}}>▲ </span>;
+  if (typ === "FAI-Dreieck") return <span style={{color:"#16a34a"}}>▲ </span>;
   if (typ === "Flaches Dreieck") return <span>▲ </span>;
   if (typ === "Freie Strecke") return <span>▬ </span>;
   return null;
