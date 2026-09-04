@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.11";
+const APP_VERSION = "5.7.12";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.7.12", note: "Kritischer Fix: die Nachkorrektur-Migration (5.7.11) konnte bei Flügen mit >400 Track-Punkten abstürzen (Index-Fehler durch Fliesskomma-Rundung) und liess dadurch die ganze Flugliste leer erscheinen — Skalierung korrigiert und Migration pro Flug abgesichert, damit ein einzelner Track nie mehr das Laden aller Flüge verhindern kann." },
   { v: "5.7.11", note: "Einmalige Nachkorrektur beim nächsten App-Start: Routenart und eingezeichnete Route bestehender Flüge mit GPS-Track werden mit dem korrigierten Dreieck-Algorithmus neu bestimmt — nur bei Flügen, deren Routenart noch automatisch vergeben ist (nicht von Hand geändert)." },
   { v: "5.7.10", note: "Fix Flaches/FAI-Dreieck-Berechnung (Nachbesserung): Die Schliessungs-Prüfung lässt laut XContest auch Turnpoint 1 selbst leicht verschieben (nächstes Punktpaar zwischen dem ganzen bisherigen Track und dem Track ab Turnpoint 3, nicht nur die Distanz zu Turnpoint 1 selbst). Am realen 8.77-km-FAI-Flug jetzt praktisch exakt: 8.77 km / 12.27 statt 12.28 Punkte." },
   { v: "5.7.9", note: "Fix Flaches/FAI-Dreieck-Berechnung: Grundlegend falsches Modell korrigiert (XContest-Dreiecke haben 3 Turnpoints, nicht 4 — die Schliessungs-Lücke ist der Abstand, den der geflogene Track später zum ersten Turnpoint wieder erreicht, kein separat gewählter 4. Punkt). An einem realen 8.77-km-FAI-Flug verifiziert: statt vorher 1.16 km jetzt 8.33 km (~5% Näherung)." },

@@ -299,10 +299,17 @@ function estimateTriangleDistance(track, targetPoints = 400) {
   if (!bestFlat) return null;
 
   const fullDist = (a, b) => haversineKm(track[a].lat, track[a].lon, track[b].lat, track[b].lon);
-  const scale = track.length > targetPoints ? track.length / targetPoints : 1;
+  // scale muss auf n (die tatsächliche Länge von pts) statt auf targetPoints
+  // gehen — das Downsampling oben trifft targetPoints wegen Fliesskomma-
+  // Rundung nicht immer exakt (n kann z.B. targetPoints+1 sein), sonst
+  // rechnet sich ein Kandidat-Index nahe n-1 auf einen Track-Index ≥
+  // track.length hoch und track[...] wird undefined. clamp ist zusätzliche
+  // Absicherung gegen genau dieses Szenario.
+  const scale = track.length > targetPoints ? track.length / n : 1;
+  const clamp = (idx) => Math.max(0, Math.min(track.length - 1, idx));
   const toResult = (cand, faiFamily) => {
     if (!cand) return null;
-    const i = Math.floor(cand.i * scale), j = Math.floor(cand.j * scale), k = Math.floor(cand.k * scale);
+    const i = clamp(Math.floor(cand.i * scale)), j = clamp(Math.floor(cand.j * scale)), k = clamp(Math.floor(cand.k * scale));
     // 4th "closing" point purely for the on-map visual (a dashed line back
     // to turnpoint 1) — the actual point on the track where it comes
     // closest to turnpoint 1 again; the scored distance above already used
@@ -5782,16 +5789,24 @@ function FlugbuchApp() {
           nextCf = { ...nextCf, routenTyp: "Freie Strecke" };
         }
         if (!triangleFixDone && hasTrack) {
-          const currentTyp = (nextCf.routenTyp||"").trim();
-          if (!currentTyp || AUTO_ROUTE_VALUES.includes(currentTyp)) {
-            const freeDist = estimateFreeDistance(f.track);
-            const triangle = estimateTriangleDistance(f.track);
-            const isTriangle = triangle && triangle.points > freeDist.length;
-            const newRouteType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
-            if (newRouteType !== currentTyp) {
-              nextCf = { ...nextCf, routenTyp: newRouteType };
-              nextRoutePts = isTriangle ? triangle.path : freeDist.path;
+          // Pro Flug abgesichert: ein einzelner problematischer Track darf
+          // nie das Laden der ganzen Flugliste verhindern (siehe Vorfall,
+          // bei dem ein ungefangener Fehler hier setFlights nie erreichen
+          // liess und die App "Noch keine Flüge" zeigte).
+          try {
+            const currentTyp = (nextCf.routenTyp||"").trim();
+            if (!currentTyp || AUTO_ROUTE_VALUES.includes(currentTyp)) {
+              const freeDist = estimateFreeDistance(f.track);
+              const triangle = estimateTriangleDistance(f.track);
+              const isTriangle = triangle && triangle.points > freeDist.length;
+              const newRouteType = isTriangle ? (triangle.category === "fai" ? "FAI-Dreieck" : "Flaches Dreieck") : "Freie Strecke";
+              if (newRouteType !== currentTyp) {
+                nextCf = { ...nextCf, routenTyp: newRouteType };
+                nextRoutePts = isTriangle ? triangle.path : freeDist.path;
+              }
             }
+          } catch (e) {
+            console.error("Dreieck-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
           }
         }
         if (nextCf === cf && nextRoutePts === f.routePts) return f;
