@@ -5014,17 +5014,23 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}
                   onSave={v=>{
                     // Bei einer der drei automatisch berechenbaren Kategorien
-                    // gleich auch Distanz auf die dazu passende, live
-                    // berechnete Streckenlänge setzen — bleibt danach ganz
+                    // gleich auch Distanz UND die auf der Karte gezeichnete
+                    // Route (routePts) auf die dazu passende, live berechnete
+                    // Strecke setzen — genau wie beim IGC-Import bzw. der
+                    // Nachkorrektur-Migration. Distanz bleibt danach ganz
                     // normal frei überschreibbar, exakt wie eine manuelle
-                    // Distanz-Eingabe.
+                    // Eingabe; die Route folgt jeder erneuten Routenart-
+                    // Änderung ebenso mit.
                     const typ = (v||"").trim();
-                    const matchDist = typ==="Freie Strecke" ? freeDistEstimate?.length
-                      : typ==="Flaches Dreieck" ? triangleEstimate?.flach?.length
-                      : typ==="FAI-Dreieck" ? triangleEstimate?.fai?.length
+                    const matched = typ==="Freie Strecke" ? freeDistEstimate
+                      : typ==="Flaches Dreieck" ? triangleEstimate?.flach
+                      : typ==="FAI-Dreieck" ? triangleEstimate?.fai
                       : null;
-                    if (matchDist > 0) saveField({totalDist: matchDist, customFields:{routenTyp:v, distKm:String(matchDist)}});
-                    else saveField({customFields:{routenTyp:v}});
+                    if (matched?.length > 0) {
+                      saveField({totalDist: matched.length, routePts: matched.path, customFields:{routenTyp:v, distKm:String(matched.length)}});
+                    } else {
+                      saveField({customFields:{routenTyp:v}});
+                    }
                   }}
                   placeholder={routenTypSuggestion} />,
                 dauer: () => <StaticField label="Dauer"       value={fl.durationStr} />,
@@ -5897,19 +5903,24 @@ function FlugbuchApp() {
       })();
 
       // Vierte, ebenfalls nur EINMALIGE und nicht blockierende Nachkorrektur
-      // (service:distanzSyncDone_v1, gleiches Muster wie oben — Flug für
-      // Flug mit Pause dazwischen): Distanz an die aktuell gesetzte
-      // Routenart angleichen. Rührt nur Flüge mit GPS-Track an, deren
-      // Routenart exakt einem der drei automatisch vergebenen Werte
-      // entspricht — bei denen ist "die zur Routenart passende berechnete
-      // Distanz" eindeutig. Ändert bewusst nicht die Routenart selbst
-      // (das macht bereits die Migration oben) und überschreibt Distanz
-      // auch dann, wenn dort schon ein Wert steht — Distanz bleibt danach
-      // ganz normal frei überschreibbar, exakt wie eine manuelle Eingabe.
+      // (service:distanzSyncDone_v2, gleiches Muster wie oben — Flug für
+      // Flug mit Pause dazwischen): Distanz UND die auf der Karte
+      // gezeichnete Route (routePts) an die aktuell gesetzte Routenart
+      // angleichen. Rührt nur Flüge mit GPS-Track an, deren Routenart
+      // exakt einem der drei automatisch vergebenen Werte entspricht — bei
+      // denen sind "die zur Routenart passende berechnete Distanz/Route"
+      // eindeutig. Ändert bewusst nicht die Routenart selbst (das macht
+      // bereits die Migration oben) und überschreibt Distanz/routePts auch
+      // dann, wenn dort schon Werte stehen (z.B. noch von einem Import vor
+      // dem Dreieck-Algorithmus-Fix) — Distanz bleibt danach ganz normal
+      // frei überschreibbar, exakt wie eine manuelle Eingabe.
+      // (v2 statt v1: lief zunächst nur für Distanz, jetzt zusätzlich für
+      // routePts — daher neuer Flag-Name, damit sie sicher noch einmal für
+      // alle Flüge durchläuft.)
       (async () => {
         let distSyncDone = true;
         try {
-          const r = await window.storage.get("service:distanzSyncDone_v1");
+          const r = await window.storage.get("service:distanzSyncDone_v2");
           distSyncDone = !!(r && r.value === "1");
         } catch { return; }
         if (distSyncDone) return;
@@ -5920,29 +5931,31 @@ function FlugbuchApp() {
           try {
             const cf = f.customFields || {};
             const typ = (cf.routenTyp||"").trim();
-            let newDist = null;
+            let matched = null;
             if (typ === "Freie Strecke") {
               const fd = estimateFreeDistance(f.track);
-              if (fd?.length > 0) newDist = fd.length;
+              if (fd?.length > 0) matched = fd;
             } else {
               const tri = estimateTriangleDistance(f.track);
               const cat = typ === "FAI-Dreieck" ? tri?.fai : tri?.flach;
-              if (cat?.length > 0) newDist = cat.length;
+              if (cat?.length > 0) matched = cat;
             }
-            if (newDist != null) {
+            if (matched) {
               const curDist = parseFloat(f.totalDist || cf.distKm || cf.dk || 0);
-              if (Math.abs(curDist - newDist) > 0.004) {
-                const updated = { ...f, totalDist: newDist, customFields: { ...cf, distKm: String(newDist) } };
+              const distChanged = Math.abs(curDist - matched.length) > 0.004;
+              const pathChanged = JSON.stringify(f.routePts||null) !== JSON.stringify(matched.path);
+              if (distChanged || pathChanged) {
+                const updated = { ...f, totalDist: matched.length, routePts: matched.path, customFields: { ...cf, distKm: String(matched.length) } };
                 setFlights(prev => prev.map(pf => pf.id === f.id ? updated : pf));
                 window.storage.set(`flight:${f.id}`, JSON.stringify(updated)).catch(()=>{});
               }
             }
           } catch (e) {
-            console.error("Distanz-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
+            console.error("Distanz-/Routen-Nachkorrektur für Flug", f.id, "fehlgeschlagen:", e);
           }
           await new Promise(res => setTimeout(res, 0));
         }
-        try { await window.storage.set("service:distanzSyncDone_v1", "1"); } catch {}
+        try { await window.storage.set("service:distanzSyncDone_v2", "1"); } catch {}
       })();
     })();
   }, []);
