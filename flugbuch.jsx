@@ -3072,7 +3072,7 @@ function sortFieldValue(f, sortId) {
     case "pax":      return (cf.passagier || "").toLowerCase();
     case "reise":    return (cf.reise || "").toLowerCase();
     case "speed":    return parseFloat(cf.kmh || 0) || 0;
-    case "rating":   return f.rating || 0;
+    case "rating":   return +f.rating || 0;
     case "hikeOrt":  return (cf.hikeOrt || "").toLowerCase();
     case "hikeStarthoehe": return +(cf.hikeStarthoehe||0) || 0;
     case "hikeHoehenmeter": {
@@ -5870,8 +5870,15 @@ function FlugbuchApp() {
         const derived = yearMonthFromDateStr(f.date);
         const yearMonthPatch = (derived.year && (derived.year !== f.year || derived.month !== f.month))
           ? { year: derived.year, month: derived.month } : null;
-        if (nextCf === cf && !yearMonthPatch) return f;
-        return { ...f, ...(yearMonthPatch||{}), customFields: nextCf };
+        // Vierte Korrektur: rating als String statt Zahl gespeichert (z.B.
+        // aus einer sehr alten Version dieser App) sprengt die Gruppierung
+        // nach Bewertung — new Set(...) behandelt die Zahl 4 und den Text
+        // "4" als zwei verschiedene Gruppen, die dieselbe "4★"-Beschriftung
+        // zeigen und dadurch wie ein und dieselbe, mittendrin unterbrochene
+        // Gruppe wirken.
+        const ratingPatch = (typeof f.rating === "string") ? { rating: +f.rating || 0 } : null;
+        if (nextCf === cf && !yearMonthPatch && !ratingPatch) return f;
+        return { ...f, ...(yearMonthPatch||{}), ...(ratingPatch||{}), customFields: nextCf };
       });
       const changed = migrated.filter((f,i) => f !== sorted[i]);
       if (changed.length) {
