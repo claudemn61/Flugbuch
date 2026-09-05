@@ -5616,6 +5616,12 @@ function FlugbuchApp() {
   const [showViewsMenu, setShowViewsMenu] = useState(false);
   const [viewsMode, setViewsMode] = useState("none"); // "none" | "move" | "delete"
   const [savingViewName, setSavingViewName] = useState(null); // string while the "Speichern als…" input is open, else null
+  // Name of the saved Darstellung last applied via applyView, shown next to
+  // the flight count so it's clear which view is currently active. Cleared
+  // the moment any of Suchen/Sortieren/Gruppieren is changed by hand (via
+  // the wrapped setters below, not applyView's own raw setters), since at
+  // that point the list no longer exactly matches the saved configuration.
+  const [activeViewName, setActiveViewNameRaw] = useState(null);
   useEffect(() => {
     (async () => {
       try {
@@ -5642,10 +5648,12 @@ function FlugbuchApp() {
     setGroup2IdRaw(c.group2Id || "");
     setGroup2DirRaw(c.group2Dir || "asc");
     setGroup2SortFieldRaw(c.group2SortField || "");
+    setActiveViewNameRaw(view.name);
     persistListSettings({
       filterText: c.filterText||"", sortId: c.sortId||"number", sortDir: c.sortDir||"desc",
       group1Id: c.group1Id||"", group1Dir: c.group1Dir||"desc", group1SortField: c.group1SortField||"",
       group2Id: c.group2Id||"", group2Dir: c.group2Dir||"asc", group2SortField: c.group2SortField||"",
+      activeViewName: view.name,
     });
     setShowViewsMenu(false);
     setSearchRowOpen(false);
@@ -5677,6 +5685,7 @@ function FlugbuchApp() {
           if (typeof s.group2Id === "string") setGroup2IdRaw(s.group2Id);
           if (s.group2Dir) setGroup2DirRaw(s.group2Dir);
           if (typeof s.group2SortField === "string") setGroup2SortFieldRaw(s.group2SortField);
+          if (typeof s.activeViewName === "string") setActiveViewNameRaw(s.activeViewName);
         }
       } catch (e) { /* nothing stored yet, or storage unavailable — keep defaults */ }
     })();
@@ -5684,19 +5693,23 @@ function FlugbuchApp() {
   const persistListSettings = (patch) => {
     try {
       window.storage.set("flugbuchListSettings", JSON.stringify({
-        filterText, sortId, sortDir, group1Id, group1Dir, group1SortField, group2Id, group2Dir, group2SortField, ...patch,
+        filterText, sortId, sortDir, group1Id, group1Dir, group1SortField, group2Id, group2Dir, group2SortField, activeViewName, ...patch,
       }));
     } catch (e) {}
   };
-  const setFilterText = (v) => { setFilterTextRaw(v); persistListSettings({ filterText: v }); };
-  const setSortId = (v) => { setSortIdRaw(v); persistListSettings({ sortId: v }); };
-  const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ sortDir: next }); return next; }); };
-  const setGroup1Id = (v) => { setGroup1IdRaw(v); persistListSettings({ group1Id: v }); };
-  const setGroup1Dir = (updater) => { setGroup1DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group1Dir: next }); return next; }); };
-  const setGroup1SortField = (v) => { setGroup1SortFieldRaw(v); persistListSettings({ group1SortField: v }); };
-  const setGroup2Id = (v) => { setGroup2IdRaw(v); persistListSettings({ group2Id: v }); };
-  const setGroup2Dir = (updater) => { setGroup2DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; persistListSettings({ group2Dir: next }); return next; }); };
-  const setGroup2SortField = (v) => { setGroup2SortFieldRaw(v); persistListSettings({ group2SortField: v }); };
+  // Any manual Suchen/Sortieren/Gruppieren change invalidates the "aktive
+  // Darstellung"-Label (applyView sets it back via its own raw setters,
+  // which don't go through here) — otherwise it would keep claiming a view
+  // is active that no longer matches what's actually shown.
+  const setFilterText = (v) => { setFilterTextRaw(v); setActiveViewNameRaw(null); persistListSettings({ filterText: v, activeViewName: null }); };
+  const setSortId = (v) => { setSortIdRaw(v); setActiveViewNameRaw(null); persistListSettings({ sortId: v, activeViewName: null }); };
+  const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; setActiveViewNameRaw(null); persistListSettings({ sortDir: next, activeViewName: null }); return next; }); };
+  const setGroup1Id = (v) => { setGroup1IdRaw(v); setActiveViewNameRaw(null); persistListSettings({ group1Id: v, activeViewName: null }); };
+  const setGroup1Dir = (updater) => { setGroup1DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; setActiveViewNameRaw(null); persistListSettings({ group1Dir: next, activeViewName: null }); return next; }); };
+  const setGroup1SortField = (v) => { setGroup1SortFieldRaw(v); setActiveViewNameRaw(null); persistListSettings({ group1SortField: v, activeViewName: null }); };
+  const setGroup2Id = (v) => { setGroup2IdRaw(v); setActiveViewNameRaw(null); persistListSettings({ group2Id: v, activeViewName: null }); };
+  const setGroup2Dir = (updater) => { setGroup2DirRaw(prev => { const next = typeof updater==="function"?updater(prev):updater; setActiveViewNameRaw(null); persistListSettings({ group2Dir: next, activeViewName: null }); return next; }); };
+  const setGroup2SortField = (v) => { setGroup2SortFieldRaw(v); setActiveViewNameRaw(null); persistListSettings({ group2SortField: v, activeViewName: null }); };
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showRowImport, setShowRowImport] = useState(false);
@@ -7637,11 +7650,11 @@ function FlugbuchApp() {
       </div>
       </div>
 
-      {filterText.trim() && (
+      {(filterText.trim() || activeViewName) && (
         <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
-            <span>{filteredFlights.length} Flüge</span>
+            <span>{activeViewName && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}{filteredFlights.length} Flüge</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
           {showSearchStats && filteredFlights.length>0 && (
