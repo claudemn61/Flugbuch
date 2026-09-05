@@ -3766,6 +3766,20 @@ function renumberFlightName(name, newNumber) {
   if (!m) return `${name} ${newNumber}`;
   return name.slice(0, m.index) + String(newNumber) + name.slice(m.index + m[0].length);
 }
+// Leitet year/month (als Strings, im selben Format wie beim Import/
+// Neuanlegen gesetzt) aus einem "dd.mm.yyyy"-Datumsstring ab. Nötig, weil
+// year/month eigene, gecachte Felder sind (fürs Gruppieren/Sortieren nach
+// Jahr/Monat) statt live aus date abgeleitet zu werden — jede Stelle, die
+// date nachträglich ändert, muss sie explizit mit nachziehen, sonst bleibt
+// ein Flug dauerhaft unter dem alten Jahr gruppiert, obwohl das Datum
+// selbst korrekt angezeigt wird.
+function yearMonthFromDateStr(dateStr) {
+  const m = String(dateStr||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  if (!m) return { year: "", month: "" };
+  const [, , mm, yy] = m;
+  const year = yy.length === 2 ? (+yy >= 30 ? "19"+yy : "20"+yy) : yy;
+  return { year, month: mm.padStart(2,"0") };
+}
 // Re-sorts ALL flights chronologically (date + start time) and reassigns a
 // gapless 1..N numbering to every one of them, keeping each flight's own
 // name style intact. Used whenever any flight's date changes, since that
@@ -4654,7 +4668,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     // number), then persists only the flights whose number actually
     // changed as a result.
     const saveDateField = async (newDateStr) => {
-      const withUpdated = flights.map(f => f.id===fl.id ? { ...f, date: newDateStr } : f);
+      const { year, month } = yearMonthFromDateStr(newDateStr);
+      const withUpdated = flights.map(f => f.id===fl.id ? { ...f, date: newDateStr, year, month } : f);
       const renumbered = renumberAllFlights(withUpdated);
       await Promise.all(renumbered.map((f, i) => {
         if (f.name !== withUpdated[i].name || f.id === fl.id) {
@@ -5831,7 +5846,15 @@ function FlugbuchApp() {
       // zwingend einen Track) — bei denen ist "Freie Strecke" also immer
       // korrekt, sobald überhaupt eine Distanz vorliegt und Routenart noch
       // leer ist. Betrifft v.a. alte, manuell erfasste Flüge ohne IGC.
-      // Beide sind reine String-/Zahlen-Checks, spürbar schnell — laufen
+      // Dritte Nachkorrektur im selben Zug: year/month sind ein beim Import/
+      // Anlegen gesetzter Cache von date (fürs Gruppieren/Sortieren nach
+      // Jahr/Monat), der vor dem entsprechenden Fix bei einer nachträglichen
+      // Datum-Bearbeitung (Einzel- wie Massenbearbeitung) nicht mitgezogen
+      // wurde — der Flug blieb dadurch dauerhaft unter dem alten Jahr
+      // gruppiert, obwohl date selbst korrekt angezeigt wurde. Weicht der aus
+      // date abgeleitete Wert vom gespeicherten year/month ab, wird hier
+      // einmalig nachgezogen.
+      // Alle drei sind reine String-/Zahlen-Checks, spürbar schnell — laufen
       // synchron vor dem ersten Render.
       const migrated = sorted.map(f => {
         const cf = f.customFields || {};
@@ -5844,8 +5867,11 @@ function FlugbuchApp() {
         if (!(cf.routenTyp||"").trim() && dist > 0 && !hasTrack) {
           nextCf = { ...nextCf, routenTyp: "Freie Strecke" };
         }
-        if (nextCf === cf) return f;
-        return { ...f, customFields: nextCf };
+        const derived = yearMonthFromDateStr(f.date);
+        const yearMonthPatch = (derived.year && (derived.year !== f.year || derived.month !== f.month))
+          ? { year: derived.year, month: derived.month } : null;
+        if (nextCf === cf && !yearMonthPatch) return f;
+        return { ...f, ...(yearMonthPatch||{}), customFields: nextCf };
       });
       const changed = migrated.filter((f,i) => f !== sorted[i]);
       if (changed.length) {
@@ -7129,7 +7155,7 @@ function FlugbuchApp() {
           let updated = flights.map(f => {
             if (!selectedIds.has(f.id)) return f;
             const patch = {};
-            if (d.date) patch.date = d.date;
+            if (d.date) { patch.date = d.date; Object.assign(patch, yearMonthFromDateStr(d.date)); }
             if (d.site) patch.site = d.site;
             if (d.glider) patch.glider = d.glider;
             if (d.rating) patch.rating = d.rating;
