@@ -3235,14 +3235,14 @@ const SECONDARY_VALUE_FOR_SORT = {
 // Routenart einer der drei automatisch bestimmbaren Kategorien entspricht:
 // ▲ für ein Dreieck (grün bei FAI, sonst ohne eigene Farbe — übernimmt
 // dadurch exakt die Farbe der umgebenden Distanz-Anzeige, ob grau als
-// Sekundärwert oder blau als Primärwert), ▬ für eine Freie Strecke. Bewusst
+// Sekundärwert oder blau als Primärwert), ↗ für eine Freie Strecke. Bewusst
 // reine Unicode-Symbole statt Emoji (🔺 hat eine feste Eigenfarbe und liesse
 // sich nicht wie gewünscht einfärben).
 function routeTypeGlyph(f) {
   const typ = (f.customFields?.routenTyp || "").trim();
   if (typ === "FAI-Dreieck") return <span style={{color:"#16a34a"}}>▲ </span>;
   if (typ === "Flaches Dreieck") return <span>▲ </span>;
-  if (typ === "Freie Strecke") return <span>▬ </span>;
+  if (typ === "Freie Strecke") return <span>↗ </span>;
   return null;
 }
 
