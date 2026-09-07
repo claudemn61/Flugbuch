@@ -4009,11 +4009,11 @@ function parseHikeDauerToHours(s) {
   const num = parseFloat(str.replace(",", "."));
   return Number.isFinite(num) ? num : null;
 }
-function StaticField({label, value, unit}) {
+function StaticField({label, value, unit, valueColor}) {
   return (
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
       <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>{label}</span>
-      <span style={{fontSize:13,fontWeight:500,color:value?"#e8f4fd":"rgba(232,244,253,0.25)",textAlign:"right"}}>
+      <span style={{fontSize:13,fontWeight:500,color:value?(valueColor||"#e8f4fd"):"rgba(232,244,253,0.25)",textAlign:"right"}}>
         {value ? value+(unit?" "+unit:"") : "—"}
       </span>
     </div>
@@ -5133,10 +5133,10 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                 startAlt: () => <InlineField label="Start müM"   value={fl.startAlt>0?String(fl.startAlt):(fl.customFields?.msa||"")}  onSave={v=>saveComputedField(fl,{startAlt:+v,customFields:{msa:v}})} unit="m" valueColor="#4ade80" />,
                 endAlt: () => <InlineField label="Landung müM" value={fl.endAlt>0?String(fl.endAlt):(fl.customFields?.ml||"")}       onSave={v=>saveComputedField(fl,{endAlt:+v,customFields:{ml:v}})} unit="m" valueColor="#f87171" />,
                 maxAlt: () => <InlineField label="Max. Höhe"   value={fl.maxAlt?String(fl.maxAlt):""}                                onSave={v=>saveField({maxAlt:+v,customFields:{hm:v}})} unit="m" />,
-                distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" />,
-                maxFreieStrecke: () => <StaticField label="Max. Freie Strecke" value={freeDistEstimate?.length>0 ? `${freeDistEstimate.length.toFixed(2)} km (${freeDistEstimate.length.toFixed(1)} Pkt.)` : ""} />,
-                maxFlachesDreieck: () => <StaticField label="Max. Flaches Dreieck" value={triangleEstimate?.flach ? `${triangleEstimate.flach.length.toFixed(2)} km (${triangleEstimate.flach.points.toFixed(1)} Pkt.)` : ""} />,
-                maxFaiDreieck: () => <StaticField label="Max. FAI-Dreieck" value={triangleEstimate?.fai ? `${triangleEstimate.fai.length.toFixed(2)} km (${triangleEstimate.fai.points.toFixed(1)} Pkt.)` : ""} />,
+                distanz: () => <InlineField label="Distanz"     value={getDisplayDistance(fl)} onSave={v=>saveComputedField(fl,{totalDist:parseFloat(v)||0,customFields:{distKm:v}})} unit="km" valueColor="#94a3b8" />,
+                maxFreieStrecke: () => <StaticField label="Max. Freie Strecke" value={freeDistEstimate?.length>0 ? `${freeDistEstimate.length.toFixed(2)} km (${freeDistEstimate.length.toFixed(1)} Pkt.)` : ""} valueColor="#94a3b8" />,
+                maxFlachesDreieck: () => <StaticField label="Max. Flaches Dreieck" value={triangleEstimate?.flach ? `${triangleEstimate.flach.length.toFixed(2)} km (${triangleEstimate.flach.points.toFixed(1)} Pkt.)` : ""} valueColor="#94a3b8" />,
+                maxFaiDreieck: () => <StaticField label="Max. FAI-Dreieck" value={triangleEstimate?.fai ? `${triangleEstimate.fai.length.toFixed(2)} km (${triangleEstimate.fai.points.toFixed(1)} Pkt.)` : ""} valueColor="#94a3b8" />,
                 routenTyp: () => <InlineField label="Routenart"   value={fl.customFields?.routenTyp}
                   onSave={v=>{
                     // Bei einer der drei automatisch berechenbaren Kategorien
