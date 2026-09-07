@@ -2784,7 +2784,7 @@ function flightFieldValue(f, field){
     case "passagier": case "pax": return cf.passagier||"";
     case "reise": return cf.reise||"";
     case "jahr": case "year": return f.year||"";
-    case "monat": return f.month ? MONTH_NAMES_DE[+f.month-1] || "" : "";
+    case "monat": return f.month ? +f.month : 0;
     case "tag": { const d = parseInt((f.date||"").split(".")[0], 10); return Number.isFinite(d) ? String(d) : ""; }
     case "std": { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h) : ""; }
     case "datum": case "date": return f.date||"";
@@ -2855,12 +2855,23 @@ function evalToken(f, tok){
 
     const numericFields=["name","titel","dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
       "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
-      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter","hikehmprostd"];
+      "speed","kmh","rating","bewertung","jahr","year","monat","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter","hikehmprostd"];
     const dateFields=["datum","date"];
     const timeFields=["startzeit","starttime","landezeit","endtime"];
 
     if(numericFields.includes(field)){
-      let cmp = field==="dauer"||field==="duration" ? parseDurToSec(raw)/3600 : parseFloat(raw.replace(",","."));
+      // "monat" akzeptiert sowohl eine Zahl (1-12) als auch einen
+      // (Teil-)Monatsnamen wie beim IGC-Import/der Anzeige — "august" oder
+      // "aug" werden genauso wie "8" verstanden, damit sowohl freier Text
+      // (monat:august) als auch Bereichs-Abfragen über den Baukasten
+      // (Monat zwischen X und Y) funktionieren.
+      let cmp;
+      if (field==="dauer"||field==="duration") cmp = parseDurToSec(raw)/3600;
+      else if (field==="monat") {
+        const byName = MONTH_NAMES_DE.findIndex(n => n.toLowerCase().startsWith(raw.toLowerCase()));
+        cmp = byName>=0 ? byName+1 : parseFloat(raw.replace(",","."));
+      }
+      else cmp = parseFloat(raw.replace(",","."));
       fv = parseFloat(fv)||0;
       if(isNaN(cmp)) return true;
       if(op===">") return fv>cmp;
@@ -3438,7 +3449,10 @@ function tokenizeQuery(q) {
     .replace(/\s+(UND|AND)\s+/gi, " && ")
     .replace(/\s+(ODER|OR)\s+/gi, " || ")
     .replace(/&&/g, " && ").replace(/\|\|/g, " || ");
-  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]*"|\S+/gi;
+  // Unquotierte Terme dürfen nicht bis an ein "(" / ")" heranreichen, sonst
+  // verschluckt z.B. "(a b)" die schliessende Klammer als Teil von "b)" statt
+  // sie als eigenes Token zu erkennen.
+  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)[^\s()]+|\+[^\s()]+|\-[^\s()]+|"[^"]*"|[^\s()]+/gi;
   const tokens = [];
   let m;
   while ((m = re.exec(s))) {
@@ -3470,7 +3484,15 @@ function parseQueryTokens(tokens) {
   }
   function parseAndTerm() {
     let node = parseAtom();
-    while (peek() === "&&") { next(); node = { type: "and", left: node, right: parseAtom() }; }
+    // Zwei Terme direkt hintereinander (ohne explizites "UND"/"&&") galten
+    // bisher nur als UND, wenn ein "&&"-Token dazwischenstand — bei reinem
+    // Leerzeichen wurde der zweite Term stillschweigend verschluckt (z.B.
+    // "monat>=1 monat<=6" wurde zu nur "monat>=1"). Jetzt zählt auch die
+    // reine Aneinanderreihung als UND, solange kein "||" oder ")" folgt.
+    while (peek() !== undefined && peek() !== "||" && peek() !== ")") {
+      if (peek() === "&&") next();
+      node = { type: "and", left: node, right: parseAtom() };
+    }
     return node;
   }
   function parseAtom() {
@@ -3523,6 +3545,7 @@ const SEARCH_FIELDS = [
   { id: "startzeit", label: "Startzeit",      type: "time" },
   { id: "landezeit", label: "Landezeit",      type: "time" },
   { id: "jahr",      label: "Jahr",           type: "number" },
+  { id: "monat",     label: "Monat",          type: "number" },
   { id: "bemerkung", label: "Bemerkung",      type: "text" },
   { id: "dauer",     label: "Dauer (h)",      type: "number" },
   { id: "distanz",   label: "Distanz (km)",   type: "number" },
