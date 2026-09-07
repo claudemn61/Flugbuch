@@ -117,6 +117,28 @@ function estimateTzOffset(firstPt, dateStr) {
   return Math.round((firstPt.lon || 0) / 15);
 }
 
+// Baut den XContest-Deep-Link zu genau diesem Flug statt nur zur eigenen
+// "Meine Flüge"-Übersicht. XContest erwartet im Pfad das Datum ohne
+// führende Nullen (z.B. "6.9.2026") und die Startzeit in UTC (nicht die
+// hier im Flug gespeicherte Lokalzeit) — der Zeitzonen-Offset wird dafür
+// wie beim IGC-Import über Startkoordinate + Datum neu bestimmt (wird
+// selbst nicht auf dem Flug gespeichert). Fehlt Startkoordinate oder
+// Startzeit (z.B. bei alten, manuell erfassten Flügen ohne GPS-Track),
+// fällt der Link auf die allgemeine Übersicht zurück statt einen falschen
+// Zeitpunkt zu raten.
+const XCONTEST_USERNAME = "claudemn";
+function buildXContestLink(fl) {
+  const dm = String(fl.date||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  const tm = String(fl.startTime||"").match(/^(\d{1,2}):(\d{2})/);
+  if (!dm || !tm) return "https://www.xcontest.org/world/en/my-flights/";
+  const tz = estimateTzOffset(fl.startPt, fl.date);
+  const localMin = (+tm[1])*60 + (+tm[2]);
+  const utcMin = ((Math.round(localMin - tz*60) % 1440) + 1440) % 1440;
+  const uh = Math.floor(utcMin/60), um = utcMin%60;
+  const day = +dm[1], month = +dm[2], year = dm[3];
+  return `https://www.xcontest.org/world/en/flights/detail:${XCONTEST_USERNAME}/${day}.${month}.${year}/${String(uh).padStart(2,"0")}:${String(um).padStart(2,"0")}`;
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371.0088;
   const toRad = d => d * Math.PI / 180;
@@ -4911,8 +4933,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end"}}>
               {fl.track?.length>1&&<span style={{background:"rgba(232,244,253,0.18)",color:"rgba(232,244,253,0.75)",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
-              <button onClick={()=>window.open("https://www.xcontest.org/world/en/my-flights/","_blank")}
-                title="XContest — Meine Flüge"
+              <button onClick={()=>window.open(buildXContestLink(fl),"_blank")}
+                title="XContest — dieser Flug"
                 style={{background:"rgba(245,158,11,0.18)",border:"1px solid rgba(245,158,11,0.4)",color:"#fcd34d",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer"}}>
                 XContest
               </button>

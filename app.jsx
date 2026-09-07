@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.8.1";
+const APP_VERSION = "5.8.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.8.2", note: "Flugdetail: der \"XContest\"-Button führt jetzt direkt zum passenden Flug (statt nur zur eigenen \"Meine Flüge\"-Übersicht) — Datum und Startzeit werden dafür automatisch in das von XContest erwartete Format bzw. in UTC umgerechnet (Zeitzone anhand Startkoordinate + Datum bestimmt, wie beim IGC-Import). Ohne Startkoordinate oder Startzeit bleibt der Link wie bisher auf der allgemeinen Übersicht." },
   { v: "5.8.1", note: "Flugliste, Suchen/Sortieren/Gruppieren-Panel: Gr. 1°/2° ~15% schmaler, Suchfeld dafür verbreitert — beide jetzt exakt gleich breit, ebenso die kleinen \"Gruppen sortieren nach…\"-Felder von Gr. 1° und Gr. 2° untereinander (vorher je nach gewähltem Feld unterschiedlich breit). Flugdetail: die \"☰ Sortieren\"-Kachel über den Flugdaten zeigt jetzt nur noch das Symbol, ohne Text." },
   { v: "5.8", note: "Flugliste: die Statistik-Kachel unter der Flug-Anzahl (Zeitraum/Gesamtzeit/Ges.Distanz/Ø Dauer/Ø Distanz/max. Dauer/max. km/max. Höhe/Startplätze/Schirme) ist jetzt über ⚙️ konfigurierbar — einzelne Werte aus-/einblendbar und per ↑/↓ neu anordenbar, wie bei den Kopieren-Spalten." },
   { v: "5.7.20", note: "Fix Gruppierung nach Bewertung: bei manchen Flügen war die Bewertung als Text statt als Zahl gespeichert (vermutlich Altlast einer sehr frühen App-Version) — dadurch behandelte die Gruppierung z.B. 4 Sterne als Zahl und 4 Sterne als Text als zwei verschiedene, gleich beschriftete Gruppen, was in der Flugliste wie eine mittendrin unterbrochene Gruppe aussah. Bewertung wird jetzt überall konsequent als Zahl behandelt, einmalige Nachkorrektur beim nächsten App-Start bereinigt bestehende Flüge." },
