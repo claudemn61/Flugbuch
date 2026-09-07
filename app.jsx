@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.7.20";
+const APP_VERSION = "5.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "5.8", note: "Flugliste: die Statistik-Kachel unter der Flug-Anzahl (Zeitraum/Gesamtzeit/Ges.Distanz/Ø Dauer/Ø Distanz/max. Dauer/max. km/max. Höhe/Startplätze/Schirme) ist jetzt über ⚙️ konfigurierbar — einzelne Werte aus-/einblendbar und per ↑/↓ neu anordenbar, wie bei den Kopieren-Spalten." },
   { v: "5.7.20", note: "Fix Gruppierung nach Bewertung: bei manchen Flügen war die Bewertung als Text statt als Zahl gespeichert (vermutlich Altlast einer sehr frühen App-Version) — dadurch behandelte die Gruppierung z.B. 4 Sterne als Zahl und 4 Sterne als Text als zwei verschiedene, gleich beschriftete Gruppen, was in der Flugliste wie eine mittendrin unterbrochene Gruppe aussah. Bewertung wird jetzt überall konsequent als Zahl behandelt, einmalige Nachkorrektur beim nächsten App-Start bereinigt bestehende Flüge." },
   { v: "5.7.19", note: "Fix: Datum eines Flugs bearbeiten (einzeln oder in der Massenbearbeitung) liess Jahr/Monat für die Jahr-/Monat-Gruppierung unverändert — ein auf ein anderes Jahr umdatierter Flug blieb dadurch dauerhaft in der alten Jahresgruppe hängen, obwohl das Datum selbst korrekt angezeigt wurde. Jahr/Monat werden jetzt bei jeder Datum-Änderung neu abgeleitet. Einmalige Nachkorrektur beim nächsten App-Start gleicht bereits betroffene Flüge rückwirkend an." },
   { v: "5.7.18", note: "Fix: der Zeilen-Baukasten der Suche übernahm eine über Suchen/Sortieren-Panel geladene gespeicherte Darstellung, einen freien Text-Edit im Suchfeld oder ✕ Löschen nicht — bearbeitete man danach eine Baukasten-Zeile, wurde der gerade erst gesetzte Filter durch den alten, im Baukasten noch hinterlegten Stand überschrieben. Baukasten gleicht sich jetzt bei jeder externen Änderung des Suchtexts korrekt ab." },

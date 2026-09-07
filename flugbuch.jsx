@@ -2975,6 +2975,23 @@ function parseDateToTs(d, timeStr) {
   return new Date(+yy, +mm - 1, +dd, hh, min, sec).getTime();
 }
 
+// Feste Reihenfolge/Beschriftung der 10 Kennzahlen aus computeSearchStats,
+// als eigene Liste (statt nur inline im Rückgabe-Array), damit die Auswahl-
+///Reihenfolge-Kachel (⚙️ neben der Flug-Anzahl) dieselben Keys/Labels wie
+// die tatsächliche Berechnung verwendet und beide nie auseinanderlaufen
+// können.
+const SEARCH_STATS_DEFS = [
+  { key: "zeitraum",     label: "Zeitraum" },
+  { key: "gesamtzeit",   label: "Gesamtzeit" },
+  { key: "gesDistanz",   label: "Ges.Distanz" },
+  { key: "avgDauer",     label: "Ø Dauer" },
+  { key: "avgDistanz",   label: "Ø Distanz" },
+  { key: "maxDauer",     label: "max. Dauer" },
+  { key: "maxKm",        label: "max. km" },
+  { key: "maxHoehe",     label: "max. Höhe" },
+  { key: "startplaetze", label: "Startplätze" },
+  { key: "schirme",      label: "Schirme" },
+];
 // Kompakte Statistik über eine (Such-)Ergebnismenge — bewusst breit
 // gestreut über Dauer/Distanz/Höhe/Bewertung/Vielfalt, nicht nur die
 // naheliegenden Summen, damit die Auswahl auch für "wie war diese
@@ -2994,18 +3011,19 @@ function computeSearchStats(flights) {
   const sites = new Set(flights.map(f=>f.site).filter(Boolean));
   const gliders = new Set(flights.map(f=>f.glider).filter(Boolean));
   const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
-  return [
-    { label: "Zeitraum", value: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—" },
-    { label: "Gesamtzeit", value: totalSec>0 ? fmtDur(totalSec) : "—" },
-    { label: "Ges.Distanz", value: totalDist>0 ? totalDist.toFixed(1)+" km" : "—" },
-    { label: "Ø Dauer", value: withDur.length ? fmtDur(Math.round(totalSec/withDur.length)) : "—" },
-    { label: "Ø Distanz", value: withDist.length ? (totalDist/withDist.length).toFixed(1)+" km" : "—" },
-    { label: "max. Dauer", value: longest ? `${longest.durationStr||fmtDur(longest.durationSec)} (${longest.name})` : "—" },
-    { label: "max. km", value: farthest ? `${farthest.totalDist.toFixed(1)} km (${farthest.name})` : "—" },
-    { label: "max. Höhe", value: highest ? `${highest.maxAlt} m (${highest.name})` : "—" },
-    { label: "Startplätze", value: String(sites.size) },
-    { label: "Schirme", value: String(gliders.size) },
-  ];
+  const values = {
+    zeitraum: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—",
+    gesamtzeit: totalSec>0 ? fmtDur(totalSec) : "—",
+    gesDistanz: totalDist>0 ? totalDist.toFixed(1)+" km" : "—",
+    avgDauer: withDur.length ? fmtDur(Math.round(totalSec/withDur.length)) : "—",
+    avgDistanz: withDist.length ? (totalDist/withDist.length).toFixed(1)+" km" : "—",
+    maxDauer: longest ? `${longest.durationStr||fmtDur(longest.durationSec)} (${longest.name})` : "—",
+    maxKm: farthest ? `${farthest.totalDist.toFixed(1)} km (${farthest.name})` : "—",
+    maxHoehe: highest ? `${highest.maxAlt} m (${highest.name})` : "—",
+    startplaetze: String(sites.size),
+    schirme: String(gliders.size),
+  };
+  return SEARCH_STATS_DEFS.map(d => ({ key: d.key, label: d.label, value: values[d.key] }));
 }
 
 // Computes "Reise-Nr./Reise-Flug-Nr." (e.g. "21/4") for every flight tagged
@@ -5349,7 +5367,12 @@ function useIsWide() {
 // spreadsheet template they're pasting into. Saved via window.storage
 // (see FlugbuchApp), so it's picked up automatically by the app's generic
 // backup export/import too, without needing any special-casing there.
-function CsvColumnConfigModal({ columns, onSave, onClose }) {
+// Generisches Auswahl-/Reihenfolge-Modal: Häkchen an-/abwählen, per ▲▼
+// umsortieren. Ursprünglich nur für die CSV-"Kopieren"-Spalten, jetzt auch
+// für die Statistik-Kennzahlen unter der Flug-Anzahl wiederverwendet —
+// beide brauchen exakt dasselbe Verhalten (Auswahl + Reihenfolge, mit
+// Zurücksetzen-Option), nur mit anderen Feldern/Texten.
+function ColumnConfigModal({ title, hint, defs, columns, onSave, onClose }) {
   const [local, setLocal] = useState(columns);
   const toggle = (key) => setLocal(cols => cols.map(c => c.key===key ? {...c, enabled: !c.enabled} : c));
   const move = (idx, dir) => setLocal(cols => {
@@ -5359,13 +5382,13 @@ function CsvColumnConfigModal({ columns, onSave, onClose }) {
     [next[idx], next[j]] = [next[j], next[idx]];
     return next;
   });
-  const labelFor = key => CSV_COLUMN_DEFS.find(c=>c.key===key)?.label || key;
+  const labelFor = key => defs.find(c=>c.key===key)?.label || key;
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div onClick={e=>e.stopPropagation()}
         style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
-        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>Spalten für "Kopieren"</div>
-        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen, passend zur Ziel-Tabelle.</div>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{title}</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>{hint}</div>
         <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
           {local.map((c, idx) => (
             <div key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:c.enabled?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.03)"}}>
@@ -5382,7 +5405,7 @@ function CsvColumnConfigModal({ columns, onSave, onClose }) {
           ))}
         </div>
         <div style={{display:"flex",gap:8,marginTop:16}}>
-          <button onClick={()=>setLocal(CSV_COLUMN_DEFS.map(c => ({ key: c.key, enabled: true })))}
+          <button onClick={()=>setLocal(defs.map(c => ({ key: c.key, enabled: true })))}
             style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
             Zurücksetzen
           </button>
@@ -5739,6 +5762,30 @@ function FlugbuchApp() {
   const saveCsvColumns = async (next) => {
     setCsvColumns(next);
     try { await window.storage.set("csvColumnConfig", JSON.stringify(next)); } catch (e) { console.error("Save error (csvColumnConfig):", e); }
+  };
+  // Welche der 10 Statistik-Kennzahlen unter der Flug-Anzahl angezeigt
+  // werden und in welcher Reihenfolge — gleiches Muster wie csvColumns
+  // oben, "service:"-Präfix, damit es vom Backup-Export/Import erfasst wird.
+  const [searchStatsColumns, setSearchStatsColumns] = useState(
+    SEARCH_STATS_DEFS.map(c => ({ key: c.key, enabled: true }))
+  );
+  const [showSearchStatsConfig, setShowSearchStatsConfig] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:searchStatsColumns");
+        if (r) {
+          const saved = JSON.parse(r.value);
+          const savedKeys = new Set(saved.map(c => c.key));
+          const merged = [...saved, ...SEARCH_STATS_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: true }))];
+          setSearchStatsColumns(merged);
+        }
+      } catch (e) { console.error("Load error (searchStatsColumns):", e); }
+    })();
+  }, []);
+  const saveSearchStatsColumns = async (next) => {
+    setSearchStatsColumns(next);
+    try { await window.storage.set("service:searchStatsColumns", JSON.stringify(next)); } catch (e) { console.error("Save error (searchStatsColumns):", e); }
   };
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -6960,7 +7007,12 @@ function FlugbuchApp() {
         onChange={e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=""; }} />
 
       {showCsvColumnConfig && (
-        <CsvColumnConfigModal columns={csvColumns} onSave={saveCsvColumns} onClose={()=>setShowCsvColumnConfig(false)} />
+        <ColumnConfigModal title={'Spalten für "Kopieren"'} hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen, passend zur Ziel-Tabelle."
+          defs={CSV_COLUMN_DEFS} columns={csvColumns} onSave={saveCsvColumns} onClose={()=>setShowCsvColumnConfig(false)} />
+      )}
+      {showSearchStatsConfig && (
+        <ColumnConfigModal title="Statistik-Werte" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen — erscheinen so in der Kachel unter der Flug-Anzahl."
+          defs={SEARCH_STATS_DEFS} columns={searchStatsColumns} onSave={saveSearchStatsColumns} onClose={()=>setShowSearchStatsConfig(false)} />
       )}
 
       {pendingDateAmbiguous.length > 0 && (
@@ -7656,17 +7708,25 @@ function FlugbuchApp() {
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
             <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}{filteredFlights.length} Flüge</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
+            {showSearchStats && filteredFlights.length>0 && (
+              <span onClick={e=>{e.stopPropagation();setShowSearchStatsConfig(true);}} title="Statistik-Werte bearbeiten"
+                style={{marginLeft:2,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer"}}>⚙️</span>
+            )}
           </div>
-          {showSearchStats && filteredFlights.length>0 && (
-            <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3}}>
-              {computeSearchStats(filteredFlights).map(s => (
-                <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:6,minWidth:0}}>
-                  <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
-                  <span style={{fontSize:11,color:"rgba(232,244,253,0.8)",fontWeight:600,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}}>{s.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {showSearchStats && filteredFlights.length>0 && (() => {
+            const statsMap = new Map(computeSearchStats(filteredFlights).map(s=>[s.key,s]));
+            const visible = searchStatsColumns.filter(c=>c.enabled).map(c=>statsMap.get(c.key)).filter(Boolean);
+            return (
+              <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3}}>
+                {visible.map(s => (
+                  <div key={s.key} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:6,minWidth:0}}>
+                    <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
+                    <span style={{fontSize:11,color:"rgba(232,244,253,0.8)",fontWeight:600,textAlign:"right",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flexShrink:0}}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
