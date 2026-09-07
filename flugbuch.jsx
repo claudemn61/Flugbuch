@@ -7786,12 +7786,12 @@ function FlugbuchApp() {
       {(filterText.trim() || activeViewName) && (
         <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
-            style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer",width:"fit-content"}}>
+            style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>
             <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}{filteredFlights.length} Flüge</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
             {showSearchStats && filteredFlights.length>0 && (
               <span onClick={e=>{e.stopPropagation();setShowSearchStatsConfig(true);}} title="Statistik-Werte bearbeiten"
-                style={{marginLeft:2,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer"}}>⚙️</span>
+                style={{marginLeft:"auto",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer"}}>⚙️</span>
             )}
           </div>
           {showSearchStats && filteredFlights.length>0 && (() => {
