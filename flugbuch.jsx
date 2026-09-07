@@ -7536,7 +7536,7 @@ function FlugbuchApp() {
           wählbaren Felder, kein fest verdrahteter Extra-Schalter mehr. */}
       {searchRowOpen && (
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
-          <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+          <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
             <div style={{flex:`0 0 ${SEARCH_SORT_PRIMARY_BASIS}`,minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
