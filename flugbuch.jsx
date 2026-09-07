@@ -2975,11 +2975,13 @@ function parseDateToTs(d, timeStr) {
   return new Date(+yy, +mm - 1, +dd, hh, min, sec).getTime();
 }
 
-// Feste Reihenfolge/Beschriftung der 10 Kennzahlen aus computeSearchStats,
-// als eigene Liste (statt nur inline im Rückgabe-Array), damit die Auswahl-
-///Reihenfolge-Kachel (⚙️ neben der Flug-Anzahl) dieselben Keys/Labels wie
+// Feste Reihenfolge/Beschriftung der Kennzahlen aus computeSearchStats, als
+// eigene Liste (statt nur inline im Rückgabe-Array), damit die Auswahl-
+// /Reihenfolge-Kachel (⚙️ neben der Flug-Anzahl) dieselben Keys/Labels wie
 // die tatsächliche Berechnung verwendet und beide nie auseinanderlaufen
-// können.
+// können. Die ursprünglichen 10 sind standardmässig aktiv; die zusätzlichen
+// Kennzahlen darunter (defaultEnabled:false) lassen sich über ⚙️ dazuwählen,
+// ohne die bisherige Kachel bei bestehenden Nutzern zu verändern.
 const SEARCH_STATS_DEFS = [
   { key: "zeitraum",     label: "Zeitraum" },
   { key: "gesamtzeit",   label: "Gesamtzeit" },
@@ -2991,6 +2993,11 @@ const SEARCH_STATS_DEFS = [
   { key: "maxHoehe",     label: "max. Höhe" },
   { key: "startplaetze", label: "Startplätze" },
   { key: "schirme",      label: "Schirme" },
+  { key: "avgBewertung", label: "Ø Bewertung",       defaultEnabled: false },
+  { key: "flugtage",     label: "Flugtage",          defaultEnabled: false },
+  { key: "landeplaetze", label: "Landeplätze",       defaultEnabled: false },
+  { key: "biplace",      label: "Biplace-Flüge",     defaultEnabled: false },
+  { key: "hoehengewinn", label: "Ges. Höhengewinn",  defaultEnabled: false },
 ];
 // Kompakte Statistik über eine (Such-)Ergebnismenge — bewusst breit
 // gestreut über Dauer/Distanz/Höhe/Bewertung/Vielfalt, nicht nur die
@@ -3011,6 +3018,11 @@ function computeSearchStats(flights) {
   const sites = new Set(flights.map(f=>f.site).filter(Boolean));
   const gliders = new Set(flights.map(f=>f.glider).filter(Boolean));
   const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
+  const rated = flights.filter(f=>f.rating>0);
+  const landeplaetze = new Set(flights.map(f=>f.customFields?.landung).filter(Boolean));
+  const flugtage = new Set(flights.map(f=>f.date).filter(Boolean));
+  const biplace = flights.filter(f=>(f.customFields?.passagier||"").trim()).length;
+  const hoehengewinn = flights.reduce((s,f)=>s+(parseFloat(f.customFields?.hGew)||0),0);
   const values = {
     zeitraum: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—",
     gesamtzeit: totalSec>0 ? fmtDur(totalSec) : "—",
@@ -3022,6 +3034,11 @@ function computeSearchStats(flights) {
     maxHoehe: highest ? `${highest.maxAlt} m (${highest.name})` : "—",
     startplaetze: String(sites.size),
     schirme: String(gliders.size),
+    avgBewertung: rated.length ? (rated.reduce((s,f)=>s+f.rating,0)/rated.length).toFixed(1)+" ★" : "—",
+    flugtage: String(flugtage.size),
+    landeplaetze: String(landeplaetze.size),
+    biplace: String(biplace),
+    hoehengewinn: hoehengewinn>0 ? Math.round(hoehengewinn)+" m" : "—",
   };
   return SEARCH_STATS_DEFS.map(d => ({ key: d.key, label: d.label, value: values[d.key] }));
 }
@@ -5405,7 +5422,7 @@ function ColumnConfigModal({ title, hint, defs, columns, onSave, onClose }) {
           ))}
         </div>
         <div style={{display:"flex",gap:8,marginTop:16}}>
-          <button onClick={()=>setLocal(defs.map(c => ({ key: c.key, enabled: true })))}
+          <button onClick={()=>setLocal(defs.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false })))}
             style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
             Zurücksetzen
           </button>
@@ -5763,11 +5780,16 @@ function FlugbuchApp() {
     setCsvColumns(next);
     try { await window.storage.set("csvColumnConfig", JSON.stringify(next)); } catch (e) { console.error("Save error (csvColumnConfig):", e); }
   };
-  // Welche der 10 Statistik-Kennzahlen unter der Flug-Anzahl angezeigt
-  // werden und in welcher Reihenfolge — gleiches Muster wie csvColumns
-  // oben, "service:"-Präfix, damit es vom Backup-Export/Import erfasst wird.
+  // Welche Statistik-Kennzahlen unter der Flug-Anzahl angezeigt werden und
+  // in welcher Reihenfolge — gleiches Muster wie csvColumns oben,
+  // "service:"-Präfix, damit es vom Backup-Export/Import erfasst wird.
+  // Neu hinzugekommene Kennzahlen (defaultEnabled:false in
+  // SEARCH_STATS_DEFS) werden beim Zusammenführen mit einer bereits
+  // gespeicherten Auswahl bewusst deaktiviert angehängt, statt wie bei
+  // csvColumns automatisch aktiv zu erscheinen — die bestehende Kachel soll
+  // sich für schon konfigurierte Nutzer nicht von selbst verändern.
   const [searchStatsColumns, setSearchStatsColumns] = useState(
-    SEARCH_STATS_DEFS.map(c => ({ key: c.key, enabled: true }))
+    SEARCH_STATS_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
   );
   const [showSearchStatsConfig, setShowSearchStatsConfig] = useState(false);
   useEffect(() => {
@@ -5777,7 +5799,7 @@ function FlugbuchApp() {
         if (r) {
           const saved = JSON.parse(r.value);
           const savedKeys = new Set(saved.map(c => c.key));
-          const merged = [...saved, ...SEARCH_STATS_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: true }))];
+          const merged = [...saved, ...SEARCH_STATS_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))];
           setSearchStatsColumns(merged);
         }
       } catch (e) { console.error("Load error (searchStatsColumns):", e); }
