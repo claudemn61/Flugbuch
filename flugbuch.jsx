@@ -2993,11 +2993,12 @@ const SEARCH_STATS_DEFS = [
   { key: "maxHoehe",     label: "max. Höhe" },
   { key: "startplaetze", label: "Startplätze" },
   { key: "schirme",      label: "Schirme" },
-  { key: "avgBewertung", label: "Ø Bewertung",       defaultEnabled: false },
-  { key: "flugtage",     label: "Flugtage",          defaultEnabled: false },
-  { key: "landeplaetze", label: "Landeplätze",       defaultEnabled: false },
-  { key: "biplace",      label: "Biplace-Flüge",     defaultEnabled: false },
-  { key: "hoehengewinn", label: "Ges. Höhengewinn",  defaultEnabled: false },
+  { key: "landeplaetze",    label: "Landeplätze",      defaultEnabled: false },
+  { key: "flugtage",        label: "Flugtage",         defaultEnabled: false },
+  { key: "biplace",         label: "Biplace-Flüge",    defaultEnabled: false },
+  { key: "avgHoehengewinn", label: "Ø Höhengewinn",    defaultEnabled: false },
+  { key: "maxSteigen",      label: "Max. Steigen",     defaultEnabled: false },
+  { key: "maxSinken",       label: "Max. Sinken",      defaultEnabled: false },
 ];
 // Kompakte Statistik über eine (Such-)Ergebnismenge — bewusst breit
 // gestreut über Dauer/Distanz/Höhe/Bewertung/Vielfalt, nicht nur die
@@ -3018,11 +3019,18 @@ function computeSearchStats(flights) {
   const sites = new Set(flights.map(f=>f.site).filter(Boolean));
   const gliders = new Set(flights.map(f=>f.glider).filter(Boolean));
   const dated = flights.filter(f=>f.date).map(f=>({f, ts: parseDateToTs(f.date, f.startTime)})).sort((a,b)=>a.ts-b.ts);
-  const rated = flights.filter(f=>f.rating>0);
   const landeplaetze = new Set(flights.map(f=>f.customFields?.landung).filter(Boolean));
   const flugtage = new Set(flights.map(f=>f.date).filter(Boolean));
   const biplace = flights.filter(f=>(f.customFields?.passagier||"").trim()).length;
-  const hoehengewinn = flights.reduce((s,f)=>s+(parseFloat(f.customFields?.hGew)||0),0);
+  const withHGew = flights.filter(f=>parseFloat(f.customFields?.hGew)>0);
+  // Max. Steigen/Sinken picken je den extremsten Einzelwert (samt Flugname),
+  // gleiches Muster wie max. Dauer/km/Höhe oben. maxSteigen ist positiv,
+  // maxSinken negativ gespeichert (siehe analyzeIGC) — Max. Sinken ist
+  // deshalb der kleinste (am stärksten negative) Wert, nicht der grösste.
+  const steigenVals = flights.map(f=>({f, v:parseFloat(f.customFields?.maxSteigen)})).filter(x=>Number.isFinite(x.v));
+  const bestSteigen = steigenVals.length ? steigenVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const sinkenVals = flights.map(f=>({f, v:parseFloat(f.customFields?.maxSinken)})).filter(x=>Number.isFinite(x.v));
+  const worstSinken = sinkenVals.length ? sinkenVals.reduce((a,b)=> b.v<a.v?b:a) : null;
   const values = {
     zeitraum: dated.length ? `${shortDate(dated[0].f.date)}–${shortDate(dated[dated.length-1].f.date)}` : "—",
     gesamtzeit: totalSec>0 ? fmtDur(totalSec) : "—",
@@ -3034,11 +3042,12 @@ function computeSearchStats(flights) {
     maxHoehe: highest ? `${highest.maxAlt} m (${highest.name})` : "—",
     startplaetze: String(sites.size),
     schirme: String(gliders.size),
-    avgBewertung: rated.length ? (rated.reduce((s,f)=>s+f.rating,0)/rated.length).toFixed(1)+" ★" : "—",
-    flugtage: String(flugtage.size),
     landeplaetze: String(landeplaetze.size),
+    flugtage: String(flugtage.size),
     biplace: String(biplace),
-    hoehengewinn: hoehengewinn>0 ? Math.round(hoehengewinn)+" m" : "—",
+    avgHoehengewinn: withHGew.length ? Math.round(withHGew.reduce((s,f)=>s+parseFloat(f.customFields?.hGew),0)/withHGew.length)+" m" : "—",
+    maxSteigen: bestSteigen ? `${bestSteigen.v} m/s (${bestSteigen.f.name})` : "—",
+    maxSinken: worstSinken ? `${worstSinken.v} m/s (${worstSinken.f.name})` : "—",
   };
   return SEARCH_STATS_DEFS.map(d => ({ key: d.key, label: d.label, value: values[d.key] }));
 }
