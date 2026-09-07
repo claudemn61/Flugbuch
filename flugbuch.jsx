@@ -3716,7 +3716,7 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
     <div style={{position:"relative"}}>
       <div style={{position:"relative"}}>
         <input value={filterText} onChange={e=>setFilterText(e.target.value)} onFocus={()=>setAdvOpen(true)} placeholder="🔍 Suchen…"
-          style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 34px 8px 12px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+          style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 34px 7px 12px",color:"#e8f4fd",fontSize:12,boxSizing:"border-box"}} />
         {filterText && (
           <button onClick={()=>setFilterText("")}
             style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"rgba(232,244,253,0.4)",cursor:"pointer",fontSize:14}}>✕</button>
