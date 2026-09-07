@@ -2910,6 +2910,25 @@ const FLUGDATEN_DEFAULT_ORDER = [
 // Used for both Gr. 1° and Gr. 2° (same field list in both, "Keine" added
 // separately in the dropdown UI itself).
 const MONTH_NAMES_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+// Gemeinsame Breiten-Formel fürs Suchen/Sortieren/Gruppieren-Panel: das
+// Suchfeld (Zeile 1) und die Gr. 1°/2°-Hauptschalter (Zeile 2/3, bei
+// aktiver Gruppe) sollen exakt gleich breit sein und dabei ~15% schmaler
+// als die Gr.-Schalter vorher (im Standardzustand: aktive Gruppe, noch
+// keine eigene Gruppen-Sortierung gewählt, Sortierfeld-Button zeigt
+// "Name"). Koeffizienten empirisch aus dieser Referenzbreite abgeleitet
+// (85%-93px ≈ 0.85 × vorherige Breite) und so gewählt, dass die Zeile
+// weiterhin exakt bis zum rechten Rand reicht (kein Leerraum) — bei
+// deaktivierter Gruppe bleibt der Gr.-Schalter unverändert bei flex:1, da
+// er dann allein in seiner Zeile steht.
+const SEARCH_SORT_PRIMARY_BASIS = "calc(85% - 93px)";
+// Ergänzt SEARCH_SORT_PRIMARY_BASIS oben: nimmt in der Gr.-Zeile exakt die
+// Breite ein, die der schmalere Gr.-Hauptschalter freigibt (rechnerisches
+// Komplement, damit die Zeile ohne Leerraum bis zum rechten Rand reicht).
+// Vorher inhaltsabhängig (bis 110px) statt fest — dadurch wackelte auch
+// die Breite des Gr.-Hauptschalters je nach gewähltem Sortierfeld. Jetzt
+// fest, damit Gr. 1° und Gr. 2° immer exakt gleich breit sind, unabhängig
+// vom Inhalt.
+const GROUP_SORT_FIELD_BASIS = "0 0 calc(15% + 49px)";
 const GROUP_FIELDS = [
   { id: "jahr",    label: "Jahr" },
   { id: "monat",   label: "Monat" },
@@ -5052,8 +5071,9 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
               <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Flugdaten</div>
               <span onClick={()=>{ setFlugdatenEditMode(v=>!v); setDraggingFlugdatenId(null); }}
+                title={flugdatenEditMode ? "Fertig" : "Reihenfolge der Flugdaten-Kacheln ändern"}
                 style={{fontSize:11,fontWeight:700,color:flugdatenEditMode?"#78350f":"rgba(125,211,252,0.7)",background:flugdatenEditMode?"#facc15":"rgba(125,211,252,0.12)",borderRadius:12,padding:"3px 9px",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}>
-                {flugdatenEditMode ? "✓ Fertig" : "☰ Sortieren"}
+                {flugdatenEditMode ? "✓ Fertig" : "☰"}
               </span>
             </div>
             {(() => {
@@ -7517,7 +7537,7 @@ function FlugbuchApp() {
       {searchRowOpen && (
         <div style={{padding:"12px 16px 6px",position:"relative"}}>
           <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-            <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
+            <div style={{flex:`0 0 ${SEARCH_SORT_PRIMARY_BASIS}`,minWidth:0,position:"relative"}}>
               <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
             <button onClick={()=>setShowSortMenu(s=>!s)}
@@ -7549,14 +7569,14 @@ function FlugbuchApp() {
             return (
               <div key={level} style={{marginTop:6,position:"relative",display:"flex",gap:6}}>
                 <button onClick={()=>setShowMenu(s=>!s)}
-                  style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:groupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
+                  style={{flex:groupId?`0 0 ${SEARCH_SORT_PRIMARY_BASIS}`:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:groupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ Gr. {level}°: {groupId ? (GROUP_FIELDS.find(o=>o.id===groupId)?.label||"—") : "Keine"}</span>
                   <span style={{flexShrink:0,marginLeft:4}}>{showMenu?"▾":"▸"}</span>
                 </button>
                 {groupId && (
                   <button onClick={()=>setShowSortM(s=>!s)}
                     title="Gruppen sortieren nach…"
-                    style={{flex:"0 0 auto",maxWidth:110,minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
+                    style={{flex:GROUP_SORT_FIELD_BASIS,minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {!rawSortField ? "Name" : rawSortField==="anzahl" ? "Anzahl" : (SORT_OPTIONS.find(o=>o.id===rawSortField)?.label||"Name")}</span>
                     <span style={{flexShrink:0,fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>
                   </button>
