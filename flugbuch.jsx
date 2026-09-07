@@ -2929,6 +2929,14 @@ const SEARCH_SORT_PRIMARY_BASIS = "calc(85% - 93px)";
 // fest, damit Gr. 1° und Gr. 2° immer exakt gleich breit sind, unabhängig
 // vom Inhalt.
 const GROUP_SORT_FIELD_BASIS = "0 0 calc(15% + 49px)";
+// Matching flex-basis percentages allein reichte auf manchen Geräten nicht
+// für pixelgleiche Kacheln in diesem Panel — <input> und <button> haben in
+// Safari leicht unterschiedliche Standard-Metriken, und eine Höhe nur über
+// Padding+Zeilenhöhe zu erzeugen ist entsprechend fragil. Jede Kachel in
+// den drei Zeilen (Suchen/Sortieren/Reihenfolge, Gr. 1°, Gr. 2°) bekommt
+// deshalb explizit dieselbe feste Höhe statt einer aus Inhalt/Padding
+// abgeleiteten.
+const PANEL_TILE_HEIGHT = 34;
 const GROUP_FIELDS = [
   { id: "jahr",    label: "Jahr" },
   { id: "monat",   label: "Monat" },
@@ -3714,9 +3722,9 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
 
   return (
     <div style={{position:"relative"}}>
-      <div style={{position:"relative"}}>
+      <div style={{position:"relative",height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",alignItems:"center",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"0 34px 0 12px"}}>
         <input value={filterText} onChange={e=>setFilterText(e.target.value)} onFocus={()=>setAdvOpen(true)} placeholder="🔍 Suchen…"
-          style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 34px 7px 12px",color:"#e8f4fd",fontSize:12,boxSizing:"border-box"}} />
+          style={{flex:1,minWidth:0,width:"100%",height:"100%",background:"transparent",border:"none",outline:"none",padding:0,margin:0,color:"#e8f4fd",fontSize:12,boxSizing:"border-box",fontFamily:"inherit"}} />
         {filterText && (
           <button onClick={()=>setFilterText("")}
             style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"rgba(232,244,253,0.4)",cursor:"pointer",fontSize:14}}>✕</button>
@@ -7541,13 +7549,13 @@ function FlugbuchApp() {
               <SearchBar filterText={filterText} setFilterText={setFilterText} knownGliders={[...new Set(flights.map(f=>f.glider).filter(Boolean))].sort()} />
             </div>
             <button onClick={()=>setShowSortMenu(s=>!s)}
-              style={{flex:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              style={{flex:"1 1 0",minWidth:0,height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"0 8px",color:"#fff",fontSize:12,cursor:"pointer"}}>
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {SORT_OPTIONS.find(o=>o.id===sortId)?.label||"—"}</span>
               <span style={{flexShrink:0,marginLeft:4}}>{showSortMenu?"▾":"▸"}</span>
             </button>
             <button onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}
               title={sortDir==="asc" ? "Aufsteigend" : "Absteigend"}
-              style={{flexShrink:0,width:34,height:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer"}}>
+              style={{flexShrink:0,width:32,height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer"}}>
               {sortDir==="asc"?"↑":"↓"}
             </button>
           </div>
@@ -7569,14 +7577,14 @@ function FlugbuchApp() {
             return (
               <div key={level} style={{marginTop:6,position:"relative",display:"flex",gap:6}}>
                 <button onClick={()=>setShowMenu(s=>!s)}
-                  style={{flex:groupId?`0 0 ${SEARCH_SORT_PRIMARY_BASIS}`:"1 1 0",minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 8px",color:groupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
+                  style={{flex:groupId?`0 0 ${SEARCH_SORT_PRIMARY_BASIS}`:"1 1 0",minWidth:0,height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"0 8px",color:groupId?"#fff":"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer"}}>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ Gr. {level}°: {groupId ? (GROUP_FIELDS.find(o=>o.id===groupId)?.label||"—") : "Keine"}</span>
                   <span style={{flexShrink:0,marginLeft:4}}>{showMenu?"▾":"▸"}</span>
                 </button>
                 {groupId && (
                   <button onClick={()=>setShowSortM(s=>!s)}
                     title="Gruppen sortieren nach…"
-                    style={{flex:GROUP_SORT_FIELD_BASIS,minWidth:0,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"7px 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
+                    style={{flex:GROUP_SORT_FIELD_BASIS,minWidth:0,height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",justifyContent:"space-between",alignItems:"center",gap:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"0 7px",color:"rgba(232,244,253,0.7)",fontSize:11,cursor:"pointer"}}>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>⇅ {!rawSortField ? "Name" : rawSortField==="anzahl" ? "Anzahl" : (SORT_OPTIONS.find(o=>o.id===rawSortField)?.label||"Name")}</span>
                     <span style={{flexShrink:0,fontWeight:700}}>{groupDir==="asc"?"↑":"↓"}</span>
                   </button>
@@ -7603,7 +7611,7 @@ function FlugbuchApp() {
                       }
                     }}
                     title={collapsedSet.size===0 ? "Alle Gruppen reduzieren" : "Alle Gruppen erweitern"}
-                    style={{flexShrink:0,width:32,boxSizing:"border-box",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+                    style={{flexShrink:0,width:32,height:PANEL_TILE_HEIGHT,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:"rgba(232,244,253,0.6)",fontSize:15,fontWeight:700,cursor:"pointer"}}>
                     {collapsedSet.size===0?"➖":"➕"}
                   </button>
                 )}
