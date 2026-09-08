@@ -6061,14 +6061,16 @@ function FlugbuchApp() {
             setView("detail");
             if (ret) setReturnTo(ret);
           }
-        } else if (filterParam) {
-          // Deep-Link auf die (gefilterte) Liste statt auf einen einzelnen
-          // Flug — z.B. von Statistik/Schirm aus. Eigener State
-          // (listReturnTo) statt "returnTo", damit ein normaler Flug-Klick
-          // innerhalb dieser Liste ganz gewöhnlich zur Liste zurückführt,
-          // statt beim Zurück gleich bis zu Statistik durchzuspringen — nur
-          // der 🏠-Button der Liste selbst nutzt listReturnTo.
-          setFilterText(filterParam);
+        } else {
+          // Deep-Link auf die (ggf. gefilterte) Liste statt auf einen
+          // einzelnen Flug — z.B. von Statistik/Schirm oder Statistik/
+          // Graph aus. Eigener State (listReturnTo) statt "returnTo",
+          // damit ein normaler Flug-Klick innerhalb dieser Liste ganz
+          // gewöhnlich zur Liste zurückführt, statt beim Zurück gleich
+          // bis zu Statistik durchzuspringen — nur der 🏠-Button der
+          // Liste selbst nutzt listReturnTo. "returnTo" ohne "filter" ist
+          // gültig (z.B. Graph ohne aktiven Freitext-Filter).
+          if (filterParam) setFilterText(filterParam);
           if (ret) setListReturnTo(ret);
         }
       } catch {}

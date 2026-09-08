@@ -802,10 +802,15 @@ function SeasonSection({ flights }) {
 //    (Drilldown statt gestapelter Balken — bei vielen Gr.-2°-Werten auf
 //    schmalem Bildschirm sonst unlesbar).
 //  - "Frei": kein Gruppieren — jeder (gefilterte) Flug ist ein Punkt,
-//    X-/Y-Achse beide frei aus Datum/allen numerischen Feldern wählbar,
-//    wahlweise als Linie (nach X sortiert verbunden) oder nur Punkte.
-// Beide Modi teilen sich Filter/Drilldown sowie Pinch-Zoom/Pan (zwei
-// Finger = zoomen, ein Finger = verschieben, Doppeltipp/-klick = zurück).
+//    X-/Y-Achse beide frei aus Datum/Jahr/Monat/Std./allen numerischen
+//    Feldern wählbar, wahlweise als Linie (nach X sortiert verbunden)
+//    oder nur Punkte; X-Achse auch hier umkehrbar.
+// Beide Modi teilen sich Filter/Drilldown sowie Pinch-Zoom/Pan. Zoom ist
+// ein echter Bereichs-Zoom (nicht nur eine optische Lupe): zwei Finger
+// verengen den sichtbaren Werte-/Zeitbereich, wodurch Balken/Punkte/
+// Beschriftungen tatsächlich mehr Platz bekommen statt nur vergrössert
+// zu werden; ein Finger verschiebt den sichtbaren Bereich, Doppeltipp/
+// -klick oder das ⤾-Symbol setzt auf die volle Spanne zurück.
 const GRAPH_Y_BASE_FIELDS = [
   { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg"] },
   { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg"] },
@@ -863,13 +868,20 @@ function graphNiceMax(v) {
 }
 
 // Felder für den "Frei"-Modus (ein Punkt pro Flug statt Gruppierung) — X
-// zusätzlich mit "Datum", Y dieselben Basisfelder wie oben, aber ohne
-// Aggregat (roher Flugwert). zeroBased steuert, ob die Y-Achse bei 0
-// beginnt (additive Grössen) oder am tatsächlichen Wertebereich (Höhen-/
-// Peak-Werte, sonst würde z.B. "Start müM" fast nur oberhalb der Mitte
-// der Fläche liegen).
+// zusätzlich mit Datum/Jahr/Monat/Std., Y dieselben Basisfelder wie oben,
+// aber ohne Aggregat (roher Flugwert). zeroBased steuert, ob die Y-Achse
+// bei 0 beginnt (additive Grössen) oder am tatsächlichen Wertebereich
+// (Höhen-/Peak-Werte, sonst würde z.B. "Start müM" fast nur oberhalb der
+// Mitte der Fläche liegen).
 const GRAPH_FREE_Y_FIELDS = GRAPH_Y_BASE_FIELDS.map(({field,label,unit,aggs}) => ({field,label,unit,zeroBased:aggs.includes("sum")}));
-const GRAPH_FREE_X_FIELDS = [{ field:"datum", label:"Datum", unit:"", zeroBased:false }, ...GRAPH_FREE_Y_FIELDS];
+const GRAPH_FREE_X_FIELDS = [
+  { field:"datum", label:"Datum", unit:"", zeroBased:false },
+  { field:"jahr",  label:"Jahr",  unit:"", zeroBased:false },
+  { field:"monat", label:"Monat", unit:"", zeroBased:false },
+  { field:"std",   label:"Std.",  unit:"", zeroBased:false },
+  ...GRAPH_FREE_Y_FIELDS,
+];
+const GRAPH_FREE_X_VIA_SORTFIELD = new Set(["jahr","monat","std"]);
 function formatFreeFieldValue(v, fieldDef) {
   if (!fieldDef) return String(Math.round(v));
   if (fieldDef.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
@@ -904,6 +916,18 @@ function pickGraphTicks(pts, n, scaleX, minGapPx) {
   });
   return out;
 }
+// Baut die URL für den Sprung von Graph zur Flugliste (mit Rücksprung-
+// Mechanismus, wie ihn die Schirm/Startplatz/…-Zeilen der Statistik schon
+// verwenden): "graph" als tableId im sessionStorage hinterlegen, damit
+// die Statistik-Seite beim Zurückkommen automatisch wieder das Graph-
+// Badge öffnet, statt auf der Badge-Übersicht zu landen.
+function graphFluglisteUrl(filterText) {
+  try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "graph", rowName: null })); } catch {}
+  const params = new URLSearchParams();
+  if (filterText) params.set("filter", filterText);
+  params.set("returnTo", "statistik.html");
+  return `flugbuch.html?${params.toString()}`;
+}
 
 function GraphSection({ flights }) {
   const [listSettings, setListSettings] = useState(null);
@@ -917,8 +941,9 @@ function GraphSection({ flights }) {
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
   const [chartStyle, setChartStyle] = useState("linie"); // "linie" | "punkte"
-  const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 });
-  const zoomRef = useRef(zoom);
+  const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
+  const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
+  const viewRef = useRef(null);
   const pinchRef = useRef(null);
   const panRef = useRef(null);
 
@@ -937,23 +962,32 @@ function GraphSection({ flights }) {
     })();
   };
   useEffect(loadSync, []);
-  const resetZoom = () => setZoom({ scale: 1, tx: 0, ty: 0 });
+  const resetZoom = () => setView(null);
   useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, hideEmpty, freeX, freeY, chartStyle]);
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
+  // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
+  // im Datenraum der jeweils aktiven Achse (Index-Bereich bei Balken,
+  // Werte-/Zeitbereich bei "Frei"). Pinch verengt/erweitert ihn um die
+  // Mitte des jeweiligen Gesten-Starts, Verschieben (ein Finger)
+  // verschiebt ihn — dadurch werden Balken/Punkte beim Hineinzoomen
+  // tatsächlich grösser statt nur optisch vergrössert zu werden.
+  //
   // Echte Touch-Events statt Pointer Events: Safari/iOS unterstützt die
   // Pointer-Events-API bei Mehrfingergesten unzuverlässig (führte auf dem
   // echten Gerät zu einem Absturz beim Pinchen). Touchmove muss zudem
   // preventDefault() aufrufen können, damit Safari während der Geste
   // nicht selbst die ganze Seite scrollt/zoomt — React hängt seine
   // synthetischen Touch-Handler passiv ein (preventDefault dort wirkungs-
-  // los), deshalb hier direkt am DOM-Element registriert.
-  // Als Callback-Ref (nicht useEffect+chartElRef) — die Zeichenfläche
-  // wird bedingt gerendert ("Keine Flüge…" vs. Chart), ein useEffect mit
-  // leerem Dependency-Array würde die Listener nie anhängen, wenn das
-  // Element beim allerersten Render (listSettings noch null) noch gar
-  // nicht existiert.
+  // los), deshalb hier direkt am DOM-Element registriert, per Callback-
+  // Ref (nicht useEffect) — die Zeichenfläche wird bedingt gerendert, ein
+  // useEffect mit leerem Dependency-Array würde die Listener nie
+  // anhängen, wenn das Element beim allerersten Render noch nicht
+  // existiert. Start-/Zwischenwerte werden aus den Gesten-Refs immer
+  // SOFORT synchron gelesen und als fertige Zahl in die setView-Updater-
+  // Funktion eingeschlossen statt darin nochmal auf die Ref zuzugreifen —
+  // React kann diese Updater verzögert ausführen, und bis dahin könnte
+  // z.B. touchend die Ref längst zurückgesetzt haben.
   const chartTouchCleanupRef = useRef(null);
   const attachChartTouch = useCallback((el) => {
     if (chartTouchCleanupRef.current) { chartTouchCleanupRef.current(); chartTouchCleanupRef.current = null; }
@@ -961,38 +995,52 @@ function GraphSection({ flights }) {
     const dist2 = (a, b) => Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
     const onStart = (e) => {
       if (e.touches.length === 2) {
-        pinchRef.current = { dist: dist2(e.touches[0], e.touches[1]), scale: zoomRef.current.scale, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+        pinchRef.current = { dist: dist2(e.touches[0], e.touches[1]), view: { ...viewRef.current } };
         panRef.current = null;
       } else if (e.touches.length === 1) {
-        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, view: { ...viewRef.current } };
         pinchRef.current = null;
       }
     };
     const onMove = (e) => {
-      // Startwerte SOFORT (synchron) aus der Ref lesen und als Zahl in
-      // die Updater-Funktion einschliessen, statt darin nochmal auf
-      // pinchRef/panRef.current zuzugreifen — React kann diese Updater
-      // verzögert ausführen, und bis dahin kann z.B. touchend die Ref
-      // längst wieder auf null gesetzt haben (führte auf dem echten
-      // Gerät beim Pinchen zum Absturz).
+      const g = chartGeomRef.current;
+      if (!g) return;
       if (e.touches.length === 2 && pinchRef.current) {
         e.preventDefault();
-        const { dist: startDist, scale: startScale } = pinchRef.current;
+        const { dist: startDist, view: sv } = pinchRef.current;
         const factor = dist2(e.touches[0], e.touches[1]) / (startDist || 1);
-        const newScale = Math.min(6, Math.max(1, startScale * factor));
-        setZoom(z => ({ ...z, scale: newScale }));
+        const fullWX = g.fullX1 - g.fullX0, fullWY = g.fullY1 - g.fullY0;
+        const minFrac = 1/8;
+        let widthX = Math.max(fullWX*minFrac, Math.min(fullWX, (sv.x1-sv.x0)/factor));
+        let widthY = Math.max(fullWY*minFrac, Math.min(fullWY, (sv.y1-sv.y0)/factor));
+        const cx = (sv.x0+sv.x1)/2, cy = (sv.y0+sv.y1)/2;
+        let x0 = cx-widthX/2, x1 = cx+widthX/2, y0 = cy-widthY/2, y1 = cy+widthY/2;
+        if (x0 < g.fullX0) { x1 += g.fullX0-x0; x0 = g.fullX0; }
+        if (x1 > g.fullX1) { x0 -= x1-g.fullX1; x1 = g.fullX1; }
+        if (y0 < g.fullY0) { y1 += g.fullY0-y0; y0 = g.fullY0; }
+        if (y1 > g.fullY1) { y0 -= y1-g.fullY1; y1 = g.fullY1; }
+        setView({ x0, x1, y0, y1 });
       } else if (e.touches.length === 1 && panRef.current) {
         e.preventDefault();
-        const { x: startX, y: startY, tx: startTx, ty: startTy } = panRef.current;
-        const newTx = startTx + (e.touches[0].clientX - startX);
-        const newTy = startTy + (e.touches[0].clientY - startY);
-        setZoom(z => ({ ...z, tx: newTx, ty: newTy }));
+        const { x: startX, y: startY, view: sv } = panRef.current;
+        const dxPx = e.touches[0].clientX - startX, dyPx = e.touches[0].clientY - startY;
+        const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
+        const dxData = (dxPx/g.plotW) * widthX;
+        const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
+        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
+        let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
+        const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
+        if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
+        if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
+        if (y0 < g.fullY0) { y1 = g.fullY0+(y1-y0); y0 = g.fullY0; }
+        if (y1 > g.fullY1) { y0 = g.fullY1-(y1-y0); y1 = g.fullY1; }
+        setView({ x0, x1, y0, y1 });
       }
     };
     const onEnd = (e) => {
       if (e.touches.length < 2) pinchRef.current = null;
       if (e.touches.length === 1) {
-        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, view: { ...viewRef.current } };
       } else {
         panRef.current = null;
       }
@@ -1039,17 +1087,21 @@ function GraphSection({ flights }) {
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
-  const W = Math.max(300, rows.length * 42);
-  const padLeft = 34, padRight = 10, padTop = 14, plotH = 122;
-  const plotW = W - padLeft - padRight;
-  const niceM = graphNiceMax(Math.max(1, ...rows.map(r => r.value)));
-  const slot = plotW / Math.max(1, rows.length);
-  const barW = Math.min(28, slot * 0.6);
-  const scaleY = v => padTop + plotH - (v / niceM) * plotH;
-  const ticks = [0, niceM*0.25, niceM*0.5, niceM*0.75, niceM];
+  const W = 300, padLeft = 34, padRight = 10, padTop = 14, plotH = 122, plotW = W-padLeft-padRight;
+  const niceMFull = graphNiceMax(Math.max(1, ...rows.map(r => r.value)));
+  const barFullView = { x0: 0, x1: Math.max(1, rows.length), y0: 0, y1: niceMFull };
+  const barView = (mode==="grouped" && view) ? view : barFullView;
+  const visW = Math.max(0.0001, barView.x1-barView.x0);
+  const slot = plotW / visW;
+  const barW = slot * 0.6;
+  const scaleY = v => padTop + plotH - ((v-barView.y0)/((barView.y1-barView.y0)||1)) * plotH;
+  const ticks = [0,0.25,0.5,0.75,1].map(f => barView.y0 + f*(barView.y1-barView.y0));
+  const visibleRows = rows
+    .map((r,i) => ({ ...r, idx: i }))
+    .filter(r => r.idx+1 > barView.x0 && r.idx < barView.x1);
   const CHAR_W = 4.6; // grobe Zeichenbreite bei 8px Schrift
   const MAX_LABEL_CHARS = 18;
-  const dispRows = rows.map(r => {
+  const dispRows = visibleRows.map(r => {
     const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
     return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW };
   });
@@ -1064,9 +1116,14 @@ function GraphSection({ flights }) {
   const freeYDef = GRAPH_FREE_Y_FIELDS.find(f => f.field === freeY);
   const freePointsRaw = filtered
     .map(f => {
-      const xv = freeX === "datum" ? parseDateToTs(f.date) : (flightFieldValue(f, freeX) || 0);
+      const xv = freeX === "datum" ? parseDateToTs(f.date)
+        : GRAPH_FREE_X_VIA_SORTFIELD.has(freeX) ? sortFieldValue(f, freeX)
+        : (flightFieldValue(f, freeX) || 0);
       const yv = flightFieldValue(f, freeY) || 0;
-      return { key: f.id, x: xv, y: yv, xLabel: freeX === "datum" ? fmtDateShort(xv) : formatFreeFieldValue(xv, freeXDef) };
+      const xLbl = freeX === "datum" ? fmtDateShort(xv)
+        : GRAPH_FREE_X_VIA_SORTFIELD.has(freeX) ? formatSortValue(f, freeX)
+        : formatFreeFieldValue(xv, freeXDef);
+      return { key: f.id, x: xv, y: yv, xLabel: xLbl };
     })
     .filter(p => freeX === "datum" ? p.x > 0 : true)
     .sort((a,b) => a.x - b.x);
@@ -1077,45 +1134,63 @@ function GraphSection({ flights }) {
   const plotW2 = W2 - padLeft2 - padRight2;
   const H2 = padTop2 + plotH2 + padBottom2;
   const freeXs = freePoints.map(p => p.x), freeYs = freePoints.map(p => p.y);
-  const fXMin = freeXs.length ? Math.min(...freeXs) : 0, fXMax = freeXs.length ? Math.max(...freeXs) : 1;
+  const fXMinFull = freeXs.length ? Math.min(...freeXs) : 0, fXMaxFullRaw = freeXs.length ? Math.max(...freeXs) : 1;
+  const fXMaxFull = fXMaxFullRaw > fXMinFull ? fXMaxFullRaw : fXMinFull+1;
   const freeYMaxRaw = freeYs.length ? Math.max(...freeYs) : 0, freeYMinRaw = freeYs.length ? Math.min(...freeYs) : 0;
-  let fYMin, fYMax;
+  let fYMinFull, fYMaxFull;
   if (freeYDef?.zeroBased !== false) {
-    fYMin = 0;
-    fYMax = graphNiceMax(Math.max(1, freeYMaxRaw));
+    fYMinFull = 0;
+    fYMaxFull = graphNiceMax(Math.max(1, freeYMaxRaw));
   } else {
     const range = Math.max(1, freeYMaxRaw - freeYMinRaw);
     const step = Math.pow(10, Math.floor(Math.log10(range/4)));
-    fYMin = Math.floor(freeYMinRaw/step)*step;
-    fYMax = Math.ceil(freeYMaxRaw/step)*step;
-    if (fYMax === fYMin) fYMax = fYMin + step;
+    fYMinFull = Math.floor(freeYMinRaw/step)*step;
+    fYMaxFull = Math.ceil(freeYMaxRaw/step)*step;
+    if (fYMaxFull === fYMinFull) fYMaxFull = fYMinFull + step;
   }
-  const scaleX2 = x => padLeft2 + (fXMax > fXMin ? (x-fXMin)/(fXMax-fXMin) : 0.5) * plotW2;
-  const scaleY2 = y => padTop2 + plotH2 - (fYMax > fYMin ? (y-fYMin)/(fYMax-fYMin) : 0.5) * plotH2;
-  const freeTicksY = [0,0.25,0.5,0.75,1].map(f => fYMin + f*(fYMax-fYMin));
-  const freeTicksX = pickGraphTicks(freePoints, 5, scaleX2, 34);
+  const freeFullView = { x0: fXMinFull, x1: fXMaxFull, y0: fYMinFull, y1: fYMaxFull };
+  const freeView = (mode==="free" && view) ? view : freeFullView;
+  const zoomFactorFree = (fXMaxFull-fXMinFull) / Math.max(0.0001, freeView.x1-freeView.x0);
+  const markScale = Math.min(2.2, 1 + Math.max(0, zoomFactorFree-1)*0.3);
+  const scaleX2 = x => {
+    let t = freeView.x1 > freeView.x0 ? (x-freeView.x0)/(freeView.x1-freeView.x0) : 0.5;
+    if (xReversed) t = 1-t;
+    return padLeft2 + t*plotW2;
+  };
+  const scaleY2 = y => padTop2 + plotH2 - ((y-freeView.y0)/((freeView.y1-freeView.y0)||1)) * plotH2;
+  const freeTicksY = [0,0.25,0.5,0.75,1].map(f => freeView.y0 + f*(freeView.y1-freeView.y0));
+  const visibleFreePoints = freePoints.filter(p => p.x >= freeView.x0 && p.x <= freeView.x1);
+  const freeTicksX = pickGraphTicks(visibleFreePoints.length ? visibleFreePoints : freePoints, 5, scaleX2, 34);
+
+  // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
+  // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
+  // die stabile Callback-Ref-Funktion immer die frischesten Werte sieht.
+  chartGeomRef.current = mode === "grouped"
+    ? { padLeft, padTop, plotW, plotH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 }
+    : { padLeft: padLeft2, padTop: padTop2, plotW: plotW2, plotH: plotH2, fullX0: freeFullView.x0, fullX1: freeFullView.x1, fullY0: freeFullView.y0, fullY1: freeFullView.y1 };
+  viewRef.current = mode === "grouped" ? barView : freeView;
 
   const curEmptyCount = mode === "grouped" ? emptyCount : freeEmptyCount;
   const curYLabel = mode === "grouped" ? (GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label||"") : (freeYDef?.label||"");
   const isEmptyChart = mode === "grouped" ? rows.length === 0 : freePoints.length === 0;
-  const zoomed = zoom.scale !== 1 || zoom.tx !== 0 || zoom.ty !== 0;
+  const zoomed = !!view;
 
   return (
     <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
-      <div onClick={()=>{ window.location.href = "flugbuch.html"; }} title="Zur Flugliste"
-        style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,cursor:"pointer"}}>
+      <a href={graphFluglisteUrl(filterText)} title="Zur Flugliste"
+        style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,textDecoration:"none",color:"inherit"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
         <span style={{flex:1,fontSize:12,color:"rgba(232,244,253,0.6)",lineHeight:1.35}}>
           Bezug: <b style={{color:"#e8f4fd"}}>{mode==="grouped" ? (listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel) : `Frei: ${freeXDef?.label} → ${freeYDef?.label}`}</b>
           {filterText && <> · Filter «<b style={{color:"#e8f4fd"}}>{filterText}</b>»</>}
           {g2Field && drillValue !== "Alle" && <> · <b style={{color:"#e8f4fd"}}>{g2Label}: {drillValue}</b></>} · {filtered.length} Flüge
         </span>
-        <button onClick={e=>{ e.stopPropagation(); loadSync(); }} title="Mit Flugliste neu abgleichen"
+        <button onClick={e=>{ e.preventDefault(); e.stopPropagation(); loadSync(); }} title="Mit Flugliste neu abgleichen"
           style={{width:24,height:24,borderRadius:7,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"rgba(232,244,253,0.7)",cursor:"pointer",flexShrink:0}}>
           ↻
         </button>
         <span style={{fontSize:12,color:"rgba(232,244,253,0.3)",flexShrink:0}}>›</span>
-      </div>
+      </a>
 
       <div style={{display:"flex",gap:6,marginBottom:10}}>
         <button onClick={()=>setMode("grouped")}
@@ -1155,10 +1230,16 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
-            <select value={freeX} onChange={e=>setFreeX(e.target.value)}
-              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {GRAPH_FREE_X_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-            </select>
+            <div style={{display:"flex",gap:6}}>
+              <select value={freeX} onChange={e=>setFreeX(e.target.value)}
+                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+                {GRAPH_FREE_X_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+              </select>
+              <button onClick={()=>setXReversed(r=>!r)} title="Achse umkehren"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ⇅
+              </button>
+            </div>
           </div>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
@@ -1202,8 +1283,7 @@ function GraphSection({ flights }) {
             onDoubleClick={resetZoom}
             style={{overflow:"hidden",touchAction:"none",borderRadius:8}}>
             {mode==="grouped" ? (
-              <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}
-                style={{display:"block",transform:`translate(${zoom.tx}px,${zoom.ty}px) scale(${zoom.scale})`,transformOrigin:"0 0"}}>
+              <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
                 {ticks.map((t,i)=>{
                   const y = scaleY(t);
                   return (
@@ -1213,8 +1293,8 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
-                {dispRows.map((r,i)=>{
-                  const cx = padLeft + slot*i + slot/2;
+                {dispRows.map(r=>{
+                  const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
                   const y = scaleY(r.value);
                   const h = (padTop+plotH) - y;
                   return (
@@ -1231,8 +1311,7 @@ function GraphSection({ flights }) {
                 })}
               </svg>
             ) : (
-              <svg viewBox={`0 0 ${W2} ${H2}`} width={W2} height={H2}
-                style={{display:"block",transform:`translate(${zoom.tx}px,${zoom.ty}px) scale(${zoom.scale})`,transformOrigin:"0 0"}}>
+              <svg viewBox={`0 0 ${W2} ${H2}`} width={W2} height={H2} style={{display:"block"}}>
                 {freeTicksY.map((t,i)=>{
                   const y = scaleY2(t);
                   return (
@@ -1243,10 +1322,10 @@ function GraphSection({ flights }) {
                   );
                 })}
                 {chartStyle==="linie" && freePoints.length>1 && (
-                  <polyline points={freePoints.map(p=>`${scaleX2(p.x)},${scaleY2(p.y)}`).join(" ")} fill="none" stroke="#22d3ee" strokeWidth="1.5" opacity="0.85"/>
+                  <polyline points={freePoints.map(p=>`${scaleX2(p.x)},${scaleY2(p.y)}`).join(" ")} fill="none" stroke="#22d3ee" strokeWidth={1.5*markScale} opacity="0.85"/>
                 )}
                 {freePoints.map((p,i)=>(
-                  <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r="2.6" fill="#22d3ee"/>
+                  <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
                 ))}
                 {freeTicksX.map((p,i)=>(
                   <text key={i} x={scaleX2(p.x)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{p.xLabel}</text>
