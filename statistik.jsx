@@ -272,7 +272,9 @@ function sortFieldValue(f, sortId) {
     case "jahr":     return f.year || 0;
     case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? h : -1; }
-    default:         return 0;
+    // Numerische Flugdatenfelder (Dauer, Distanz, Höhe, Max.Steigen/Sinken
+    // usw.) — dieselben wie im Modus "Frei", hier für X in "Gruppiert".
+    default:         { const v = flightFieldValue(f, sortId); return Number.isFinite(v) ? v : 0; }
   }
 }
 function formatSortValue(f, sortId) {
@@ -289,7 +291,12 @@ function formatSortValue(f, sortId) {
     case "jahr":     return f.year ? String(f.year) : "—";
     case "monat":    return f.month ? MONTH_NAMES_DE[+f.month-1] || "—" : "—";
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h).padStart(2,"0")+"–"+String((h+1)%24).padStart(2,"0")+" Uhr" : "—"; }
-    default:         return "—";
+    default: {
+      const bf = GRAPH_Y_BASE_FIELDS.find(x => x.field === sortId);
+      if (!bf) return "—";
+      const v = flightFieldValue(f, sortId);
+      return v ? formatFreeFieldValue(v, bf) : "—";
+    }
   }
 }
 
@@ -803,8 +810,10 @@ function SeasonSection({ flights }) {
 //    schmalem Bildschirm sonst unlesbar).
 //  - "Frei": kein Gruppieren — jeder (gefilterte) Flug ist ein Punkt,
 //    X-/Y-Achse teilen sich dieselbe Feldliste (Datum/Jahr/Monat/Std.
-//    oder jedes numerische Flugdatenfeld), wahlweise als Linie (nach X
-//    sortiert verbunden) oder nur Punkte.
+//    oder jedes numerische Flugdatenfeld).
+// X/Y bieten in "Gruppiert" dieselben Datenfelder wie in "Frei" (dort
+// zusätzlich noch Schirm/Startplatz/Landeplatz/Reise/Hike-Ort/Typ/
+// Routenart, da "Gruppiert" zusätzlich kategorische Gruppierung braucht).
 // Beide Achsen (X in beiden Modi, Y nur "Gruppiert"/"Frei" gleichermassen)
 // per ⇅ umkehrbar. Beide Modi teilen sich Filter/Drilldown sowie Pinch-
 // Zoom/Pan. Zoom ist ein echter Bereichs-Zoom (nicht nur eine optische
@@ -839,23 +848,38 @@ function graphYLabel(bf, agg) {
   if (bf.field === "distanz") return agg==="sum" ? "Gesamtdistanz" : "Ø Distanz";
   return `${GRAPH_AGG_PREFIX[agg]} ${bf.label}`;
 }
-const GRAPH_Y_METRICS = [
-  { id: "count", label: "Anzahl Flüge", zeroBased: true },
-  ...GRAPH_Y_BASE_FIELDS.flatMap(bf => bf.aggs.map(agg => ({
-    id: `${bf.field}:${agg}`, label: graphYLabel(bf, agg), field: bf.field, agg, unit: bf.unit,
-    zeroBased: bf.aggs.includes("sum"),
-  }))),
-];
 // Felder, deren Werte von Natur aus ganzzahlig/diskret sind — sowohl für
 // die Gruppierung im Modus "Gruppiert" als auch für "schöne" (ganzzahlige)
 // Achsen-Ticks im Modus "Frei".
 const GRAPH_NUMERIC_X_FIELDS = new Set(["jahr", "monat", "std", "rating"]);
+// Felder, die (wie in "Frei") nicht über flightFieldValue, sondern über
+// dieselbe sortFieldValue-Logik wie die Gruppierungs-Engine laufen.
+const GRAPH_FREE_VIA_SORTFIELD = new Set(["jahr", "monat", "std"]);
+// Jahr/Monat/Std. zusätzlich als Y-Feld wählbar (Ø/Max.), für Feld-Parität
+// mit "Frei" — Summe ergibt bei diesen Feldern keinen Sinn.
+const GRAPH_Y_EXTRA_FIELDS = [
+  { field: "jahr",  label: "Jahr",  unit: "", aggs: ["avg","max"] },
+  { field: "monat", label: "Monat", unit: "", aggs: ["avg","max"] },
+  { field: "std",   label: "Std.",  unit: "", aggs: ["avg","max"] },
+];
+const GRAPH_Y_METRICS = [
+  { id: "count", label: "Anzahl Flüge", zeroBased: true },
+  ...[...GRAPH_Y_EXTRA_FIELDS, ...GRAPH_Y_BASE_FIELDS].flatMap(bf => bf.aggs.map(agg => ({
+    id: `${bf.field}:${agg}`, label: graphYLabel(bf, agg), field: bf.field, agg, unit: bf.unit,
+    zeroBased: bf.aggs.includes("sum"),
+  }))),
+];
 function graphYMetricValue(groupFlights, metricId) {
   if (!groupFlights.length) return 0;
   if (metricId === "count") return groupFlights.length;
   const m = GRAPH_Y_METRICS.find(x => x.id === metricId);
   if (!m) return 0;
-  const vals = groupFlights.map(f => flightFieldValue(f, m.field) || 0);
+  // +(...) erzwingt eine Zahl — sortFieldValue liefert bei "jahr" je nach
+  // Datenherkunft eine Zahl oder einen String (f.year), und ein String
+  // würde bei sum/avg per "+" verkettet statt addiert (siehe f.year als
+  // String statt Zahl in echten Daten, CLAUDE.md bekannte Stolperfalle).
+  const vals = groupFlights.map(f =>
+    +(GRAPH_FREE_VIA_SORTFIELD.has(m.field) ? sortFieldValue(f, m.field) : flightFieldValue(f, m.field)) || 0);
   if (m.agg === "sum") return vals.reduce((a,b)=>a+b, 0);
   if (m.agg === "avg") return vals.reduce((a,b)=>a+b, 0) / groupFlights.length;
   // "Max.Sinken" ist wie überall sonst in der App (siehe Flugliste-
@@ -869,6 +893,8 @@ function graphYMetricValue(groupFlights, metricId) {
 function formatGraphYMetric(v, metricId) {
   if (metricId === "count") return String(Math.round(v));
   const m = GRAPH_Y_METRICS.find(x => x.id === metricId);
+  if (!m) return String(Math.round(v));
+  if (GRAPH_FREE_VIA_SORTFIELD.has(m.field)) return graphFormatAxisValue(m.field, v);
   return formatFreeFieldValue(v, m);
 }
 // Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
@@ -960,7 +986,19 @@ const GRAPH_FREE_FIELDS = [
   { field:"std",   label:"Std.",  unit:"", zeroBased:false },
   ...GRAPH_Y_BASE_FIELDS.map(({field,label,unit,aggs}) => ({field,label,unit,zeroBased:aggs.includes("sum")})),
 ];
-const GRAPH_FREE_VIA_SORTFIELD = new Set(["jahr","monat","std"]);
+// X-Feldliste im Modus "Gruppiert": dieselben kategorischen Felder wie
+// bisher (GROUP_FIELDS, identisch mit der Flugliste-Gruppierung) plus
+// dieselben numerischen Felder wie in "Frei" (Dauer, Distanz, Höhe,
+// Max.Steigen/Sinken usw. — "Bewertung" gibt es schon in GROUP_FIELDS,
+// daher hier ausgeschlossen). "Datum"/"Jahr"/"Monat"/"Std." bleiben nur
+// über GROUP_FIELDS wählbar (dort schon sinnvoll gruppiert, exaktes Datum
+// als Balken-Kriterium wäre praktisch ein Balken pro Flug).
+const GRAPH_X_NUMERIC_FIELDS = GRAPH_Y_BASE_FIELDS.filter(bf => bf.field !== "rating");
+const GRAPH_X_FIELDS = [...GROUP_FIELDS, ...GRAPH_X_NUMERIC_FIELDS.map(({field,label})=>({id:field,label}))];
+// Für die Balken-Sortierung: welche X-Felder numerisch statt alphabetisch/
+// nach Häufigkeit sortiert werden (GRAPH_NUMERIC_X_FIELDS bleibt unverändert,
+// da es auch für die "schönen" Tick-Rundung im Modus "Frei" verwendet wird).
+const GRAPH_X_SORT_NUMERIC_FIELDS = new Set([...GRAPH_NUMERIC_X_FIELDS, ...GRAPH_X_NUMERIC_FIELDS.map(bf=>bf.field)]);
 function formatFreeFieldValue(v, fieldDef) {
   if (!fieldDef) return String(Math.round(v));
   if (fieldDef.field === "datum") return fmtDateShort(v);
@@ -1017,7 +1055,6 @@ function GraphSection({ flights }) {
   const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
-  const [chartStyle, setChartStyle] = useState("linie"); // "linie" | "punkte"
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
   const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
   const viewRef = useRef(null);
@@ -1040,7 +1077,7 @@ function GraphSection({ flights }) {
   };
   useEffect(loadSync, []);
   const resetZoom = () => setView(null);
-  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, yReversed, hideEmpty, freeX, freeY, chartStyle]);
+  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, yReversed, hideEmpty, freeX, freeY]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1149,7 +1186,7 @@ function GraphSection({ flights }) {
   const g2Label = g2Field ? (GROUP_FIELDS.find(g => g.id === g2Field)?.label || g2Field) : null;
 
   // ── Modus "Gruppiert": wie bisher, Balken je Gr.-1°-Wert ──
-  const xLabel = GROUP_FIELDS.find(g => g.id === xField)?.label || xField;
+  const xLabel = GRAPH_X_FIELDS.find(g => g.id === xField)?.label || xField;
   const buckets = new Map();
   filtered.forEach(f => {
     const key = sortFieldValue(f, xField);
@@ -1158,7 +1195,7 @@ function GraphSection({ flights }) {
     buckets.get(key).flights.push(f);
   });
   let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
-  if (GRAPH_NUMERIC_X_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
+  if (GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
   else rows.sort((a,b) => b.flights.length - a.flights.length);
   if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
@@ -1297,7 +1334,7 @@ function GraphSection({ flights }) {
         </button>
         <button onClick={()=>setMode("free")}
           style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",background:mode==="free"?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${mode==="free"?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,color:mode==="free"?"#22d3ee":"rgba(232,244,253,0.5)"}}>
-          Frei (Linie/Punkte)
+          Frei
         </button>
       </div>
 
@@ -1308,7 +1345,7 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={xField} onChange={e=>setXField(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+                {GRAPH_X_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
               </select>
               <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
@@ -1358,10 +1395,6 @@ function GraphSection({ flights }) {
               </button>
             </div>
           </div>
-        </div>
-        <div style={{display:"flex",gap:6,marginBottom:10}}>
-          <span onClick={()=>setChartStyle("linie")} style={{fontSize:10.5,fontWeight:700,padding:"5px 10px",borderRadius:20,cursor:"pointer",background:chartStyle==="linie"?"rgba(34,211,238,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${chartStyle==="linie"?"rgba(34,211,238,0.45)":"rgba(255,255,255,0.1)"}`,color:chartStyle==="linie"?"#22d3ee":"rgba(232,244,253,0.4)"}}>Linie</span>
-          <span onClick={()=>setChartStyle("punkte")} style={{fontSize:10.5,fontWeight:700,padding:"5px 10px",borderRadius:20,cursor:"pointer",background:chartStyle==="punkte"?"rgba(34,211,238,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${chartStyle==="punkte"?"rgba(34,211,238,0.45)":"rgba(255,255,255,0.1)"}`,color:chartStyle==="punkte"?"#22d3ee":"rgba(232,244,253,0.4)"}}>Punkte</span>
         </div>
       </>)}
 
@@ -1431,9 +1464,6 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
-                {chartStyle==="linie" && freePoints.length>1 && (
-                  <polyline points={freePoints.map(p=>`${scaleX2(p.x)},${scaleY2(p.y)}`).join(" ")} fill="none" stroke="#22d3ee" strokeWidth={1.5*markScale} opacity="0.85"/>
-                )}
                 {freePoints.map((p,i)=>(
                   <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
                 ))}
