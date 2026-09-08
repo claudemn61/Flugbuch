@@ -794,21 +794,18 @@ function SeasonSection({ flights }) {
 }
 
 // ── GRAPH-BADGE ──────────────────────────────────────────────────────────
-// Zeigt die aktuell in der Flugliste aktive Filterung/Gruppierung (Gr. 1°)
-// als Balkendiagramm; X-/Y-Achse bleiben danach im Graph-Badge selbst frei
-// wählbar (Startwert = Flugliste-Sync). Ist Gr. 2° gesetzt, kommt ein
-// zusätzliches "Aufschlüsseln nach…"-Dropdown dazu (Drilldown statt
-// gestapelter/gruppierter Balken, siehe Absprache: bei vielen Gr.-2°-Werten
-// wären die sonst auf schmalem Bildschirm unlesbar).
-// v1: nur Gruppierungs-Modus (Balken) — der zweite, ungruppierte Modus aus
-// dem Mockup (freie Punkte/Linie über Datum/Distanz etc.) sowie Pinch-Zoom
-// folgen als eigene Ausbaustufen.
-// Jedes numerische Flugdatenfeld, das als Y-Wert sinnvoll ist, mit den für
-// dieses Feld sinnvollen Aggregaten: additive Grössen (Dauer, Distanz,
-// H.Diff., H.Gew., Entf. S-L, Hike-Höhenmeter) als Gesamt+Ø, Höhen-/Peak-
-// Werte (Max. Höhe, Start/Landung müM, Max.Steigen/-Sinken, Ø Speed,
-// Hike-Starthöhe) als Ø+Max., Bewertung nur als Ø (eine "Gesamt-Bewertung"
-// wäre keine sinnvolle Kennzahl).
+// Zwei Modi, umschaltbar per Chip — Startwert richtet sich danach, ob in
+// der Flugliste gerade eine Gr. 1° aktiv ist:
+//  - "Gruppiert": wie bisher — Balkendiagramm zur Gr. 1°/Filterung der
+//    Flugliste, X-/Y-Achse danach im Badge selbst frei wählbar, bei
+//    gesetzter Gr. 2° zusätzlich ein "Aufschlüsseln nach…"-Dropdown
+//    (Drilldown statt gestapelter Balken — bei vielen Gr.-2°-Werten auf
+//    schmalem Bildschirm sonst unlesbar).
+//  - "Frei": kein Gruppieren — jeder (gefilterte) Flug ist ein Punkt,
+//    X-/Y-Achse beide frei aus Datum/allen numerischen Feldern wählbar,
+//    wahlweise als Linie (nach X sortiert verbunden) oder nur Punkte.
+// Beide Modi teilen sich Filter/Drilldown sowie Pinch-Zoom/Pan (zwei
+// Finger = zoomen, ein Finger = verschieben, Doppeltipp/-klick = zurück).
 const GRAPH_Y_BASE_FIELDS = [
   { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg"] },
   { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg"] },
@@ -852,11 +849,7 @@ function graphYMetricValue(groupFlights, metricId) {
 function formatGraphYMetric(v, metricId) {
   if (metricId === "count") return String(Math.round(v));
   const m = GRAPH_Y_METRICS.find(x => x.id === metricId);
-  if (!m) return String(Math.round(v));
-  if (m.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
-  const decimals = ["speed","rating","maxsteigen","maxsinken"].includes(m.field) ? 1 : 0;
-  const num = decimals ? v.toFixed(1).replace(".", ",") : String(Math.round(v));
-  return m.unit ? num + " " + m.unit : num;
+  return formatFreeFieldValue(v, m);
 }
 // Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
 // auf, damit die Gitterlinien-Beschriftungen keine krummen Werte zeigen.
@@ -869,14 +862,65 @@ function graphNiceMax(v) {
   return nice * base;
 }
 
+// Felder für den "Frei"-Modus (ein Punkt pro Flug statt Gruppierung) — X
+// zusätzlich mit "Datum", Y dieselben Basisfelder wie oben, aber ohne
+// Aggregat (roher Flugwert). zeroBased steuert, ob die Y-Achse bei 0
+// beginnt (additive Grössen) oder am tatsächlichen Wertebereich (Höhen-/
+// Peak-Werte, sonst würde z.B. "Start müM" fast nur oberhalb der Mitte
+// der Fläche liegen).
+const GRAPH_FREE_Y_FIELDS = GRAPH_Y_BASE_FIELDS.map(({field,label,unit,aggs}) => ({field,label,unit,zeroBased:aggs.includes("sum")}));
+const GRAPH_FREE_X_FIELDS = [{ field:"datum", label:"Datum", unit:"", zeroBased:false }, ...GRAPH_FREE_Y_FIELDS];
+function formatFreeFieldValue(v, fieldDef) {
+  if (!fieldDef) return String(Math.round(v));
+  if (fieldDef.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
+  const decimals = ["speed","rating","maxsteigen","maxsinken"].includes(fieldDef.field) ? 1 : 0;
+  const num = decimals ? v.toFixed(1).replace(".", ",") : String(Math.round(v));
+  return fieldDef.unit ? num + " " + fieldDef.unit : num;
+}
+// Wählt bis zu n möglichst gleichmässig verteilte Punkte aus einer
+// (bereits sortierten) Liste für die X-Achsen-Beschriftung aus — bei
+// vielen Flügen sollen nicht alle Datumswerte übereinander gedruckt
+// werden, nur ein grober Eindruck der Spanne. scaleX/minGapPx entfernen
+// danach noch Kandidaten, die auf der Zeichenfläche zu nah beieinander
+// lägen (z.B. zwei Flüge kurz hintereinander), damit sich die Labels
+// nicht überlappen — der letzte Punkt (Spannen-Ende) bleibt dabei immer
+// erhalten, notfalls anstelle des vorletzten.
+function pickGraphTicks(pts, n, scaleX, minGapPx) {
+  if (pts.length === 0) return [];
+  let candidates = pts;
+  if (pts.length > n) {
+    const idxs = new Set();
+    for (let i = 0; i < n; i++) idxs.add(Math.round(i * (pts.length-1) / (n-1)));
+    candidates = [...idxs].sort((a,b) => a-b).map(i => pts[i]);
+  }
+  if (!scaleX || candidates.length < 2) return candidates;
+  const out = [candidates[0]];
+  candidates.slice(1).forEach((p, i) => {
+    const isLast = i === candidates.length - 2;
+    const x = scaleX(p.x);
+    const gap = x - scaleX(out[out.length-1].x);
+    if (gap >= minGapPx) out.push(p);
+    else if (isLast) out[out.length-1] = p;
+  });
+  return out;
+}
+
 function GraphSection({ flights }) {
   const [listSettings, setListSettings] = useState(null);
+  const [mode, setMode] = useState("grouped"); // "grouped" | "free"
   const [xField, setXField] = useState("jahr");
   const [g2Field, setG2Field] = useState("");
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
   const [xReversed, setXReversed] = useState(false);
+  const [freeX, setFreeX] = useState("datum");
+  const [freeY, setFreeY] = useState("distanz");
+  const [chartStyle, setChartStyle] = useState("linie"); // "linie" | "punkte"
+  const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 });
+  const pointersRef = useRef(new Map());
+  const pinchRef = useRef(null);
+  const panRef = useRef(null);
 
   const loadSync = () => {
     (async () => {
@@ -886,12 +930,51 @@ function GraphSection({ flights }) {
         if (r && r.value) s = JSON.parse(r.value);
       } catch (e) { /* noch keine Flugliste-Einstellungen gespeichert */ }
       setListSettings(s);
+      setMode(s.group1Id ? "grouped" : "free");
       setXField(s.group1Id || "jahr");
       setG2Field(s.group2Id || "");
       setDrillValue("Alle");
     })();
   };
   useEffect(loadSync, []);
+  const resetZoom = () => setZoom({ scale: 1, tx: 0, ty: 0 });
+  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, hideEmpty, freeX, freeY, chartStyle]);
+
+  // ── Pinch-Zoom/Pan (Pointer Events, funktioniert für Touch & Maus) ──
+  const onChartPointerDown = (e) => {
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (err) { /* z.B. Testumgebung ohne echten Pointer */ }
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) {
+      const pts = [...pointersRef.current.values()];
+      pinchRef.current = { dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y), scale: zoom.scale, tx: zoom.tx, ty: zoom.ty };
+      panRef.current = null;
+    } else if (pointersRef.current.size === 1) {
+      panRef.current = { x: e.clientX, y: e.clientY, tx: zoom.tx, ty: zoom.ty };
+    }
+  };
+  const onChartPointerMove = (e) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const pts = [...pointersRef.current.values()];
+      const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+      const factor = dist / (pinchRef.current.dist || 1);
+      setZoom(z => ({ ...z, scale: Math.min(6, Math.max(1, pinchRef.current.scale * factor)) }));
+    } else if (pointersRef.current.size === 1 && panRef.current) {
+      const dx = e.clientX - panRef.current.x, dy = e.clientY - panRef.current.y;
+      setZoom(z => ({ ...z, tx: panRef.current.tx + dx, ty: panRef.current.ty + dy }));
+    }
+  };
+  const onChartPointerUp = (e) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 1) {
+      const [p] = [...pointersRef.current.values()];
+      panRef.current = { x: p.x, y: p.y, tx: zoom.tx, ty: zoom.ty };
+    } else {
+      panRef.current = null;
+    }
+  };
 
   if (!listSettings) return null;
 
@@ -901,6 +984,14 @@ function GraphSection({ flights }) {
     ? baseFiltered.filter(f => formatSortValue(f, g2Field) === drillValue)
     : baseFiltered;
 
+  const drillOptions = g2Field
+    ? ["Alle", ...[...new Set(baseFiltered.map(f => formatSortValue(f, g2Field)).filter(v => v && v !== "—"))]
+        .sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}))]
+    : null;
+  const g2Label = g2Field ? (GROUP_FIELDS.find(g => g.id === g2Field)?.label || g2Field) : null;
+
+  // ── Modus "Gruppiert": wie bisher, Balken je Gr.-1°-Wert ──
+  const xLabel = GROUP_FIELDS.find(g => g.id === xField)?.label || xField;
   const buckets = new Map();
   filtered.forEach(f => {
     const key = sortFieldValue(f, xField);
@@ -915,15 +1006,6 @@ function GraphSection({ flights }) {
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
-  const drillOptions = g2Field
-    ? ["Alle", ...[...new Set(baseFiltered.map(f => formatSortValue(f, g2Field)).filter(v => v && v !== "—"))]
-        .sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}))]
-    : null;
-
-  const xLabel = GROUP_FIELDS.find(g => g.id === xField)?.label || xField;
-  const g2Label = g2Field ? (GROUP_FIELDS.find(g => g.id === g2Field)?.label || g2Field) : null;
-
-  // ── SVG-Geometrie ──
   const W = Math.max(300, rows.length * 42);
   const padLeft = 34, padRight = 10, padTop = 14, plotH = 122;
   const plotW = W - padLeft - padRight;
@@ -932,10 +1014,6 @@ function GraphSection({ flights }) {
   const barW = Math.min(28, slot * 0.6);
   const scaleY = v => padTop + plotH - (v / niceM) * plotH;
   const ticks = [0, niceM*0.25, niceM*0.5, niceM*0.75, niceM];
-
-  // Label unter der X-Achse: passt es nicht (grob geschätzt) neben/unter
-  // den Balken, wird es statt horizontal abgeschnitten senkrecht gestellt
-  // — braucht dann mehr Höhe unten statt mehr Breite.
   const CHAR_W = 4.6; // grobe Zeichenbreite bei 8px Schrift
   const MAX_LABEL_CHARS = 18;
   const dispRows = rows.map(r => {
@@ -948,13 +1026,54 @@ function GraphSection({ flights }) {
   const H = padTop + plotH + padBottom;
   const labelY = padTop + plotH + 10;
 
+  // ── Modus "Frei": ein Punkt pro Flug, X/Y beide frei ──
+  const freeXDef = GRAPH_FREE_X_FIELDS.find(f => f.field === freeX);
+  const freeYDef = GRAPH_FREE_Y_FIELDS.find(f => f.field === freeY);
+  const freePointsRaw = filtered
+    .map(f => {
+      const xv = freeX === "datum" ? parseDateToTs(f.date) : (flightFieldValue(f, freeX) || 0);
+      const yv = flightFieldValue(f, freeY) || 0;
+      return { key: f.id, x: xv, y: yv, xLabel: freeX === "datum" ? fmtDateShort(xv) : formatFreeFieldValue(xv, freeXDef) };
+    })
+    .filter(p => freeX === "datum" ? p.x > 0 : true)
+    .sort((a,b) => a.x - b.x);
+  const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
+  const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
+
+  const padLeft2 = 40, padRight2 = 14, padTop2 = 14, padBottom2 = 26, plotH2 = 122, W2 = 300;
+  const plotW2 = W2 - padLeft2 - padRight2;
+  const H2 = padTop2 + plotH2 + padBottom2;
+  const freeXs = freePoints.map(p => p.x), freeYs = freePoints.map(p => p.y);
+  const fXMin = freeXs.length ? Math.min(...freeXs) : 0, fXMax = freeXs.length ? Math.max(...freeXs) : 1;
+  const freeYMaxRaw = freeYs.length ? Math.max(...freeYs) : 0, freeYMinRaw = freeYs.length ? Math.min(...freeYs) : 0;
+  let fYMin, fYMax;
+  if (freeYDef?.zeroBased !== false) {
+    fYMin = 0;
+    fYMax = graphNiceMax(Math.max(1, freeYMaxRaw));
+  } else {
+    const range = Math.max(1, freeYMaxRaw - freeYMinRaw);
+    const step = Math.pow(10, Math.floor(Math.log10(range/4)));
+    fYMin = Math.floor(freeYMinRaw/step)*step;
+    fYMax = Math.ceil(freeYMaxRaw/step)*step;
+    if (fYMax === fYMin) fYMax = fYMin + step;
+  }
+  const scaleX2 = x => padLeft2 + (fXMax > fXMin ? (x-fXMin)/(fXMax-fXMin) : 0.5) * plotW2;
+  const scaleY2 = y => padTop2 + plotH2 - (fYMax > fYMin ? (y-fYMin)/(fYMax-fYMin) : 0.5) * plotH2;
+  const freeTicksY = [0,0.25,0.5,0.75,1].map(f => fYMin + f*(fYMax-fYMin));
+  const freeTicksX = pickGraphTicks(freePoints, 5, scaleX2, 34);
+
+  const curEmptyCount = mode === "grouped" ? emptyCount : freeEmptyCount;
+  const curYLabel = mode === "grouped" ? (GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label||"") : (freeYDef?.label||"");
+  const isEmptyChart = mode === "grouped" ? rows.length === 0 : freePoints.length === 0;
+  const zoomed = zoom.scale !== 1 || zoom.tx !== 0 || zoom.ty !== 0;
+
   return (
     <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
       <div onClick={()=>{ window.location.href = "flugbuch.html"; }} title="Zur Flugliste"
         style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,cursor:"pointer"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
         <span style={{flex:1,fontSize:12,color:"rgba(232,244,253,0.6)",lineHeight:1.35}}>
-          Bezug: <b style={{color:"#e8f4fd"}}>{listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel}</b>
+          Bezug: <b style={{color:"#e8f4fd"}}>{mode==="grouped" ? (listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel) : `Frei: ${freeXDef?.label} → ${freeYDef?.label}`}</b>
           {filterText && <> · Filter «<b style={{color:"#e8f4fd"}}>{filterText}</b>»</>}
           {g2Field && drillValue !== "Alle" && <> · <b style={{color:"#e8f4fd"}}>{g2Label}: {drillValue}</b></>} · {filtered.length} Flüge
         </span>
@@ -965,28 +1084,62 @@ function GraphSection({ flights }) {
         <span style={{fontSize:12,color:"rgba(232,244,253,0.3)",flexShrink:0}}>›</span>
       </div>
 
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <div style={{flex:1,minWidth:0}}>
-          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
-          <div style={{display:"flex",gap:6}}>
-            <select value={xField} onChange={e=>setXField(e.target.value)}
-              style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+      <div style={{display:"flex",gap:6,marginBottom:10}}>
+        <button onClick={()=>setMode("grouped")}
+          style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",background:mode==="grouped"?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${mode==="grouped"?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,color:mode==="grouped"?"#22d3ee":"rgba(232,244,253,0.5)"}}>
+          Gruppiert
+        </button>
+        <button onClick={()=>setMode("free")}
+          style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",background:mode==="free"?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${mode==="free"?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,color:mode==="free"?"#22d3ee":"rgba(232,244,253,0.5)"}}>
+          Frei (Linie/Punkte)
+        </button>
+      </div>
+
+      {mode==="grouped" ? (
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
+            <div style={{display:"flex",gap:6}}>
+              <select value={xField} onChange={e=>setXField(e.target.value)}
+                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+                {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+              </select>
+              <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ⇅
+              </button>
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
+            <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
+              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
             </select>
-            <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
-              style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-              ⇅
-            </button>
           </div>
         </div>
-        <div style={{flex:1,minWidth:0}}>
-          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
-          <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
-            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-            {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
-          </select>
+      ) : (<>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
+            <select value={freeX} onChange={e=>setFreeX(e.target.value)}
+              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {GRAPH_FREE_X_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+            </select>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
+            <select value={freeY} onChange={e=>setFreeY(e.target.value)}
+              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {GRAPH_FREE_Y_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+            </select>
+          </div>
         </div>
-      </div>
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <span onClick={()=>setChartStyle("linie")} style={{fontSize:10.5,fontWeight:700,padding:"5px 10px",borderRadius:20,cursor:"pointer",background:chartStyle==="linie"?"rgba(34,211,238,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${chartStyle==="linie"?"rgba(34,211,238,0.45)":"rgba(255,255,255,0.1)"}`,color:chartStyle==="linie"?"#22d3ee":"rgba(232,244,253,0.4)"}}>Linie</span>
+          <span onClick={()=>setChartStyle("punkte")} style={{fontSize:10.5,fontWeight:700,padding:"5px 10px",borderRadius:20,cursor:"pointer",background:chartStyle==="punkte"?"rgba(34,211,238,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${chartStyle==="punkte"?"rgba(34,211,238,0.45)":"rgba(255,255,255,0.1)"}`,color:chartStyle==="punkte"?"#22d3ee":"rgba(232,244,253,0.4)"}}>Punkte</span>
+        </div>
+      </>)}
 
       {drillOptions && (
         <div style={{marginBottom:10}}>
@@ -998,46 +1151,86 @@ function GraphSection({ flights }) {
         </div>
       )}
 
-      {emptyCount > 0 && (
+      {curEmptyCount > 0 && (
         <div onClick={()=>setHideEmpty(h=>!h)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
           <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${hideEmpty?"#22d3ee":"rgba(232,244,253,0.3)"}`,background:hideEmpty?"#22d3ee":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
             {hideEmpty && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
           </div>
-          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Leere ({emptyCount}) ausblenden — {xLabel} ohne Wert bei "{GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label}"</span>
+          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Leere ({curEmptyCount}) ausblenden — ohne Wert bei "{curYLabel}"</span>
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {isEmptyChart ? (
         <div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"rgba(232,244,253,0.35)"}}>Keine Flüge für diese Auswahl.</div>
       ) : (
-        <div style={{overflowX:"auto"}}>
-          <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
-            {ticks.map((t,i)=>{
-              const y = scaleY(t);
-              return (
-                <g key={i}>
-                  <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                  <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{Math.round(t)}</text>
-                </g>
-              );
-            })}
-            {dispRows.map((r,i)=>{
-              const cx = padLeft + slot*i + slot/2;
-              const y = scaleY(r.value);
-              const h = (padTop+plotH) - y;
-              return (
-                <g key={r.key}>
-                  <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
-                  <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(r.value, yMetric)}</text>
-                  {r.rotateLabel ? (
-                    <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
-                  ) : (
-                    <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
+        <div style={{position:"relative"}}>
+          <div
+            onPointerDown={onChartPointerDown} onPointerMove={onChartPointerMove}
+            onPointerUp={onChartPointerUp} onPointerCancel={onChartPointerUp}
+            onDoubleClick={resetZoom}
+            style={{overflow:"hidden",touchAction:"none",borderRadius:8}}>
+            {mode==="grouped" ? (
+              <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}
+                style={{display:"block",transform:`translate(${zoom.tx}px,${zoom.ty}px) scale(${zoom.scale})`,transformOrigin:"0 0"}}>
+                {ticks.map((t,i)=>{
+                  const y = scaleY(t);
+                  return (
+                    <g key={i}>
+                      <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
+                      <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{Math.round(t)}</text>
+                    </g>
+                  );
+                })}
+                {dispRows.map((r,i)=>{
+                  const cx = padLeft + slot*i + slot/2;
+                  const y = scaleY(r.value);
+                  const h = (padTop+plotH) - y;
+                  return (
+                    <g key={r.key}>
+                      <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
+                      <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(r.value, yMetric)}</text>
+                      {r.rotateLabel ? (
+                        <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                      ) : (
+                        <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            ) : (
+              <svg viewBox={`0 0 ${W2} ${H2}`} width={W2} height={H2}
+                style={{display:"block",transform:`translate(${zoom.tx}px,${zoom.ty}px) scale(${zoom.scale})`,transformOrigin:"0 0"}}>
+                {freeTicksY.map((t,i)=>{
+                  const y = scaleY2(t);
+                  return (
+                    <g key={i}>
+                      <line x1={padLeft2} y1={y} x2={W2-padRight2} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
+                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatFreeFieldValue(t, freeYDef)}</text>
+                    </g>
+                  );
+                })}
+                {chartStyle==="linie" && freePoints.length>1 && (
+                  <polyline points={freePoints.map(p=>`${scaleX2(p.x)},${scaleY2(p.y)}`).join(" ")} fill="none" stroke="#22d3ee" strokeWidth="1.5" opacity="0.85"/>
+                )}
+                {freePoints.map((p,i)=>(
+                  <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r="2.6" fill="#22d3ee"/>
+                ))}
+                {freeTicksX.map((p,i)=>(
+                  <text key={i} x={scaleX2(p.x)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{p.xLabel}</text>
+                ))}
+              </svg>
+            )}
+          </div>
+          {zoomed && (
+            <button onClick={resetZoom} title="Zoom zurücksetzen"
+              style={{position:"absolute",top:6,right:6,width:26,height:26,borderRadius:7,background:"rgba(10,15,25,0.75)",border:"1px solid rgba(255,255,255,0.2)",color:"#e8f4fd",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+              ⤾
+            </button>
+          )}
+          {!zoomed && (
+            <div style={{textAlign:"center",fontSize:10,color:"rgba(232,244,253,0.28)",marginTop:4}}>🤏 Pinch zum Zoomen · ziehen zum Verschieben · Doppeltipp zurücksetzen</div>
+          )}
         </div>
       )}
     </div>
