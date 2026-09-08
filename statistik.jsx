@@ -34,7 +34,7 @@ function flightFieldValue(f, field){
     case "passagier": case "pax": return cf.passagier||"";
     case "reise": return cf.reise||"";
     case "jahr": case "year": return f.year||"";
-    case "monat": return f.month ? MONTH_NAMES_DE[+f.month-1] || "" : "";
+    case "monat": return f.month ? +f.month : 0;
     case "std": { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h) : ""; }
     case "datum": case "date": return f.date||"";
     case "startzeit": case "starttime": return f.startTime||"";
@@ -98,12 +98,20 @@ function evalToken(f, tok){
 
     const numericFields=["name","titel","dauer","duration","distanz","dist","km","höhe","hoehe","maxhöhe","maxhoehe","alt",
       "startalt","endalt","hdiff","maxsteigen","maxsinken","hgew","entfernungsl","rangdauer","pctdauer","rangstrecke","pctstrecke",
-      "speed","kmh","rating","bewertung","jahr","year","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
+      "speed","kmh","rating","bewertung","jahr","year","monat","startlat","startlon","endlat","endlon","hikestarthoehe","hikehoehenmeter"];
     const dateFields=["datum","date"];
     const timeFields=["startzeit","starttime","landezeit","endtime"];
 
     if(numericFields.includes(field)){
-      let cmp = field==="dauer"||field==="duration" ? parseDurToSec(raw)/3600 : parseFloat(raw.replace(",","."));
+      // "monat" akzeptiert sowohl eine Zahl (1-12) als auch einen
+      // (Teil-)Monatsnamen wie beim IGC-Import/der Anzeige.
+      let cmp;
+      if (field==="dauer"||field==="duration") cmp = parseDurToSec(raw)/3600;
+      else if (field==="monat") {
+        const byName = MONTH_NAMES_DE.findIndex(n => n.toLowerCase().startsWith(raw.toLowerCase()));
+        cmp = byName>=0 ? byName+1 : parseFloat(raw.replace(",","."));
+      }
+      else cmp = parseFloat(raw.replace(",","."));
       fv = parseFloat(fv)||0;
       if(isNaN(cmp)) return true;
       if(op===">") return fv>cmp;
@@ -164,7 +172,10 @@ function tokenizeQuery(q) {
     .replace(/\s+(UND|AND)\s+/gi, " && ")
     .replace(/\s+(ODER|OR)\s+/gi, " || ")
     .replace(/&&/g, " && ").replace(/\|\|/g, " || ");
-  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)\S+|\+\S+|\-\S+|"[^"]*"|\S+/gi;
+  // Unquotierte Terme dürfen nicht bis an ein "(" / ")" heranreichen, sonst
+  // verschluckt z.B. "(a b)" die schliessende Klammer als Teil von "b)" statt
+  // sie als eigenes Token zu erkennen.
+  const re = /\(|\)|&&|\|\||[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)"[^"]*"|[\wäöü]+(?:>=|<=|!=|≠|>|<|=|:)[^\s()]+|\+[^\s()]+|\-[^\s()]+|"[^"]*"|[^\s()]+/gi;
   const tokens = [];
   let m;
   while ((m = re.exec(s))) {
@@ -186,7 +197,15 @@ function parseQueryTokens(tokens) {
   }
   function parseAndTerm() {
     let node = parseAtom();
-    while (peek() === "&&") { next(); node = { type: "and", left: node, right: parseAtom() }; }
+    // Zwei Terme direkt hintereinander (ohne explizites "UND"/"&&") galten
+    // bisher nur als UND, wenn ein "&&"-Token dazwischenstand — bei reinem
+    // Leerzeichen wurde der zweite Term stillschweigend verschluckt. Jetzt
+    // zählt auch die reine Aneinanderreihung als UND, solange kein "||"
+    // oder ")" folgt.
+    while (peek() !== undefined && peek() !== "||" && peek() !== ")") {
+      if (peek() === "&&") next();
+      node = { type: "and", left: node, right: parseAtom() };
+    }
     return node;
   }
   function parseAtom() {
@@ -222,6 +241,58 @@ function matchFlights(flights, q){
   return flights.filter(f => evalAst(f, ast));
 }
 
+// ── GRUPPIERUNGS-ENGINE (aus flugbuch.jsx übernommen) ───────────────────
+// Dieselben Felder/Funktionen, die die Flugliste für Gr. 1°/2° verwendet —
+// hier dupliziert (wie parseDateToTs oben schon), damit das Graph-Badge
+// exakt dieselben Gruppen bildet wie die Flugliste gerade anzeigt.
+const GROUP_FIELDS = [
+  { id: "jahr",    label: "Jahr" },
+  { id: "monat",   label: "Monat" },
+  { id: "std",     label: "Std." },
+  { id: "glider",  label: "Schirm" },
+  { id: "typ",     label: "Typ" },
+  { id: "site",    label: "Startplatz" },
+  { id: "landung", label: "Landeplatz" },
+  { id: "reise",   label: "Reise" },
+  { id: "hikeOrt", label: "Hike-Ort" },
+  { id: "rating",  label: "Bewertung" },
+  { id: "routenTyp", label: "Routenart" },
+];
+function sortFieldValue(f, sortId) {
+  const cf = f.customFields || {};
+  switch (sortId) {
+    case "site":     return (f.site || "").toLowerCase();
+    case "landung":  return (cf.landung || "").toLowerCase();
+    case "glider":   return (f.glider || "").toLowerCase();
+    case "typ":      return (cf.typ || "").toLowerCase();
+    case "reise":    return (cf.reise || "").toLowerCase();
+    case "rating":   return +f.rating || 0;
+    case "hikeOrt":  return (cf.hikeOrt || "").toLowerCase();
+    case "routenTyp": return (cf.routenTyp || "").toLowerCase();
+    case "jahr":     return f.year || 0;
+    case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
+    case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? h : -1; }
+    default:         return 0;
+  }
+}
+function formatSortValue(f, sortId) {
+  const cf = f.customFields || {};
+  switch (sortId) {
+    case "site":     return f.site || "—";
+    case "landung":  return cf.landung || "—";
+    case "glider":   return f.glider || "—";
+    case "typ":      return cf.typ || "—";
+    case "reise":    return cf.reise || "—";
+    case "rating":   return f.rating ? "★".repeat(f.rating) : "—";
+    case "hikeOrt":  return cf.hikeOrt || "—";
+    case "routenTyp": return cf.routenTyp || "—";
+    case "jahr":     return f.year ? String(f.year) : "—";
+    case "monat":    return f.month ? MONTH_NAMES_DE[+f.month-1] || "—" : "—";
+    case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h).padStart(2,"0")+"–"+String((h+1)%24).padStart(2,"0")+" Uhr" : "—"; }
+    default:         return "—";
+  }
+}
+
 const SEARCH_FIELDS = [
   { id: "name",      label: "Name/Titel",     type: "text" },
   { id: "site",      label: "Startplatz",     type: "text" },
@@ -235,6 +306,7 @@ const SEARCH_FIELDS = [
   { id: "startzeit", label: "Startzeit",      type: "time" },
   { id: "landezeit", label: "Landezeit",      type: "time" },
   { id: "jahr",      label: "Jahr",           type: "number" },
+  { id: "monat",     label: "Monat",          type: "number" },
   { id: "bemerkung", label: "Bemerkung",      type: "text" },
   { id: "dauer",     label: "Dauer (h)",      type: "number" },
   { id: "distanz",   label: "Distanz (km)",   type: "number" },
@@ -721,6 +793,191 @@ function SeasonSection({ flights }) {
   );
 }
 
+// ── GRAPH-BADGE ──────────────────────────────────────────────────────────
+// Zeigt die aktuell in der Flugliste aktive Filterung/Gruppierung (Gr. 1°)
+// als Balkendiagramm; X-/Y-Achse bleiben danach im Graph-Badge selbst frei
+// wählbar (Startwert = Flugliste-Sync). Ist Gr. 2° gesetzt, kommt ein
+// zusätzliches "Aufschlüsseln nach…"-Dropdown dazu (Drilldown statt
+// gestapelter/gruppierter Balken, siehe Absprache: bei vielen Gr.-2°-Werten
+// wären die sonst auf schmalem Bildschirm unlesbar).
+// v1: nur Gruppierungs-Modus (Balken) — der zweite, ungruppierte Modus aus
+// dem Mockup (freie Punkte/Linie über Datum/Distanz etc.) sowie Pinch-Zoom
+// folgen als eigene Ausbaustufen.
+const GRAPH_Y_METRICS = [
+  { id: "count",     label: "Anzahl Flüge" },
+  { id: "totalDauer", label: "Gesamtdauer" },
+  { id: "avgDauer",  label: "Ø Dauer" },
+  { id: "totalDist", label: "Gesamtdistanz" },
+  { id: "avgDist",   label: "Ø Distanz" },
+  { id: "maxAlt",    label: "Max. Höhe" },
+];
+const GRAPH_NUMERIC_X_FIELDS = new Set(["jahr", "monat", "std", "rating"]);
+function graphYMetricValue(groupFlights, metric) {
+  if (!groupFlights.length) return 0;
+  const dauerVals = () => groupFlights.map(f => flightFieldValue(f, "dauer") || 0);
+  const distVals = () => groupFlights.map(f => flightFieldValue(f, "distanz") || 0);
+  switch (metric) {
+    case "count":      return groupFlights.length;
+    case "totalDauer": return dauerVals().reduce((a,b)=>a+b, 0);
+    case "avgDauer":   return dauerVals().reduce((a,b)=>a+b, 0) / groupFlights.length;
+    case "totalDist":  return distVals().reduce((a,b)=>a+b, 0);
+    case "avgDist":    return distVals().reduce((a,b)=>a+b, 0) / groupFlights.length;
+    case "maxAlt":     return Math.max(...groupFlights.map(f => flightFieldValue(f, "höhe") || 0));
+    default:           return 0;
+  }
+}
+function formatGraphYMetric(v, metric) {
+  if (metric === "totalDauer" || metric === "avgDauer") return v.toFixed(1).replace(".", ",") + "h";
+  if (metric === "totalDist" || metric === "avgDist") return Math.round(v) + " km";
+  if (metric === "maxAlt") return Math.round(v) + " m";
+  return String(Math.round(v));
+}
+// Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
+// auf, damit die Gitterlinien-Beschriftungen keine krummen Werte zeigen.
+function graphNiceMax(v) {
+  if (v <= 0) return 1;
+  const exp = Math.floor(Math.log10(v));
+  const base = Math.pow(10, exp);
+  const norm = v / base;
+  const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return nice * base;
+}
+
+function GraphSection({ flights }) {
+  const [listSettings, setListSettings] = useState(null);
+  const [xField, setXField] = useState("jahr");
+  const [g2Field, setG2Field] = useState("");
+  const [drillValue, setDrillValue] = useState("Alle");
+  const [yMetric, setYMetric] = useState("count");
+
+  const loadSync = () => {
+    (async () => {
+      let s = {};
+      try {
+        const r = await window.storage.get("flugbuchListSettings");
+        if (r && r.value) s = JSON.parse(r.value);
+      } catch (e) { /* noch keine Flugliste-Einstellungen gespeichert */ }
+      setListSettings(s);
+      setXField(s.group1Id || "jahr");
+      setG2Field(s.group2Id || "");
+      setDrillValue("Alle");
+    })();
+  };
+  useEffect(loadSync, []);
+
+  if (!listSettings) return null;
+
+  const filterText = listSettings.filterText || "";
+  const baseFiltered = matchFlights(flights, filterText);
+  const filtered = (g2Field && drillValue !== "Alle")
+    ? baseFiltered.filter(f => formatSortValue(f, g2Field) === drillValue)
+    : baseFiltered;
+
+  const buckets = new Map();
+  filtered.forEach(f => {
+    const key = sortFieldValue(f, xField);
+    if (key === "" || key == null) return;
+    if (!buckets.has(key)) buckets.set(key, { key, label: formatSortValue(f, xField), flights: [] });
+    buckets.get(key).flights.push(f);
+  });
+  let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
+  if (GRAPH_NUMERIC_X_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
+  else rows.sort((a,b) => b.flights.length - a.flights.length);
+
+  const drillOptions = g2Field
+    ? ["Alle", ...[...new Set(baseFiltered.map(f => formatSortValue(f, g2Field)).filter(v => v && v !== "—"))]
+        .sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}))]
+    : null;
+
+  const xLabel = GROUP_FIELDS.find(g => g.id === xField)?.label || xField;
+  const g2Label = g2Field ? (GROUP_FIELDS.find(g => g.id === g2Field)?.label || g2Field) : null;
+
+  // ── SVG-Geometrie ──
+  const W = Math.max(300, rows.length * 42);
+  const H = 158;
+  const padLeft = 34, padRight = 10, padTop = 14, padBottom = 22;
+  const plotW = W - padLeft - padRight, plotH = H - padTop - padBottom;
+  const niceM = graphNiceMax(Math.max(1, ...rows.map(r => r.value)));
+  const slot = plotW / Math.max(1, rows.length);
+  const barW = Math.min(28, slot * 0.6);
+  const scaleY = v => padTop + plotH - (v / niceM) * plotH;
+  const ticks = [0, niceM*0.25, niceM*0.5, niceM*0.75, niceM];
+
+  return (
+    <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10}}>
+        <span style={{fontSize:13,flexShrink:0}}>🔗</span>
+        <span style={{flex:1,fontSize:12,color:"rgba(232,244,253,0.6)",lineHeight:1.35}}>
+          Bezug: <b style={{color:"#e8f4fd"}}>{listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel}</b>
+          {filterText && <> · Filter «<b style={{color:"#e8f4fd"}}>{filterText}</b>»</>}
+          {g2Field && drillValue !== "Alle" && <> · <b style={{color:"#e8f4fd"}}>{g2Label}: {drillValue}</b></>} · {filtered.length} Flüge
+        </span>
+        <button onClick={loadSync} title="Mit Flugliste neu abgleichen"
+          style={{width:24,height:24,borderRadius:7,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"rgba(232,244,253,0.7)",cursor:"pointer",flexShrink:0}}>
+          ↻
+        </button>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
+          <select value={xField} onChange={e=>setXField(e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+          </select>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
+          <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {drillOptions && (
+        <div style={{marginBottom:10}}>
+          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Aufschlüsseln nach {g2Label}</p>
+          <select value={drillValue} onChange={e=>setDrillValue(e.target.value)}
+            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            {drillOptions.map(v=><option key={v} value={v} style={{background:"#0a1628"}}>{v}</option>)}
+          </select>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"rgba(232,244,253,0.35)"}}>Keine Flüge für diese Auswahl.</div>
+      ) : (
+        <div style={{overflowX:"auto"}}>
+          <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
+            {ticks.map((t,i)=>{
+              const y = scaleY(t);
+              return (
+                <g key={i}>
+                  <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
+                  <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{Math.round(t)}</text>
+                </g>
+              );
+            })}
+            {rows.map((r,i)=>{
+              const cx = padLeft + slot*i + slot/2;
+              const y = scaleY(r.value);
+              const h = (padTop+plotH) - y;
+              return (
+                <g key={r.key}>
+                  <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
+                  <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(r.value, yMetric)}</text>
+                  <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatistikApp() {
   const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
@@ -828,6 +1085,7 @@ function StatistikApp() {
     { id: "passagiere", icon: "👤", label: "Passagiere", rows: passagierRows, color: "#a78bfa", glow: "rgba(167,139,250,0.5)" },
     { id: "hike", icon: "🥾", label: "Hike", rows: hikeRows, color: "#fef08a", glow: "rgba(254,240,138,0.5)" },
     { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a", glow: "rgba(224,48,74,0.5)" },
+    { id: "graph", icon: "📈", label: "Graph", rows: [], color: "#22d3ee", glow: "rgba(34,211,238,0.5)" },
   ].filter(t => (t.id !== "passagiere" || passagierRows.length > 0) && (t.id !== "hike" || hikeRows.length > 0));
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
@@ -875,6 +1133,8 @@ function StatistikApp() {
       {TABLES.map(t => openTable===t.id && (
         t.id === "saison"
           ? <SeasonSection key={t.id} flights={flights} />
+          : t.id === "graph"
+          ? <GraphSection key={t.id} flights={flights} />
           : (
             <React.Fragment key={t.id}>
               {t.id === "schirm" && <SchirmTimeline flights={flights} />}
