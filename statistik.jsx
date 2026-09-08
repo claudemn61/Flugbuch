@@ -850,6 +850,7 @@ function GraphSection({ flights }) {
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [xReversed, setXReversed] = useState(false);
 
   const loadSync = () => {
     (async () => {
@@ -884,6 +885,7 @@ function GraphSection({ flights }) {
   let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
   if (GRAPH_NUMERIC_X_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
   else rows.sort((a,b) => b.flights.length - a.flights.length);
+  if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
@@ -938,10 +940,16 @@ function GraphSection({ flights }) {
       <div style={{display:"flex",gap:8,marginBottom:10}}>
         <div style={{flex:1,minWidth:0}}>
           <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
-          <select value={xField} onChange={e=>setXField(e.target.value)}
-            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-            {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
-          </select>
+          <div style={{display:"flex",gap:6}}>
+            <select value={xField} onChange={e=>setXField(e.target.value)}
+              style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {GROUP_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+            </select>
+            <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
+              style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+              ⇅
+            </button>
+          </div>
         </div>
         <div style={{flex:1,minWidth:0}}>
           <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
