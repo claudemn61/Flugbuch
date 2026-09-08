@@ -109,7 +109,7 @@ const SECTIONS = [
   {
     id: "statistik", title: "4. Statistik",
     body: () => (<>
-      <p>Sechs farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
+      <p>Sieben farbige Badges (ab 768px Breite nebeneinander statt untereinander):</p>
       <ul>
         <li>🪂 Schirm (blau) — Flüge, Flugzeit, Distanz, Bewertungen je Fluggerät. Beim Öffnen zusätzlich eine Zeitleisten-Grafik oberhalb der Liste: eine Zeile pro Schirm, eine Spalte pro Jahr (horizontal scrollbar, Schirm-Name und Startjahr bleiben fixiert), Zelle = Anzahl Flüge dieses Jahr. Farblich nach Kategorie gruppiert (Standard/Tandem/Leicht) — automatisch aus dem Typ (Solo/Biplace/Hike) der jeweiligen Flüge abgeleitet, kein manuelles Zuordnen nötig. Eigenes Suchfeld darüber (gleicher Zeilen-Baukasten wie im Flugbuch, inkl. UND/ODER/Klammern) filtert, welche Flüge in die Zeitleiste einfliessen. Im ✏️-Bearbeiten-Modus: Balkenfarbe pro Schirm frei wählbar (auch zweifarbig als Verlauf), Reihenfolge innerhalb der Kategorie per ▲▼ verschiebbar — beides wird gespeichert.</li>
         <li>🛫 Startplätze (grün)</li>
@@ -117,6 +117,7 @@ const SECTIONS = [
         <li>👤 Passagiere (violett) — erster/letzter Flug je Person, Bewertungen. Blendet sich aus, wenn kein Flug im ganzen Flugbuch einen Passagier hat.</li>
         <li>🥾 Hike (hellgelb) — gruppiert nach Ort (aus dem Hike-Startpunkt bestimmt), mit Höhenmeter, Hike-Dauer, erster/letzter Flug. Blendet sich aus, wenn kein Flug eine Hike-GPX-Route hat.</li>
         <li>📅 Saison (rot) — Jahresauswahl (Alle/aktuell/-1/-2/Mehr) mit Kennzahlen (Flüge, Flugzeit, Flugtage, Ø/Flug) und persönlichen Rekorden</li>
+        <li>📈 Graph (cyan) — Balkendiagramm zur gerade in der Flugliste aktiven Gruppierung (Gr. 1°) und Filterung; X-/Y-Achse danach im Badge selbst frei wählbar (X: dieselben Felder wie Gr. 1°/2° im Flugbuch, Y: Anzahl Flüge/Gesamt- oder Ø Dauer/Gesamt- oder Ø Distanz/Max. Höhe). Ist in der Flugliste auch Gr. 2° gesetzt, kommt ein "Aufschlüsseln nach…"-Dropdown dazu, das die Balken auf einen einzelnen Gr.-2°-Wert einschränkt. ↻ gleicht die Anzeige neu mit der Flugliste ab. Erste Ausbaustufe — punktweise/frei wählbare Achsen ohne Gruppierung sowie Pinch-Zoom folgen später.</li>
       </ul>
     </>),
   },
@@ -174,7 +175,7 @@ function KurzContent() {
         <li>Karte zeigt erkannte Route (freie Strecke/Dreieck) gestrichelt gelb über dem Track, bei einem Dreieck inkl. echter dritter Seite zurück zum Start (zählt mit zur Distanz); Punkte im Vollbild per Drag verschiebbar sowie per "+ Punkt"/× hinzufügbar/löschbar, Distanz/Routenart werden dabei live neu berechnet</li>
       </ul>
       <h3>Statistik</h3>
-      <p>6 Badges (blendet sich einzeln aus, wenn nicht zutreffend): Schirm · Startplätze · Landeplätze · Passagiere · Hike (gruppiert nach Ort) · Saison (Jahresübersicht + Rekorde)</p>
+      <p>7 Badges (Passagiere/Hike blenden sich einzeln aus, wenn nicht zutreffend): Schirm · Startplätze · Landeplätze · Passagiere · Hike (gruppiert nach Ort) · Saison (Jahresübersicht + Rekorde) · Graph (Balkendiagramm zur Flugliste-Gruppierung, X-/Y-Achse frei wählbar, Gr.-2°-Aufschlüsselung)</p>
       <h3>Reisen</h3>
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
       <h3>Ausrüstung</h3>
