@@ -803,34 +803,60 @@ function SeasonSection({ flights }) {
 // v1: nur Gruppierungs-Modus (Balken) — der zweite, ungruppierte Modus aus
 // dem Mockup (freie Punkte/Linie über Datum/Distanz etc.) sowie Pinch-Zoom
 // folgen als eigene Ausbaustufen.
+// Jedes numerische Flugdatenfeld, das als Y-Wert sinnvoll ist, mit den für
+// dieses Feld sinnvollen Aggregaten: additive Grössen (Dauer, Distanz,
+// H.Diff., H.Gew., Entf. S-L, Hike-Höhenmeter) als Gesamt+Ø, Höhen-/Peak-
+// Werte (Max. Höhe, Start/Landung müM, Max.Steigen/-Sinken, Ø Speed,
+// Hike-Starthöhe) als Ø+Max., Bewertung nur als Ø (eine "Gesamt-Bewertung"
+// wäre keine sinnvolle Kennzahl).
+const GRAPH_Y_BASE_FIELDS = [
+  { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg"] },
+  { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg"] },
+  { field: "höhe",          label: "Höhe",            unit: "m",    aggs: ["avg","max"] },
+  { field: "startalt",      label: "Start müM",       unit: "m",    aggs: ["avg","max"] },
+  { field: "endalt",        label: "Landung müM",     unit: "m",    aggs: ["avg","max"] },
+  { field: "hdiff",         label: "H.Diff.",         unit: "m",    aggs: ["sum","avg"] },
+  { field: "maxsteigen",    label: "Steigen",         unit: "m/s",  aggs: ["avg","max"] },
+  { field: "maxsinken",     label: "Sinken",          unit: "m/s",  aggs: ["avg","max"] },
+  { field: "hgew",          label: "H.Gew.",          unit: "m",    aggs: ["sum","avg"] },
+  { field: "entfernungsl",  label: "Entf. S-L",       unit: "km",   aggs: ["sum","avg"] },
+  { field: "speed",         label: "Speed",           unit: "km/h", aggs: ["avg","max"] },
+  { field: "rating",        label: "Bewertung",       unit: "",     aggs: ["avg"] },
+  { field: "hikestarthoehe", label: "Hike-Starthöhe", unit: "m",    aggs: ["avg","max"] },
+  { field: "hikehoehenmeter", label: "Hike-Höhenmeter", unit: "m",  aggs: ["sum","avg"] },
+];
+const GRAPH_AGG_PREFIX = { sum: "Gesamt", avg: "Ø", max: "Max." };
+function graphYLabel(bf, agg) {
+  if (bf.field === "dauer") return agg==="sum" ? "Gesamtdauer" : "Ø Dauer";
+  if (bf.field === "distanz") return agg==="sum" ? "Gesamtdistanz" : "Ø Distanz";
+  return `${GRAPH_AGG_PREFIX[agg]} ${bf.label}`;
+}
 const GRAPH_Y_METRICS = [
-  { id: "count",     label: "Anzahl Flüge" },
-  { id: "totalDauer", label: "Gesamtdauer" },
-  { id: "avgDauer",  label: "Ø Dauer" },
-  { id: "totalDist", label: "Gesamtdistanz" },
-  { id: "avgDist",   label: "Ø Distanz" },
-  { id: "maxAlt",    label: "Max. Höhe" },
+  { id: "count", label: "Anzahl Flüge" },
+  ...GRAPH_Y_BASE_FIELDS.flatMap(bf => bf.aggs.map(agg => ({
+    id: `${bf.field}:${agg}`, label: graphYLabel(bf, agg), field: bf.field, agg, unit: bf.unit,
+  }))),
 ];
 const GRAPH_NUMERIC_X_FIELDS = new Set(["jahr", "monat", "std", "rating"]);
-function graphYMetricValue(groupFlights, metric) {
+function graphYMetricValue(groupFlights, metricId) {
   if (!groupFlights.length) return 0;
-  const dauerVals = () => groupFlights.map(f => flightFieldValue(f, "dauer") || 0);
-  const distVals = () => groupFlights.map(f => flightFieldValue(f, "distanz") || 0);
-  switch (metric) {
-    case "count":      return groupFlights.length;
-    case "totalDauer": return dauerVals().reduce((a,b)=>a+b, 0);
-    case "avgDauer":   return dauerVals().reduce((a,b)=>a+b, 0) / groupFlights.length;
-    case "totalDist":  return distVals().reduce((a,b)=>a+b, 0);
-    case "avgDist":    return distVals().reduce((a,b)=>a+b, 0) / groupFlights.length;
-    case "maxAlt":     return Math.max(...groupFlights.map(f => flightFieldValue(f, "höhe") || 0));
-    default:           return 0;
-  }
+  if (metricId === "count") return groupFlights.length;
+  const m = GRAPH_Y_METRICS.find(x => x.id === metricId);
+  if (!m) return 0;
+  const vals = groupFlights.map(f => flightFieldValue(f, m.field) || 0);
+  if (m.agg === "sum") return vals.reduce((a,b)=>a+b, 0);
+  if (m.agg === "avg") return vals.reduce((a,b)=>a+b, 0) / groupFlights.length;
+  if (m.agg === "max") return Math.max(...vals);
+  return 0;
 }
-function formatGraphYMetric(v, metric) {
-  if (metric === "totalDauer" || metric === "avgDauer") return v.toFixed(1).replace(".", ",") + "h";
-  if (metric === "totalDist" || metric === "avgDist") return Math.round(v) + " km";
-  if (metric === "maxAlt") return Math.round(v) + " m";
-  return String(Math.round(v));
+function formatGraphYMetric(v, metricId) {
+  if (metricId === "count") return String(Math.round(v));
+  const m = GRAPH_Y_METRICS.find(x => x.id === metricId);
+  if (!m) return String(Math.round(v));
+  if (m.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
+  const decimals = ["speed","rating","maxsteigen","maxsinken"].includes(m.field) ? 1 : 0;
+  const num = decimals ? v.toFixed(1).replace(".", ",") : String(Math.round(v));
+  return m.unit ? num + " " + m.unit : num;
 }
 // Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
 // auf, damit die Gitterlinien-Beschriftungen keine krummen Werte zeigen.
@@ -924,17 +950,19 @@ function GraphSection({ flights }) {
 
   return (
     <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10}}>
+      <div onClick={()=>{ window.location.href = "flugbuch.html"; }} title="Zur Flugliste"
+        style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,cursor:"pointer"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
         <span style={{flex:1,fontSize:12,color:"rgba(232,244,253,0.6)",lineHeight:1.35}}>
           Bezug: <b style={{color:"#e8f4fd"}}>{listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel}</b>
           {filterText && <> · Filter «<b style={{color:"#e8f4fd"}}>{filterText}</b>»</>}
           {g2Field && drillValue !== "Alle" && <> · <b style={{color:"#e8f4fd"}}>{g2Label}: {drillValue}</b></>} · {filtered.length} Flüge
         </span>
-        <button onClick={loadSync} title="Mit Flugliste neu abgleichen"
+        <button onClick={e=>{ e.stopPropagation(); loadSync(); }} title="Mit Flugliste neu abgleichen"
           style={{width:24,height:24,borderRadius:7,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"rgba(232,244,253,0.7)",cursor:"pointer",flexShrink:0}}>
           ↻
         </button>
+        <span style={{fontSize:12,color:"rgba(232,244,253,0.3)",flexShrink:0}}>›</span>
       </div>
 
       <div style={{display:"flex",gap:8,marginBottom:10}}>
