@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 function useIsWide() {
   const [isWide, setIsWide] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : false);
@@ -918,7 +918,7 @@ function GraphSection({ flights }) {
   const [freeY, setFreeY] = useState("distanz");
   const [chartStyle, setChartStyle] = useState("linie"); // "linie" | "punkte"
   const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 });
-  const pointersRef = useRef(new Map());
+  const zoomRef = useRef(zoom);
   const pinchRef = useRef(null);
   const panRef = useRef(null);
 
@@ -939,42 +939,75 @@ function GraphSection({ flights }) {
   useEffect(loadSync, []);
   const resetZoom = () => setZoom({ scale: 1, tx: 0, ty: 0 });
   useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, hideEmpty, freeX, freeY, chartStyle]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
-  // ── Pinch-Zoom/Pan (Pointer Events, funktioniert für Touch & Maus) ──
-  const onChartPointerDown = (e) => {
-    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (err) { /* z.B. Testumgebung ohne echten Pointer */ }
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointersRef.current.size === 2) {
-      const pts = [...pointersRef.current.values()];
-      pinchRef.current = { dist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y), scale: zoom.scale, tx: zoom.tx, ty: zoom.ty };
-      panRef.current = null;
-    } else if (pointersRef.current.size === 1) {
-      panRef.current = { x: e.clientX, y: e.clientY, tx: zoom.tx, ty: zoom.ty };
-    }
-  };
-  const onChartPointerMove = (e) => {
-    if (!pointersRef.current.has(e.pointerId)) return;
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointersRef.current.size === 2 && pinchRef.current) {
-      const pts = [...pointersRef.current.values()];
-      const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-      const factor = dist / (pinchRef.current.dist || 1);
-      setZoom(z => ({ ...z, scale: Math.min(6, Math.max(1, pinchRef.current.scale * factor)) }));
-    } else if (pointersRef.current.size === 1 && panRef.current) {
-      const dx = e.clientX - panRef.current.x, dy = e.clientY - panRef.current.y;
-      setZoom(z => ({ ...z, tx: panRef.current.tx + dx, ty: panRef.current.ty + dy }));
-    }
-  };
-  const onChartPointerUp = (e) => {
-    pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) pinchRef.current = null;
-    if (pointersRef.current.size === 1) {
-      const [p] = [...pointersRef.current.values()];
-      panRef.current = { x: p.x, y: p.y, tx: zoom.tx, ty: zoom.ty };
-    } else {
-      panRef.current = null;
-    }
-  };
+  // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
+  // Echte Touch-Events statt Pointer Events: Safari/iOS unterstützt die
+  // Pointer-Events-API bei Mehrfingergesten unzuverlässig (führte auf dem
+  // echten Gerät zu einem Absturz beim Pinchen). Touchmove muss zudem
+  // preventDefault() aufrufen können, damit Safari während der Geste
+  // nicht selbst die ganze Seite scrollt/zoomt — React hängt seine
+  // synthetischen Touch-Handler passiv ein (preventDefault dort wirkungs-
+  // los), deshalb hier direkt am DOM-Element registriert.
+  // Als Callback-Ref (nicht useEffect+chartElRef) — die Zeichenfläche
+  // wird bedingt gerendert ("Keine Flüge…" vs. Chart), ein useEffect mit
+  // leerem Dependency-Array würde die Listener nie anhängen, wenn das
+  // Element beim allerersten Render (listSettings noch null) noch gar
+  // nicht existiert.
+  const chartTouchCleanupRef = useRef(null);
+  const attachChartTouch = useCallback((el) => {
+    if (chartTouchCleanupRef.current) { chartTouchCleanupRef.current(); chartTouchCleanupRef.current = null; }
+    if (!el) return;
+    const dist2 = (a, b) => Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const onStart = (e) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = { dist: dist2(e.touches[0], e.touches[1]), scale: zoomRef.current.scale, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+        panRef.current = null;
+      } else if (e.touches.length === 1) {
+        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+        pinchRef.current = null;
+      }
+    };
+    const onMove = (e) => {
+      // Startwerte SOFORT (synchron) aus der Ref lesen und als Zahl in
+      // die Updater-Funktion einschliessen, statt darin nochmal auf
+      // pinchRef/panRef.current zuzugreifen — React kann diese Updater
+      // verzögert ausführen, und bis dahin kann z.B. touchend die Ref
+      // längst wieder auf null gesetzt haben (führte auf dem echten
+      // Gerät beim Pinchen zum Absturz).
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const { dist: startDist, scale: startScale } = pinchRef.current;
+        const factor = dist2(e.touches[0], e.touches[1]) / (startDist || 1);
+        const newScale = Math.min(6, Math.max(1, startScale * factor));
+        setZoom(z => ({ ...z, scale: newScale }));
+      } else if (e.touches.length === 1 && panRef.current) {
+        e.preventDefault();
+        const { x: startX, y: startY, tx: startTx, ty: startTy } = panRef.current;
+        const newTx = startTx + (e.touches[0].clientX - startX);
+        const newTy = startTy + (e.touches[0].clientY - startY);
+        setZoom(z => ({ ...z, tx: newTx, ty: newTy }));
+      }
+    };
+    const onEnd = (e) => {
+      if (e.touches.length < 2) pinchRef.current = null;
+      if (e.touches.length === 1) {
+        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: zoomRef.current.tx, ty: zoomRef.current.ty };
+      } else {
+        panRef.current = null;
+      }
+    };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onEnd, { passive: true });
+    chartTouchCleanupRef.current = () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
 
   if (!listSettings) return null;
 
@@ -1165,8 +1198,7 @@ function GraphSection({ flights }) {
       ) : (
         <div style={{position:"relative"}}>
           <div
-            onPointerDown={onChartPointerDown} onPointerMove={onChartPointerMove}
-            onPointerUp={onChartPointerUp} onPointerCancel={onChartPointerUp}
+            ref={attachChartTouch}
             onDoubleClick={resetZoom}
             style={{overflow:"hidden",touchAction:"none",borderRadius:8}}>
             {mode==="grouped" ? (
