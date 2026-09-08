@@ -840,9 +840,10 @@ function graphYLabel(bf, agg) {
   return `${GRAPH_AGG_PREFIX[agg]} ${bf.label}`;
 }
 const GRAPH_Y_METRICS = [
-  { id: "count", label: "Anzahl Flüge" },
+  { id: "count", label: "Anzahl Flüge", zeroBased: true },
   ...GRAPH_Y_BASE_FIELDS.flatMap(bf => bf.aggs.map(agg => ({
     id: `${bf.field}:${agg}`, label: graphYLabel(bf, agg), field: bf.field, agg, unit: bf.unit,
+    zeroBased: bf.aggs.includes("sum"),
   }))),
 ];
 // Felder, deren Werte von Natur aus ganzzahlig/diskret sind — sowohl für
@@ -857,7 +858,12 @@ function graphYMetricValue(groupFlights, metricId) {
   const vals = groupFlights.map(f => flightFieldValue(f, m.field) || 0);
   if (m.agg === "sum") return vals.reduce((a,b)=>a+b, 0);
   if (m.agg === "avg") return vals.reduce((a,b)=>a+b, 0) / groupFlights.length;
-  if (m.agg === "max") return Math.max(...vals);
+  // "Max.Sinken" ist wie überall sonst in der App (siehe Flugliste-
+  // Statistikfeld, SchirmTimeline persönliche Rekorde) negativ
+  // gespeichert — der "stärkste" Sinkwert ist der am weitesten von 0
+  // entfernte NEGATIVE Wert, also das Minimum statt des Maximums.
+  // Math.max hätte hier immer den schwächsten Sinkwert geliefert.
+  if (m.agg === "max") return m.field === "maxsinken" ? Math.min(...vals) : Math.max(...vals);
   return 0;
 }
 function formatGraphYMetric(v, metricId) {
@@ -1159,8 +1165,27 @@ function GraphSection({ flights }) {
   if (hideEmpty) rows = rows.filter(r => r.value);
 
   const W = 300, padLeft = 34, padRight = 10, padTop = 14, plotH = 122, plotW = W-padLeft-padRight;
-  const niceMFull = graphNiceMax(Math.max(1, ...rows.map(r => r.value)));
-  const barFullView = { x0: 0, x1: Math.max(1, rows.length), y0: 0, y1: niceMFull };
+  // Y-Spanne wie im Frei-Modus: additive Grössen (Anzahl/Gesamt/Ø) bei 0
+  // beginnend, Peak-Werte (Max., aber auch Ø von Höhen-/Rate-Feldern) am
+  // tatsächlichen Wertebereich — sonst würden z.B. negativ gespeicherte
+  // "Ø/Max. Sinken"-Werte (siehe graphYMetricValue) in einer festen
+  // 0-bis-Maximum-Achse gar nicht sichtbar sein.
+  const yMetricDef = GRAPH_Y_METRICS.find(m => m.id === yMetric);
+  const barValues = rows.map(r => r.value);
+  const barValMax = barValues.length ? Math.max(...barValues) : 0;
+  const barValMin = barValues.length ? Math.min(...barValues) : 0;
+  let barY0, barY1;
+  if (yMetricDef?.zeroBased !== false) {
+    barY0 = 0;
+    barY1 = graphNiceMax(Math.max(1, barValMax));
+  } else {
+    const range = Math.max(1, barValMax - barValMin);
+    const step = Math.pow(10, Math.floor(Math.log10(range/4)));
+    barY0 = Math.floor(barValMin/step)*step;
+    barY1 = Math.ceil(barValMax/step)*step;
+    if (barY1 === barY0) barY1 = barY0 + step;
+  }
+  const barFullView = { x0: 0, x1: Math.max(1, rows.length), y0: barY0, y1: barY1 };
   const barView = (mode==="grouped" && view) ? view : barFullView;
   const visW = Math.max(0.0001, barView.x1-barView.x0);
   const slot = plotW / visW;
@@ -1374,7 +1399,7 @@ function GraphSection({ flights }) {
                   return (
                     <g key={i}>
                       <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{Math.round(t)}</text>
+                      <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
                     </g>
                   );
                 })}
