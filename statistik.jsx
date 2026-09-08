@@ -802,15 +802,21 @@ function SeasonSection({ flights }) {
 //    (Drilldown statt gestapelter Balken — bei vielen Gr.-2°-Werten auf
 //    schmalem Bildschirm sonst unlesbar).
 //  - "Frei": kein Gruppieren — jeder (gefilterte) Flug ist ein Punkt,
-//    X-/Y-Achse beide frei aus Datum/Jahr/Monat/Std./allen numerischen
-//    Feldern wählbar, wahlweise als Linie (nach X sortiert verbunden)
-//    oder nur Punkte; X-Achse auch hier umkehrbar.
-// Beide Modi teilen sich Filter/Drilldown sowie Pinch-Zoom/Pan. Zoom ist
-// ein echter Bereichs-Zoom (nicht nur eine optische Lupe): zwei Finger
-// verengen den sichtbaren Werte-/Zeitbereich, wodurch Balken/Punkte/
-// Beschriftungen tatsächlich mehr Platz bekommen statt nur vergrössert
-// zu werden; ein Finger verschiebt den sichtbaren Bereich, Doppeltipp/
-// -klick oder das ⤾-Symbol setzt auf die volle Spanne zurück.
+//    X-/Y-Achse teilen sich dieselbe Feldliste (Datum/Jahr/Monat/Std.
+//    oder jedes numerische Flugdatenfeld), wahlweise als Linie (nach X
+//    sortiert verbunden) oder nur Punkte.
+// Beide Achsen (X in beiden Modi, Y nur "Gruppiert"/"Frei" gleichermassen)
+// per ⇅ umkehrbar. Beide Modi teilen sich Filter/Drilldown sowie Pinch-
+// Zoom/Pan. Zoom ist ein echter Bereichs-Zoom (nicht nur eine optische
+// Lupe): zwei Finger verengen den sichtbaren Werte-/Zeitbereich, wodurch
+// Balken/Punkte/Beschriftungen tatsächlich mehr Platz bekommen statt nur
+// vergrössert zu werden; ein Finger verschiebt den sichtbaren Bereich,
+// Doppeltipp/-klick oder das ⤾-Symbol setzt auf die volle Spanne zurück.
+// Achsen-Legenden (Gitterlinien-Beschriftungen) zeigen dabei immer nur
+// den gerade sichtbaren Ausschnitt, in regelmässigen, möglichst "runden"
+// Abständen (ganzzahlig bzw. glatte 1/2/5×10^n-Schritte; bei Datum je
+// nach sichtbarer Spanne auf Jahres-, Monats- oder Tages-Raster
+// ausgerichtet).
 const GRAPH_Y_BASE_FIELDS = [
   { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg"] },
   { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg"] },
@@ -839,6 +845,9 @@ const GRAPH_Y_METRICS = [
     id: `${bf.field}:${agg}`, label: graphYLabel(bf, agg), field: bf.field, agg, unit: bf.unit,
   }))),
 ];
+// Felder, deren Werte von Natur aus ganzzahlig/diskret sind — sowohl für
+// die Gruppierung im Modus "Gruppiert" als auch für "schöne" (ganzzahlige)
+// Achsen-Ticks im Modus "Frei".
 const GRAPH_NUMERIC_X_FIELDS = new Set(["jahr", "monat", "std", "rating"]);
 function graphYMetricValue(groupFlights, metricId) {
   if (!groupFlights.length) return 0;
@@ -857,7 +866,8 @@ function formatGraphYMetric(v, metricId) {
   return formatFreeFieldValue(v, m);
 }
 // Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
-// auf, damit die Gitterlinien-Beschriftungen keine krummen Werte zeigen.
+// auf, damit die volle (ungezoomte) Y-Spanne bei additiven Grössen nicht
+// krumm endet.
 function graphNiceMax(v) {
   if (v <= 0) return 1;
   const exp = Math.floor(Math.log10(v));
@@ -866,55 +876,115 @@ function graphNiceMax(v) {
   const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
   return nice * base;
 }
-
-// Felder für den "Frei"-Modus (ein Punkt pro Flug statt Gruppierung) — X
-// zusätzlich mit Datum/Jahr/Monat/Std., Y dieselben Basisfelder wie oben,
-// aber ohne Aggregat (roher Flugwert). zeroBased steuert, ob die Y-Achse
-// bei 0 beginnt (additive Grössen) oder am tatsächlichen Wertebereich
-// (Höhen-/Peak-Werte, sonst würde z.B. "Start müM" fast nur oberhalb der
-// Mitte der Fläche liegen).
-const GRAPH_FREE_Y_FIELDS = GRAPH_Y_BASE_FIELDS.map(({field,label,unit,aggs}) => ({field,label,unit,zeroBased:aggs.includes("sum")}));
-const GRAPH_FREE_X_FIELDS = [
+// Schrittweite für "schöne" Achsen-Ticks (1/2/5 × 10^n), Ziel ~targetCount
+// Ticks über die angegebene Spanne — Standardverfahren jeder Chart-
+// Bibliothek, damit z.B. 0/25/50/75/100 statt 0/23.7/47.4/… angezeigt wird.
+function graphNiceStep(range, targetCount) {
+  if (range <= 0) return 1;
+  const rough = range / Math.max(1, targetCount-1);
+  const exp = Math.floor(Math.log10(rough));
+  const base = Math.pow(10, exp);
+  const norm = rough / base;
+  const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return nice * base;
+}
+// Erzeugt "schöne", regelmässig verteilte Tick-Werte innerhalb [min,max]
+// (immer nur der gerade sichtbare Ausschnitt, nicht die volle Spanne) —
+// forceInteger rundet zusätzlich auf ganze Zahlen (Jahr/Monat/Std./
+// Bewertung/Anzahl Flüge).
+function computeNiceTicks(min, max, targetCount, forceInteger) {
+  if (!(max > min)) return [min];
+  let step = graphNiceStep(max-min, targetCount);
+  if (forceInteger) step = Math.max(1, Math.round(step));
+  const start = Math.ceil(min/step)*step;
+  const ticks = [];
+  for (let v = start; v <= max + step*1e-9; v += step) ticks.push(forceInteger ? Math.round(v) : Math.round(v*1e6)/1e6);
+  if (!ticks.length) ticks.push((min+max)/2);
+  return ticks;
+}
+const GRAPH_DAY_MS = 86400000;
+// "Schöne" Datums-Ticks für den sichtbaren Zeitausschnitt: je nach Spanne
+// auf Jahres-, Monats- oder Tages-Raster ausgerichtet (z.B. exakt am 1.
+// Januar bei mehrjähriger Spanne), statt nur gleichmässig in Millisekunden
+// verteilt zu sein.
+function graphNiceDateTicks(minTs, maxTs, targetCount) {
+  if (!(maxTs > minTs)) return [minTs];
+  const spanDays = (maxTs-minTs) / GRAPH_DAY_MS;
+  const d0 = new Date(minTs), d1 = new Date(maxTs);
+  if (spanDays > 550) {
+    const y0 = d0.getFullYear(), y1 = d1.getFullYear();
+    const step = Math.max(1, Math.round(graphNiceStep(Math.max(1,y1-y0), targetCount)));
+    const ticks = [];
+    for (let y = Math.ceil(y0/step)*step; y <= y1; y += step) {
+      const t = new Date(y,0,1).getTime();
+      if (t >= minTs && t <= maxTs) ticks.push(t);
+    }
+    return ticks.length ? ticks : [minTs];
+  }
+  if (spanDays > 40) {
+    const totalMonths = Math.max(1, (d1.getFullYear()-d0.getFullYear())*12 + (d1.getMonth()-d0.getMonth()));
+    const ratio = totalMonths/targetCount;
+    const stepM = ratio<=1 ? 1 : ratio<=2 ? 2 : ratio<=3 ? 3 : 6;
+    const ticks = [];
+    let y = d0.getFullYear(), m = Math.ceil(d0.getMonth()/stepM)*stepM;
+    while (y < d1.getFullYear() || (y===d1.getFullYear() && m<=d1.getMonth())) {
+      const t = new Date(y, m, 1).getTime();
+      if (t >= minTs && t <= maxTs) ticks.push(t);
+      m += stepM;
+      if (m >= 12) { m -= 12; y++; }
+    }
+    return ticks.length ? ticks : [minTs];
+  }
+  const stepD = Math.max(1, Math.round(graphNiceStep(Math.max(1,spanDays), targetCount)));
+  const stepMs = stepD*GRAPH_DAY_MS;
+  const ticks = [];
+  for (let t = Math.ceil(minTs/stepMs)*stepMs; t <= maxTs; t += stepMs) ticks.push(t);
+  return ticks.length ? ticks : [minTs];
+}
+// Gemeinsame Feldliste für X UND Y im Modus "Frei" (Datum/Jahr/Monat/Std.
+// oder jedes numerische Flugdatenfeld) — beide Achsen bieten bewusst
+// exakt dieselbe Auswahl. zeroBased steuert, ob eine Achse bei 0 beginnt
+// (additive Grössen) oder am tatsächlichen Wertebereich (Höhen-/Peak-
+// Werte sowie Datum/Jahr/Monat/Std., sonst läge z.B. "Start müM" fast
+// nur oberhalb der Mitte der Fläche, und "Datum" bei Jahr 1970).
+const GRAPH_FREE_FIELDS = [
   { field:"datum", label:"Datum", unit:"", zeroBased:false },
   { field:"jahr",  label:"Jahr",  unit:"", zeroBased:false },
   { field:"monat", label:"Monat", unit:"", zeroBased:false },
   { field:"std",   label:"Std.",  unit:"", zeroBased:false },
-  ...GRAPH_FREE_Y_FIELDS,
+  ...GRAPH_Y_BASE_FIELDS.map(({field,label,unit,aggs}) => ({field,label,unit,zeroBased:aggs.includes("sum")})),
 ];
-const GRAPH_FREE_X_VIA_SORTFIELD = new Set(["jahr","monat","std"]);
+const GRAPH_FREE_VIA_SORTFIELD = new Set(["jahr","monat","std"]);
 function formatFreeFieldValue(v, fieldDef) {
   if (!fieldDef) return String(Math.round(v));
+  if (fieldDef.field === "datum") return fmtDateShort(v);
   if (fieldDef.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
   const decimals = ["speed","rating","maxsteigen","maxsinken"].includes(fieldDef.field) ? 1 : 0;
   const num = decimals ? v.toFixed(1).replace(".", ",") : String(Math.round(v));
   return fieldDef.unit ? num + " " + fieldDef.unit : num;
 }
-// Wählt bis zu n möglichst gleichmässig verteilte Punkte aus einer
-// (bereits sortierten) Liste für die X-Achsen-Beschriftung aus — bei
-// vielen Flügen sollen nicht alle Datumswerte übereinander gedruckt
-// werden, nur ein grober Eindruck der Spanne. scaleX/minGapPx entfernen
-// danach noch Kandidaten, die auf der Zeichenfläche zu nah beieinander
-// lägen (z.B. zwei Flüge kurz hintereinander), damit sich die Labels
-// nicht überlappen — der letzte Punkt (Spannen-Ende) bleibt dabei immer
-// erhalten, notfalls anstelle des vorletzten.
-function pickGraphTicks(pts, n, scaleX, minGapPx) {
-  if (pts.length === 0) return [];
-  let candidates = pts;
-  if (pts.length > n) {
-    const idxs = new Set();
-    for (let i = 0; i < n; i++) idxs.add(Math.round(i * (pts.length-1) / (n-1)));
-    candidates = [...idxs].sort((a,b) => a-b).map(i => pts[i]);
-  }
-  if (!scaleX || candidates.length < 2) return candidates;
-  const out = [candidates[0]];
-  candidates.slice(1).forEach((p, i) => {
-    const isLast = i === candidates.length - 2;
-    const x = scaleX(p.x);
-    const gap = x - scaleX(out[out.length-1].x);
-    if (gap >= minGapPx) out.push(p);
-    else if (isLast) out[out.length-1] = p;
-  });
-  return out;
+function graphFreeFieldValue(f, field) {
+  if (field === "datum") return parseDateToTs(f.date);
+  if (GRAPH_FREE_VIA_SORTFIELD.has(field)) return sortFieldValue(f, field);
+  return flightFieldValue(f, field) || 0;
+}
+// Formatiert einen reinen Achsenwert (nicht an einen bestimmten Flug
+// gebunden — für Ticks, die aus der Spanne berechnet statt von einem
+// echten Flug abgelesen werden) je nach Feld.
+function graphFormatAxisValue(fieldId, v) {
+  if (fieldId === "datum") return fmtDateShort(v);
+  if (fieldId === "monat") return MONTH_NAMES_DE[Math.round(v)-1] || String(Math.round(v));
+  if (fieldId === "std") return String(Math.round(v)).padStart(2,"0")+" Uhr";
+  if (fieldId === "jahr") return String(Math.round(v));
+  return formatFreeFieldValue(v, GRAPH_FREE_FIELDS.find(x=>x.field===fieldId));
+}
+// Ticks für eine "Frei"-Achse (X oder Y, dieselbe Logik für beide): Datum
+// bekommt Kalender-Ticks, diskrete Felder (Jahr/Monat/Std./Bewertung)
+// ganzzahlige, alle anderen "schöne" Dezimal-Ticks — immer nur innerhalb
+// der aktuell sichtbaren Spanne [lo,hi].
+function graphAxisTicks(fieldId, lo, hi) {
+  if (fieldId === "datum") return graphNiceDateTicks(lo, hi, 5);
+  return computeNiceTicks(lo, hi, 7, GRAPH_NUMERIC_X_FIELDS.has(fieldId));
 }
 // Baut die URL für den Sprung von Graph zur Flugliste (mit Rücksprung-
 // Mechanismus, wie ihn die Schirm/Startplatz/…-Zeilen der Statistik schon
@@ -938,6 +1008,7 @@ function GraphSection({ flights }) {
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
   const [xReversed, setXReversed] = useState(false);
+  const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
   const [chartStyle, setChartStyle] = useState("linie"); // "linie" | "punkte"
@@ -963,7 +1034,7 @@ function GraphSection({ flights }) {
   };
   useEffect(loadSync, []);
   const resetZoom = () => setView(null);
-  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, hideEmpty, freeX, freeY, chartStyle]);
+  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, yReversed, hideEmpty, freeX, freeY, chartStyle]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1094,8 +1165,12 @@ function GraphSection({ flights }) {
   const visW = Math.max(0.0001, barView.x1-barView.x0);
   const slot = plotW / visW;
   const barW = slot * 0.6;
-  const scaleY = v => padTop + plotH - ((v-barView.y0)/((barView.y1-barView.y0)||1)) * plotH;
-  const ticks = [0,0.25,0.5,0.75,1].map(f => barView.y0 + f*(barView.y1-barView.y0));
+  const scaleY = v => {
+    let t = (v-barView.y0)/((barView.y1-barView.y0)||1);
+    if (yReversed) t = 1-t;
+    return padTop + plotH - t*plotH;
+  };
+  const ticks = computeNiceTicks(barView.y0, barView.y1, 7, yMetric==="count");
   const visibleRows = rows
     .map((r,i) => ({ ...r, idx: i }))
     .filter(r => r.idx+1 > barView.x0 && r.idx < barView.x1);
@@ -1111,21 +1186,16 @@ function GraphSection({ flights }) {
   const H = padTop + plotH + padBottom;
   const labelY = padTop + plotH + 10;
 
-  // ── Modus "Frei": ein Punkt pro Flug, X/Y beide frei ──
-  const freeXDef = GRAPH_FREE_X_FIELDS.find(f => f.field === freeX);
-  const freeYDef = GRAPH_FREE_Y_FIELDS.find(f => f.field === freeY);
+  // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
+  const freeXDef = GRAPH_FREE_FIELDS.find(f => f.field === freeX);
+  const freeYDef = GRAPH_FREE_FIELDS.find(f => f.field === freeY);
   const freePointsRaw = filtered
     .map(f => {
-      const xv = freeX === "datum" ? parseDateToTs(f.date)
-        : GRAPH_FREE_X_VIA_SORTFIELD.has(freeX) ? sortFieldValue(f, freeX)
-        : (flightFieldValue(f, freeX) || 0);
-      const yv = flightFieldValue(f, freeY) || 0;
-      const xLbl = freeX === "datum" ? fmtDateShort(xv)
-        : GRAPH_FREE_X_VIA_SORTFIELD.has(freeX) ? formatSortValue(f, freeX)
-        : formatFreeFieldValue(xv, freeXDef);
-      return { key: f.id, x: xv, y: yv, xLabel: xLbl };
+      const xv = graphFreeFieldValue(f, freeX);
+      const yv = graphFreeFieldValue(f, freeY);
+      return { key: f.id, x: xv, y: yv, xLabel: graphFormatAxisValue(freeX, xv) };
     })
-    .filter(p => freeX === "datum" ? p.x > 0 : true)
+    .filter(p => (freeX !== "datum" || p.x > 0) && (freeY !== "datum" || p.y > 0))
     .sort((a,b) => a.x - b.x);
   const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
   const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
@@ -1157,10 +1227,13 @@ function GraphSection({ flights }) {
     if (xReversed) t = 1-t;
     return padLeft2 + t*plotW2;
   };
-  const scaleY2 = y => padTop2 + plotH2 - ((y-freeView.y0)/((freeView.y1-freeView.y0)||1)) * plotH2;
-  const freeTicksY = [0,0.25,0.5,0.75,1].map(f => freeView.y0 + f*(freeView.y1-freeView.y0));
-  const visibleFreePoints = freePoints.filter(p => p.x >= freeView.x0 && p.x <= freeView.x1);
-  const freeTicksX = pickGraphTicks(visibleFreePoints.length ? visibleFreePoints : freePoints, 5, scaleX2, 34);
+  const scaleY2 = y => {
+    let t = (y-freeView.y0)/((freeView.y1-freeView.y0)||1);
+    if (yReversed) t = 1-t;
+    return padTop2 + plotH2 - t*plotH2;
+  };
+  const freeTicksY = graphAxisTicks(freeY, freeView.y0, freeView.y1);
+  const freeTicksX = graphAxisTicks(freeX, freeView.x0, freeView.x1);
 
   // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
   // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
@@ -1220,10 +1293,16 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
-            <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
-              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
-            </select>
+            <div style={{display:"flex",gap:6}}>
+              <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
+                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+                {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
+              </select>
+              <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ⇅
+              </button>
+            </div>
           </div>
         </div>
       ) : (<>
@@ -1233,9 +1312,9 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={freeX} onChange={e=>setFreeX(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GRAPH_FREE_X_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+                {GRAPH_FREE_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
               </select>
-              <button onClick={()=>setXReversed(r=>!r)} title="Achse umkehren"
+              <button onClick={()=>setXReversed(r=>!r)} title="X-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
@@ -1243,10 +1322,16 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
-            <select value={freeY} onChange={e=>setFreeY(e.target.value)}
-              style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {GRAPH_FREE_Y_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-            </select>
+            <div style={{display:"flex",gap:6}}>
+              <select value={freeY} onChange={e=>setFreeY(e.target.value)}
+                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+                {GRAPH_FREE_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+              </select>
+              <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ⇅
+              </button>
+            </div>
           </div>
         </div>
         <div style={{display:"flex",gap:6,marginBottom:10}}>
@@ -1317,7 +1402,7 @@ function GraphSection({ flights }) {
                   return (
                     <g key={i}>
                       <line x1={padLeft2} y1={y} x2={W2-padRight2} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatFreeFieldValue(t, freeYDef)}</text>
+                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{graphFormatAxisValue(freeY, t)}</text>
                     </g>
                   );
                 })}
@@ -1327,8 +1412,8 @@ function GraphSection({ flights }) {
                 {freePoints.map((p,i)=>(
                   <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
                 ))}
-                {freeTicksX.map((p,i)=>(
-                  <text key={i} x={scaleX2(p.x)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{p.xLabel}</text>
+                {freeTicksX.map((t,i)=>(
+                  <text key={i} x={scaleX2(t)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{graphFormatAxisValue(freeX, t)}</text>
                 ))}
               </svg>
             )}
