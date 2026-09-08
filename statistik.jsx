@@ -894,14 +894,28 @@ function GraphSection({ flights }) {
 
   // ── SVG-Geometrie ──
   const W = Math.max(300, rows.length * 42);
-  const H = 158;
-  const padLeft = 34, padRight = 10, padTop = 14, padBottom = 22;
-  const plotW = W - padLeft - padRight, plotH = H - padTop - padBottom;
+  const padLeft = 34, padRight = 10, padTop = 14, plotH = 122;
+  const plotW = W - padLeft - padRight;
   const niceM = graphNiceMax(Math.max(1, ...rows.map(r => r.value)));
   const slot = plotW / Math.max(1, rows.length);
   const barW = Math.min(28, slot * 0.6);
   const scaleY = v => padTop + plotH - (v / niceM) * plotH;
   const ticks = [0, niceM*0.25, niceM*0.5, niceM*0.75, niceM];
+
+  // Label unter der X-Achse: passt es nicht (grob geschätzt) neben/unter
+  // den Balken, wird es statt horizontal abgeschnitten senkrecht gestellt
+  // — braucht dann mehr Höhe unten statt mehr Breite.
+  const CHAR_W = 4.6; // grobe Zeichenbreite bei 8px Schrift
+  const MAX_LABEL_CHARS = 18;
+  const dispRows = rows.map(r => {
+    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
+    return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW };
+  });
+  const anyRotate = dispRows.some(r => r.rotateLabel);
+  const maxLabelLen = anyRotate ? Math.max(...dispRows.filter(r=>r.rotateLabel).map(r=>r.dispLabel.length)) : 0;
+  const padBottom = anyRotate ? Math.min(96, Math.max(22, maxLabelLen*CHAR_W + 12)) : 22;
+  const H = padTop + plotH + padBottom;
+  const labelY = padTop + plotH + 10;
 
   return (
     <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
@@ -959,7 +973,7 @@ function GraphSection({ flights }) {
                 </g>
               );
             })}
-            {rows.map((r,i)=>{
+            {dispRows.map((r,i)=>{
               const cx = padLeft + slot*i + slot/2;
               const y = scaleY(r.value);
               const h = (padTop+plotH) - y;
@@ -967,7 +981,11 @@ function GraphSection({ flights }) {
                 <g key={r.key}>
                   <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
                   <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(r.value, yMetric)}</text>
-                  <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.label}</text>
+                  {r.rotateLabel ? (
+                    <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                  ) : (
+                    <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                  )}
                 </g>
               );
             })}
