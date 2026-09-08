@@ -849,6 +849,7 @@ function GraphSection({ flights }) {
   const [g2Field, setG2Field] = useState("");
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
+  const [hideEmpty, setHideEmpty] = useState(false);
 
   const loadSync = () => {
     (async () => {
@@ -883,6 +884,8 @@ function GraphSection({ flights }) {
   let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
   if (GRAPH_NUMERIC_X_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
   else rows.sort((a,b) => b.flights.length - a.flights.length);
+  const emptyCount = rows.filter(r => !r.value).length;
+  if (hideEmpty) rows = rows.filter(r => r.value);
 
   const drillOptions = g2Field
     ? ["Alle", ...[...new Set(baseFiltered.map(f => formatSortValue(f, g2Field)).filter(v => v && v !== "—"))]
@@ -956,6 +959,15 @@ function GraphSection({ flights }) {
             style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
             {drillOptions.map(v=><option key={v} value={v} style={{background:"#0a1628"}}>{v}</option>)}
           </select>
+        </div>
+      )}
+
+      {emptyCount > 0 && (
+        <div onClick={()=>setHideEmpty(h=>!h)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
+          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${hideEmpty?"#22d3ee":"rgba(232,244,253,0.3)"}`,background:hideEmpty?"#22d3ee":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {hideEmpty && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
+          </div>
+          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Leere ({emptyCount}) ausblenden — {xLabel} ohne Wert bei "{GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label}"</span>
         </div>
       )}
 
