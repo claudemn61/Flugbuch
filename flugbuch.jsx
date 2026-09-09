@@ -840,7 +840,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const togglePlay = () => {
     setIsPlaying(p => {
       if (!p && playPhase === "hike" && hikeTimed.length > 1 && playElapsedSec >= hikeTimed[hikeTimed.length-1]._t - 0.01) {
-        if ((flight?.track?.length || 0) > 1) {
+        if (effTrack.length > 1) {
           setPlayPhase("flight");
         }
         // No IGC track to move on to — replay the hike from the start
@@ -855,15 +855,32 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const sP = flight?.startPt, eP = flight?.endPt;
   const hasMap = track.length > 0 || (sP && eP) || hasHike;
 
+  // Kein IGC-Track, aber Start- und Landekoordinaten vorhanden: statt gar
+  // nichts eine simulierte, direkte Verbindung Start→Landung synthetisieren
+  // (zwei Punkte mit künstlichem Zeitstempel über die Flugdauer verteilt),
+  // damit Kartenlinie, Cine-Wiedergabe und das (namensbasiert zugeordnete)
+  // Schirm-Icon trotzdem funktionieren — nur eben geradlinig statt entlang
+  // eines echten Tracks. Echte Tracks bleiben unverändert; diese Fallback-
+  // Punkte tragen keine echte Höhe/Fahrt, nur Position.
+  const effTrack = useMemo(() => {
+    if (track.length > 1) return track;
+    if (!sP || !eP) return track;
+    const durSec = flight?.durationSec > 0 ? flight.durationSec : 1200;
+    return [
+      { lat: sP.lat, lon: sP.lon, gpsAlt: sP.gpsAlt || 0, timeSec: 0 },
+      { lat: eP.lat, lon: eP.lon, gpsAlt: eP.gpsAlt || 0, timeSec: durSec },
+    ];
+  }, [track, sP, eP, flight?.durationSec]);
+
   // Same GPS-glitch rejection as before: a single wild fix shouldn't blow
   // out the bounding box used for fitBounds.
   const cleanTrack = useMemo(() => {
-    if (track.length < 3) return track;
+    if (effTrack.length < 3) return effTrack;
     const median = arr => { const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
-    const medLat = median(track.map(p=>p.lat)), medLon = median(track.map(p=>p.lon));
-    const filtered = track.filter(p => Math.abs(p.lat-medLat)<=0.5 && Math.abs(p.lon-medLon)<=0.5);
-    return filtered.length ? filtered : track;
-  }, [track]);
+    const medLat = median(effTrack.map(p=>p.lat)), medLon = median(effTrack.map(p=>p.lon));
+    const filtered = effTrack.filter(p => Math.abs(p.lat-medLat)<=0.5 && Math.abs(p.lon-medLon)<=0.5);
+    return filtered.length ? filtered : effTrack;
+  }, [effTrack]);
 
   // Cumulative flown distance up to each track point (same basis
   // FlightProfile's own "distances" array uses) — lets playback report its
@@ -871,10 +888,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // directly, without either component needing to know how the other one
   // is internally structured.
   const cumDist = useMemo(() => {
-    const arr = new Array(track.length).fill(0);
-    for (let i=1;i<track.length;i++) arr[i] = arr[i-1] + (haversineDistKm(track[i-1], track[i]) || 0);
+    const arr = new Array(effTrack.length).fill(0);
+    for (let i=1;i<effTrack.length;i++) arr[i] = arr[i-1] + (haversineDistKm(effTrack[i-1], effTrack[i]) || 0);
     return arr;
-  }, [track]);
+  }, [effTrack]);
 
   // The segment highlightRange refers to (by cumulative flown distance
   // along the *raw* track, same basis FlightProfile itself uses), plus the
@@ -882,25 +899,25 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // against a highlightRange that's purely a hike-window (no start/end at
   // all) — see the hike-specific computation right after this one.
   const { segment, refPoint, heading } = useMemo(() => {
-    if (!highlightRange || highlightRange.start == null || track.length < 2) return { segment: null, refPoint: null, heading: 0 };
+    if (!highlightRange || highlightRange.start == null || effTrack.length < 2) return { segment: null, refPoint: null, heading: 0 };
     let acc = 0;
     const seg = [];
-    if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(track[0]);
+    if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(effTrack[0]);
     let bestIdx = 0, bestDiff = Math.abs(0 - highlightRange.center);
-    for (let i=1;i<track.length;i++) {
-      acc += haversineDistKm(track[i-1], track[i]) || 0;
-      if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(track[i]);
+    for (let i=1;i<effTrack.length;i++) {
+      acc += haversineDistKm(effTrack[i-1], effTrack[i]) || 0;
+      if (acc >= highlightRange.start-0.05 && acc <= highlightRange.end+0.05) seg.push(effTrack[i]);
       const diff = Math.abs(acc - highlightRange.center);
       if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
     }
     // Heading at this point: averaged over a short span around it (rather
     // than just the single adjacent step) so brief GPS jitter doesn't make
     // the marker's rotation flicker/jump as the person drags the profile.
-    const spanBack = track[Math.max(0, bestIdx-3)];
-    const spanFwd = track[Math.min(track.length-1, bestIdx+3)];
+    const spanBack = effTrack[Math.max(0, bestIdx-3)];
+    const spanFwd = effTrack[Math.min(effTrack.length-1, bestIdx+3)];
     const heading = bearingDeg(spanBack, spanFwd);
-    return { segment: seg.length > 1 ? seg : null, refPoint: track[bestIdx], heading };
-  }, [track, highlightRange]);
+    return { segment: seg.length > 1 ? seg : null, refPoint: effTrack[bestIdx], heading };
+  }, [effTrack, highlightRange]);
 
   // Same idea as above, but for the hike-relative portion of the zoomed
   // window (if any) — used to show a static boot-icon reference marker
@@ -1077,7 +1094,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // clearing the container directly guarantees a clean slate.
     container.innerHTML = "";
     readyRef.current = false;
-    const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
+    const initialCenter = effTrack.length ? [effTrack[0].lon, effTrack[0].lat] : [sP.lon, sP.lat];
     // Vollbild-Karte ist randlos (siehe fullDivRef unten) — MapTilers
     // eigene Standard-Steuerung (Zoom +/-, Kompass, Standort) landet dabei
     // standardmässig exakt oben rechts, wo bereits unser ✕-Knopf sitzt, und
@@ -1115,8 +1132,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     };
 
     map.on("load", () => {
-      const fullTrace = cleanTrack.length ? cleanTrack : track;
+      const fullTrace = cleanTrack.length ? cleanTrack : effTrack;
       if (fullTrace.length > 1) {
+        // Kein echter IGC-Track: die simulierte Direktverbindung Start→
+        // Landung gestrichelt zeichnen, damit sie nicht mit einem echten
+        // GPS-Track verwechselt wird.
+        const isSimulated = track.length < 2;
         map.addSource("track", {
           type: "geojson",
           data: { type: "Feature", geometry: { type: "LineString", coordinates: fullTrace.map(p=>[p.lon,p.lat]) } },
@@ -1126,7 +1147,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           paint: { "line-color": "rgba(255,255,255,0.55)", "line-width": 6.5 } });
         map.addLayer({ id: "track-line", type: "line", source: "track",
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#1e40af", "line-width": 3.5 } });
+          paint: isSimulated
+            ? { "line-color": "#1e40af", "line-width": 3.5, "line-dasharray": [2.5, 1.8] }
+            : { "line-color": "#1e40af", "line-width": 3.5 } });
       }
       // Hike-GPX (the walk up to launch, if imported) shown as a green
       // line — visually distinct from the flight's own blue track, same
@@ -1234,9 +1257,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         if (i>0) acc += haversineDistKm(pts[i-1], pts[i]) || 0;
         if (acc >= highlightRange.hikeStart-0.02 && acc <= highlightRange.hikeEnd+0.02) seg.push(pts[i]);
       }
-      if (seg.length > 1) fitToPoints(seg); else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
+      if (seg.length > 1) fitToPoints(seg); else if (effTrack.length) fitToPoints(cleanTrack.length ? cleanTrack : effTrack);
     }
-    else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
+    else if (effTrack.length) fitToPoints(cleanTrack.length ? cleanTrack : effTrack);
     else if (sP && eP) fitToPoints([sP, eP]);
   };
 
@@ -1302,9 +1325,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // stays smooth and accurate regardless of frame rate hiccups.
   useEffect(() => {
     if (!isPlaying) return;
-    if (playPhase === "hike" ? hikeTimed.length < 2 : track.length < 2) return;
+    if (playPhase === "hike" ? hikeTimed.length < 2 : effTrack.length < 2) return;
     playLastTsRef.current = null;
-    const totalSec = playPhase === "hike" ? hikeTimed[hikeTimed.length-1]._t : (track[track.length-1].timeSec - track[0].timeSec);
+    const totalSec = playPhase === "hike" ? hikeTimed[hikeTimed.length-1]._t : (effTrack[effTrack.length-1].timeSec - effTrack[0].timeSec);
     const step = (ts) => {
       if (playLastTsRef.current == null) playLastTsRef.current = ts;
       const dtReal = (ts - playLastTsRef.current) / 1000;
@@ -1321,7 +1344,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     };
     playRafRef.current = requestAnimationFrame(step);
     return () => { if (playRafRef.current) cancelAnimationFrame(playRafRef.current); };
-  }, [isPlaying, playSpeed, playPhase, track.length, hikeTimed.length]);
+  }, [isPlaying, playSpeed, playPhase, effTrack.length, hikeTimed.length]);
 
   // Moves the playback marker to match playElapsedSec whenever it changes
   // (during playback, or when scrubbing manually) — interpolates between
@@ -1331,7 +1354,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // which only the (non-fullscreen) preview allows.
   useEffect(() => {
     if (!window.maptilersdk) return;
-    if (playPhase === "hike" ? hikeTimed.length < 2 : track.length < 2) return;
+    if (playPhase === "hike" ? hikeTimed.length < 2 : effTrack.length < 2) return;
     const sdk = window.maptilersdk;
 
     let lat, lon, hdg = null, alt = null, showBoot = false;
@@ -1350,15 +1373,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         onPlaybackPositionChange(distKm);
       }
     } else {
-      const targetTime = track[0].timeSec + playElapsedSec;
+      const targetTime = effTrack[0].timeSec + playElapsedSec;
       let i = 0;
-      while (i < track.length-2 && track[i+1].timeSec < targetTime) i++;
-      const a = track[i], b = track[i+1] || a;
+      while (i < effTrack.length-2 && effTrack[i+1].timeSec < targetTime) i++;
+      const a = effTrack[i], b = effTrack[i+1] || a;
       const span = (b.timeSec - a.timeSec) || 1;
       const frac = Math.max(0, Math.min(1, (targetTime - a.timeSec) / span));
       lat = a.lat + (b.lat-a.lat)*frac; lon = a.lon + (b.lon-a.lon)*frac;
       alt = a.gpsAlt + ((b.gpsAlt||a.gpsAlt) - a.gpsAlt)*frac;
-      const spanBack = track[Math.max(0,i-3)], spanFwd = track[Math.min(track.length-1,i+3)];
+      const spanBack = effTrack[Math.max(0,i-3)], spanFwd = effTrack[Math.min(effTrack.length-1,i+3)];
       hdg = bearingDeg(spanBack, spanFwd);
 
       if (onPlaybackPositionChange && cumDist.length) {
@@ -1493,7 +1516,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       </div>
       {controlsSlot && hasMap && ReactDOM.createPortal(
         <>
-          {(flight?.track?.length > 1 || hasHike) && (
+          {(effTrack.length > 1 || hasHike) && (
             <>
               <button onClick={togglePlay}
                 title={isPlaying?"Pause":(hasHike ? (playPhase==="hike"?"Hike abspielen":"Flug abspielen") : "Abspielen")}
@@ -1567,7 +1590,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
               unterschiedlich hoch wurde und in den Button-Bereich oben
               hineinwuchs. */}
           <div ref={fullDivRef} style={{width:"100%",height:"100%"}} />
-          {(flight?.track?.length > 1 || hasHike) && (
+          {(effTrack.length > 1 || hasHike) && (
             // transform:translateZ(0) zwingt den Browser, dieses Overlay in
             // eine eigene Compositing-Ebene zu heben — auf iOS Safari kann
             // sonst die WebGL-Canvas der Karte während einer aktiven
