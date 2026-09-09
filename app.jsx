@@ -243,12 +243,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.0";
+const APP_VERSION = "6.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.1", note: "Schirm-Icon auf der Karte/Cine-Wiedergabe wird jetzt automatisch anhand des Schirm-Namens im Flug gewählt (z.B. \"Mentor\" bei \"Ozone Mentor 7\") statt eines fest gewählten Icons. Ohne Treffer kommt das eigene Symbol aus den Einstellungen zum Einsatz." },
   { v: "6.0", note: "Graph-Badge (Statistik) fertig ausgebaut: öffnet jetzt formatfüllend über der ganzen Seite statt als Kachel, die Zeichenfläche misst ihre Breite laufend und nutzt beim Drehen ins Querformat den ganzen Bildschirm. Zwei Modi — \"Gruppiert\" (Balken je X-Wert; X/Y frei wählbar aus allen Flugdatenfeldern inkl. Flugnummer; bei Namensfeldern wie Reise/Schirm wahlweise alphabetisch oder nach dem angezeigten Y-Wert sortierbar) und \"Frei\" (ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste) — beide mit echtem Bereichs-Zoom per Pinch, Verschieben per Finger (X und Y mit je eigener Scrollrichtung), Achsen-Umkehr, und einer optionalen gestrichelten Trendlinie (lineare Regression, nur wo statistisch sinnvoll, ausblendbar). Bezug-Zeile führt direkt zur entsprechend gefilterten Flugliste und wieder zurück." },
   { v: "5.9", note: "Statistik: neues Badge \"📈 Graph\" — zeigt die gerade in der Flugliste aktive Gruppierung (Gr. 1°) und Filterung als Balkendiagramm; X-/Y-Achse danach im Badge selbst frei wählbar, bei gesetzter Gr. 2° zusätzlich ein \"Aufschlüsseln nach…\"-Dropdown zum Einschränken auf einen einzelnen Gr.-2°-Wert. Erste Ausbaustufe — weitere Darstellungen und Pinch-Zoom folgen. Ausserdem (statistik.jsx): derselbe Fix wie in 5.8.3 für mehrere Suchbegriffe ohne UND/&& sowie Klammern ohne Leerzeichen, und \"Monat\" auch hier als reguläres Suchfeld." },
   { v: "5.8.3", note: "Suche: \"Monat\" ist jetzt regulär als Feld wählbar (auch mit \"zwischen\"-Option, z.B. für Flüge in der ersten Jahreshälfte über alle Jahre). Fix: mehrere Suchbegriffe ohne UND/&& dazwischen (z.B. \"monat>=1 monat<=6\") wurden bisher stillschweigend auf den ersten Begriff reduziert statt kombiniert; ebenso wurden Klammern ohne Leerzeichen (z.B. \"(a)\") beim Zerlegen der Suchanfrage falsch behandelt." },
@@ -653,7 +654,7 @@ function SettingsOverlay({ onClose }) {
           </div>
           {openFolder==="gliders" && (
             <div style={{padding:"0 14px 14px"}}>
-              <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:10}}>Für den Referenzpunkt auf der Karte und die Cine-Wiedergabe.</div>
+              <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:10}}>Wird für den Referenzpunkt auf der Karte und die Cine-Wiedergabe automatisch anhand des Schirm-Namens im Flug gewählt (z.B. "Mentor" bei "Ozone Mentor 7"). Ohne Treffer kommt das eigene Symbol unten zum Einsatz — die Auswahl hier legt nur dessen Zeichen fest.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                 {GLIDER_VARIANTS.map(v => {
                   const isCustom = v.id === "custom";
