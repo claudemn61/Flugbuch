@@ -1079,6 +1079,11 @@ function GraphSection({ flights }) {
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
+  // Tatsächlich verfügbare Breite der Zeichenfläche (CSS-Pixel) — ersetzt
+  // eine vorher feste Breite von 300, damit der Graph im neuen Vollbild
+  // (siehe attachChartTouch/ResizeObserver unten) auch im Querformat
+  // wirklich den ganzen Bildschirm nutzt statt in der Mitte klein zu bleiben.
+  const [chartW, setChartW] = useState(300);
   const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
   const viewRef = useRef(null);
   const pinchRef = useRef(null);
@@ -1190,11 +1195,22 @@ function GraphSection({ flights }) {
     el.addEventListener("touchmove", onMove, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: true });
     el.addEventListener("touchcancel", onEnd, { passive: true });
+    // Breite der Zeichenfläche laufend messen (Vollbild-Umstellung, Dreh ins
+    // Querformat, Fenstergrösse) statt einer festen Konstante — Grundlage für
+    // W/W2 unten. getBoundingClientRect() statt entry.contentRect: liefert
+    // die volle sichtbare Breite inkl. Rahmen/Padding (hier zwar keins
+    // gesetzt, aber so bleibt es korrekt, falls sich das mal ändert).
+    const ro = new ResizeObserver(() => {
+      const w = el.getBoundingClientRect().width;
+      setChartW(prev => (Math.abs(prev - w) > 1 ? w : prev));
+    });
+    ro.observe(el);
     chartTouchCleanupRef.current = () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
+      ro.disconnect();
     };
   }, []);
 
@@ -1236,7 +1252,7 @@ function GraphSection({ flights }) {
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
-  const W = 300, padLeft = 34, padRight = 10, plotH = 122, plotW = W-padLeft-padRight;
+  const W = Math.max(240, Math.round(chartW)), padLeft = 34, padRight = 10, plotH = 122, plotW = W-padLeft-padRight;
   // Y-Spanne wie im Frei-Modus: additive Grössen (Anzahl/Gesamt/Ø) bei 0
   // beginnend, Peak-Werte (Max., aber auch Ø von Höhen-/Rate-Feldern) am
   // tatsächlichen Wertebereich — sonst würden z.B. negativ gespeicherte
@@ -1322,7 +1338,7 @@ function GraphSection({ flights }) {
   const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
   const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
 
-  const padLeft2 = 40, padRight2 = 14, padTop2 = 14, padBottom2 = 26, plotH2 = 122, W2 = 300;
+  const padLeft2 = 40, padRight2 = 14, padTop2 = 14, padBottom2 = 26, plotH2 = 122, W2 = Math.max(240, Math.round(chartW));
   const plotW2 = W2 - padLeft2 - padRight2;
   const H2 = padTop2 + plotH2 + padBottom2;
   const freeXs = freePoints.map(p => p.x), freeYs = freePoints.map(p => p.y);
@@ -1372,7 +1388,7 @@ function GraphSection({ flights }) {
   const zoomed = !!view;
 
   return (
-    <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
+    <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
       <a href={graphFluglisteUrl(filterText)} title="Zur Flugliste"
         style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,textDecoration:"none",color:"inherit"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
@@ -1749,7 +1765,7 @@ function StatistikApp() {
         t.id === "saison"
           ? <SeasonSection key={t.id} flights={flights} />
           : t.id === "graph"
-          ? <GraphSection key={t.id} flights={flights} />
+          ? null
           : (
             <React.Fragment key={t.id}>
               {t.id === "schirm" && <SchirmTimeline flights={flights} />}
@@ -1757,6 +1773,27 @@ function StatistikApp() {
             </React.Fragment>
           )
       ))}
+
+      {/* Graph öffnet bewusst nicht mehr wie die anderen Badges inline
+          innerhalb der Seite, sondern formatfüllend (eigene fixierte
+          Ebene über der ganzen Seite) — die Zeichenfläche selbst misst
+          ihre Breite laufend (siehe GraphSection/attachChartTouch), so
+          dass Vollbild und v.a. Querformat wirklich genutzt werden statt
+          nur die bisherige schmale Karten-Breite hochzuskalieren. */}
+      {openTable === "graph" && (
+        <div style={{position:"fixed",inset:0,zIndex:300,background:"#210710",display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 10px",borderBottom:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>
+            <button onClick={()=>setOpenTable(null)} title="Schliessen"
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+              ✕
+            </button>
+            <span style={{fontWeight:900,fontSize:16,flex:1}}>📈 Graph</span>
+          </div>
+          <div style={{flex:1,minHeight:0,overflowY:"auto",padding:"10px 16px calc(16px + env(safe-area-inset-bottom, 0px))"}}>
+            <GraphSection flights={flights} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
