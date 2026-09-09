@@ -1251,7 +1251,10 @@ function GraphSection({ flights }) {
   const maxValueLen = anyValueVertical ? Math.max(...dispRows.filter(r=>r.valueVertical).map(r=>r.valueText.length)) : 0;
   // Nur Platz reservieren, falls ein Werte-Text überhaupt senkrecht werden
   // könnte — ob er dann tatsächlich oberhalb statt im Balken landet,
-  // entscheidet sich erst weiter unten anhand der jeweiligen Balkenhöhe.
+  // entscheidet sich erst weiter unten pro Balken anhand des dort
+  // tatsächlich verfügbaren Platzes über dem jeweiligen Balken-Anfang
+  // (bei einem Deckel von 70 kann das bei besonders langen Werten und
+  // hohen Balken knapp werden — dafür ist "innerhalb" die Rückfalloption).
   const padTop = anyValueVertical ? Math.min(70, Math.max(14, maxValueLen*VALUE_CHAR_W + 8)) : 14;
   const scaleY = v => {
     let t = (v-barView.y0)/((barView.y1-barView.y0)||1);
@@ -1454,20 +1457,23 @@ function GraphSection({ flights }) {
                   const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
                   const y = scaleY(r.value);
                   const h = (padTop+plotH) - y;
-                  // Werte-Text: waagrecht über dem Balken, falls er dort Platz hat;
-                  // sonst senkrecht — innerhalb des Balkens, wenn der Platz reicht
-                  // (dann dunkel für Kontrast auf dem türkisen Balken), sonst
-                  // ebenfalls senkrecht, aber darüber. Pro Balken unabhängig.
-                  const fitsInside = r.valueVertical && h >= r.valueText.length*VALUE_CHAR_W + 6;
+                  // Werte-Text, mit Priorität: 1) waagrecht über dem Balken, falls
+                  // er dort Platz hat. 2) sonst senkrecht oberhalb des Balkens,
+                  // falls zwischen Balken-Anfang und oberem Diagrammrand genug
+                  // Platz dafür ist. 3) sonst (Balken zu nahe am oberen Rand)
+                  // senkrecht innerhalb des Balkens, randständig am oberen Ende,
+                  // horizontal zentriert (dunkel für Kontrast). Pro Balken
+                  // unabhängig entschieden.
+                  const aboveFits = r.valueVertical && (y-4) >= r.valueText.length*VALUE_CHAR_W;
                   return (
                     <g key={r.key}>
                       <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
                       {!r.valueVertical ? (
                         <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
-                      ) : fitsInside ? (
-                        <text x={cx} y={y+h/2} transform={`rotate(-90 ${cx} ${y+h/2})`} textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
-                      ) : (
+                      ) : aboveFits ? (
                         <text x={cx} y={y-4} transform={`rotate(-90 ${cx} ${y-4})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                      ) : (
+                        <text x={cx} y={y+4} transform={`rotate(90 ${cx} ${y+4})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
                       )}
                       {anyRotate ? (
                         <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
