@@ -1030,6 +1030,22 @@ function graphAxisTicks(fieldId, lo, hi) {
   if (fieldId === "datum") return graphNiceDateTicks(lo, hi, 5);
   return computeNiceTicks(lo, hi, 7, GRAPH_NUMERIC_X_FIELDS.has(fieldId));
 }
+// Einfache lineare Regression (kleinste Quadrate) für die Trendlinie in
+// beiden Graph-Modi. Liefert null, wenn sie statistisch nicht sinnvoll
+// ist: zu wenige Punkte (<3), oder X ohne jede Streuung (Steigung nicht
+// bestimmbar, z.B. wenn alle Punkte im selben Jahr liegen).
+function linearRegression(points) {
+  const pts = points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (pts.length < 3) return null;
+  const n = pts.length;
+  const meanX = pts.reduce((a,p)=>a+p.x, 0) / n;
+  const meanY = pts.reduce((a,p)=>a+p.y, 0) / n;
+  let num = 0, den = 0;
+  for (const p of pts) { num += (p.x-meanX)*(p.y-meanY); den += (p.x-meanX)**2; }
+  if (den === 0) return null;
+  const slope = num/den;
+  return { slope, intercept: meanY - slope*meanX };
+}
 // Baut die URL für den Sprung von Graph zur Flugliste (mit Rücksprung-
 // Mechanismus, wie ihn die Schirm/Startplatz/…-Zeilen der Statistik schon
 // verwenden): "graph" als tableId im sessionStorage hinterlegen, damit
@@ -1141,8 +1157,11 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
-        let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
+        // Vorzeichen umgekehrt (Wunsch: Scrollrichtung beim Verschieben im
+        // Zoom umkehren) — Ansicht bewegt sich jetzt MIT dem Finger statt
+        // der Inhalt (klassische Scrollbar-Logik statt "Content folgt Finger").
+        let x0 = sv.x0+dxData, x1 = sv.x1+dxData;
+        let y0 = sv.y0+dyData, y1 = sv.y1+dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
         if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
@@ -1264,6 +1283,14 @@ function GraphSection({ flights }) {
   const ticks = computeNiceTicks(barView.y0, barView.y1, 7, yMetric==="count");
   const H = padTop + plotH + padBottom;
   const labelY = padTop + plotH + 10;
+  // Trendlinie nur bei numerisch/geordnetem X (Jahr, Distanz, Höhe, …) —
+  // bei kategorischen Feldern (Schirm, Startplatz, …) gibt es keine
+  // sinnvolle Reihenfolge, gegen die man regressieren könnte.
+  // +r.key erzwingt eine Zahl: sortFieldValue liefert bei "jahr" je nach
+  // Datenherkunft eine Zahl oder einen String (f.year), siehe derselbe
+  // Stolperstein bereits in graphYMetricValue.
+  const trendGrouped = GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)
+    ? linearRegression(rows.map(r => ({ x: +r.key, y: r.value }))) : null;
 
   // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
   const freeXDef = GRAPH_FREE_FIELDS.find(f => f.field === freeX);
@@ -1313,6 +1340,7 @@ function GraphSection({ flights }) {
   };
   const freeTicksY = graphAxisTicks(freeY, freeView.y0, freeView.y1);
   const freeTicksX = graphAxisTicks(freeX, freeView.x0, freeView.x1);
+  const trendFree = linearRegression(freePoints.map(p => ({ x: p.x, y: p.y })));
 
   // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
   // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
@@ -1483,6 +1511,13 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
+                {trendGrouped && (
+                  <polyline points={dispRows.map(r => {
+                    const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
+                    const ty = scaleY(trendGrouped.slope*r.key + trendGrouped.intercept);
+                    return `${cx},${ty}`;
+                  }).join(" ")} fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
+                )}
               </svg>
             ) : (
               <svg viewBox={`0 0 ${W2} ${H2}`} width={W2} height={H2} style={{display:"block"}}>
@@ -1495,6 +1530,11 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
+                {trendFree && (
+                  <line x1={scaleX2(freeView.x0)} y1={scaleY2(trendFree.slope*freeView.x0 + trendFree.intercept)}
+                    x2={scaleX2(freeView.x1)} y2={scaleY2(trendFree.slope*freeView.x1 + trendFree.intercept)}
+                    stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
+                )}
                 {freePoints.map((p,i)=>(
                   <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
                 ))}
