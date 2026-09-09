@@ -1074,6 +1074,7 @@ function GraphSection({ flights }) {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showTrend, setShowTrend] = useState(true);
   const [xReversed, setXReversed] = useState(false);
+  const [xSortByValue, setXSortByValue] = useState(false); // nur bei kategorischem X: A-Z vs. nach Y-Wert
   const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
@@ -1099,7 +1100,7 @@ function GraphSection({ flights }) {
   };
   useEffect(loadSync, []);
   const resetZoom = () => setView(null);
-  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, yReversed, hideEmpty, freeX, freeY]);
+  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1221,11 +1222,15 @@ function GraphSection({ flights }) {
     buckets.get(key).flights.push(f);
   });
   let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
-  // Numerische Felder (Jahr, Distanz, …) nach Wert, kategorische (Reise,
-  // Schirm, …) alphabetisch — neutral und vorhersehbar statt nach
-  // Flugzahl sortiert, damit "wo steht mein gesuchter Balken" nicht vom
-  // Y-Wert oder von unsichtbaren Kriterien abhängt. ⇅ kehrt beides um.
-  if (GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
+  // Numerische Felder (Jahr, Distanz, …) immer nach Wert. Kategorische
+  // (Reise, Schirm, …) standardmässig alphabetisch — neutral und
+  // vorhersehbar statt automatisch nach Flugzahl —, wahlweise aber auch
+  // nach dem angezeigten Y-Wert (xSortByValue, per eigenem Umschalter
+  // wählbar, nur wenn X kategorisch ist). ⇅ kehrt die jeweils aktive
+  // Sortierung um.
+  const xIsCategorical = !GRAPH_X_SORT_NUMERIC_FIELDS.has(xField);
+  if (!xIsCategorical) rows.sort((a,b) => a.key - b.key);
+  else if (xSortByValue) rows.sort((a,b) => a.value - b.value);
   else rows.sort((a,b) => String(a.label).localeCompare(String(b.label), "de", {numeric:true, sensitivity:"base"}));
   if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
@@ -1423,7 +1428,16 @@ function GraphSection({ flights }) {
             </div>
           </div>
         </div>
-      ) : (<>
+      ) : null}
+      {mode==="grouped" && xIsCategorical && (
+        <div onClick={()=>setXSortByValue(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
+          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${xSortByValue?"#22d3ee":"rgba(232,244,253,0.3)"}`,background:xSortByValue?"#22d3ee":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {xSortByValue && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
+          </div>
+          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>X-Achse nach Y-Wert sortieren (statt A–Z)</span>
+        </div>
+      )}
+      {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
