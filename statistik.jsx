@@ -1067,6 +1067,7 @@ function GraphSection({ flights }) {
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [showTrend, setShowTrend] = useState(true);
   const [xReversed, setXReversed] = useState(false);
   const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
@@ -1463,6 +1464,15 @@ function GraphSection({ flights }) {
         </div>
       )}
 
+      {(mode==="grouped" ? trendGrouped : trendFree) && (
+        <div onClick={()=>setShowTrend(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
+          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${showTrend?"#fbbf24":"rgba(232,244,253,0.3)"}`,background:showTrend?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {showTrend && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
+          </div>
+          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Trendlinie anzeigen</span>
+        </div>
+      )}
+
       {isEmptyChart ? (
         <div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"rgba(232,244,253,0.35)"}}>Keine Flüge für diese Auswahl.</div>
       ) : (
@@ -1512,7 +1522,7 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
-                {trendGrouped && (
+                {showTrend && trendGrouped && (
                   <polyline points={dispRows.map(r => {
                     const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
                     const ty = scaleY(trendGrouped.slope*r.key + trendGrouped.intercept);
@@ -1531,7 +1541,7 @@ function GraphSection({ flights }) {
                     </g>
                   );
                 })}
-                {trendFree && (
+                {showTrend && trendFree && (
                   <line x1={scaleX2(freeView.x0)} y1={scaleY2(trendFree.slope*freeView.x0 + trendFree.intercept)}
                     x2={scaleX2(freeView.x1)} y2={scaleY2(trendFree.slope*freeView.x1 + trendFree.intercept)}
                     stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
