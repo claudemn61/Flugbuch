@@ -767,7 +767,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       try {
         const r = await window.storage.get("gliderVariant");
         const id = r ? r.value : DEFAULT_GLIDER_VARIANT;
-        const found = GLIDER_VARIANTS.find(v => v.id === id) || GLIDER_VARIANTS.find(v => v.id === DEFAULT_GLIDER_VARIANT);
+        const found = GLIDER_VARIANTS.find(v => v.id === id) || GLIDER_VARIANTS_RESERVE.find(v => v.id === id) || GLIDER_VARIANTS.find(v => v.id === DEFAULT_GLIDER_VARIANT);
         let value = found.type === "image" ? found.dataUrl : found.char;
         if (found.id === "custom") {
           try {

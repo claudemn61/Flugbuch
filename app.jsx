@@ -555,6 +555,9 @@ function SettingsOverlay({ onClose }) {
   const [notesDirty, setNotesDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState(""); // "", "saving", "saved", "error"
   const [gliderVariant, setGliderVariant] = useState(DEFAULT_GLIDER_VARIANT);
+  // Reserve-Icons (frühere Varianten) sind standardmässig eingeklappt, um
+  // die Auswahl nicht mit selten gebrauchten Icons zu überladen.
+  const [showReserve, setShowReserve] = useState(false);
   // Eigenes Flugsymbol (1 von 9, "custom"): ein frei eintippbarer Buchstabe
   // oder Emoji, separat vom gewählten gliderVariant gespeichert, damit man
   // ihn bearbeiten kann ohne ihn zwangsläufig sofort auszuwählen.
@@ -667,6 +670,24 @@ function SettingsOverlay({ onClose }) {
                   );
                 })}
               </div>
+              <div onClick={()=>setShowReserve(!showReserve)}
+                style={{marginTop:10,fontSize:12,color:"rgba(232,244,253,0.5)",cursor:"pointer",textAlign:"center"}}>
+                {showReserve ? "▾ Weitere Icons ausblenden" : "▸ Weitere Icons"}
+              </div>
+              {showReserve && (
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:8}}>
+                  {GLIDER_VARIANTS_RESERVE.map(v => {
+                    const isActive = v.id === gliderVariant;
+                    return (
+                      <button key={v.id} onClick={()=>chooseGlider(v.id)}
+                        style={{background:isActive?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",border:`2px solid ${isActive?"#4ade80":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"8px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                        <img src={v.dataUrl} alt={v.label} style={{width:"100%",height:56,objectFit:"contain"}} />
+                        <span style={{fontSize:10,fontWeight:isActive?800:500,color:isActive?"#4ade80":"rgba(232,244,253,0.7)",textAlign:"center"}}>{v.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
