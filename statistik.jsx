@@ -1216,8 +1216,12 @@ function GraphSection({ flights }) {
     buckets.get(key).flights.push(f);
   });
   let rows = [...buckets.values()].map(b => ({ ...b, value: graphYMetricValue(b.flights, yMetric) }));
+  // Numerische Felder (Jahr, Distanz, …) nach Wert, kategorische (Reise,
+  // Schirm, …) alphabetisch — neutral und vorhersehbar statt nach
+  // Flugzahl sortiert, damit "wo steht mein gesuchter Balken" nicht vom
+  // Y-Wert oder von unsichtbaren Kriterien abhängt. ⇅ kehrt beides um.
   if (GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)) rows.sort((a,b) => a.key - b.key);
-  else rows.sort((a,b) => b.flights.length - a.flights.length);
+  else rows.sort((a,b) => String(a.label).localeCompare(String(b.label), "de", {numeric:true, sensitivity:"base"}));
   if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
