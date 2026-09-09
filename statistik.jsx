@@ -1157,10 +1157,11 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        // Vorzeichen umgekehrt (Wunsch: Scrollrichtung beim Verschieben im
-        // Zoom umkehren) — Ansicht bewegt sich jetzt MIT dem Finger statt
-        // der Inhalt (klassische Scrollbar-Logik statt "Content folgt Finger").
-        let x0 = sv.x0+dxData, x1 = sv.x1+dxData;
+        // Scrollrichtung Y: Ansicht bewegt sich MIT dem Finger (klassische
+        // Scrollbar-Logik). Scrollrichtung X (auf expliziten Wunsch nochmals
+        // umgekehrt): dort bewegt sich stattdessen der INHALT mit dem
+        // Finger — bewusst unterschiedliche Konvention pro Achse.
+        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
         let y0 = sv.y0+dyData, y1 = sv.y1+dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
