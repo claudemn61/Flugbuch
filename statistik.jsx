@@ -1201,7 +1201,7 @@ function GraphSection({ flights }) {
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
-  const W = 300, padLeft = 34, padRight = 10, padTop = 14, plotH = 122, plotW = W-padLeft-padRight;
+  const W = 300, padLeft = 34, padRight = 10, plotH = 122, plotW = W-padLeft-padRight;
   // Y-Spanne wie im Frei-Modus: additive Grössen (Anzahl/Gesamt/Ø) bei 0
   // beginnend, Peak-Werte (Max., aber auch Ø von Höhen-/Rate-Feldern) am
   // tatsächlichen Wertebereich — sonst würden z.B. negativ gespeicherte
@@ -1227,24 +1227,38 @@ function GraphSection({ flights }) {
   const visW = Math.max(0.0001, barView.x1-barView.x0);
   const slot = plotW / visW;
   const barW = slot * 0.6;
+  const visibleRows = rows
+    .map((r,i) => ({ ...r, idx: i }))
+    .filter(r => r.idx+1 > barView.x0 && r.idx < barView.x1);
+  // Balken-Beschriftungen vorbereiten: X-Achsen-Label (unten) einheitlich
+  // für ALLE Balken (anyRotate — entweder alle waagrecht oder alle
+  // senkrecht), Werte-Text (über/im Balken) dagegen individuell pro Balken
+  // — er wird nur senkrecht, wenn er breiter als der Balken ist, und landet
+  // dann innerhalb des Balkens sofern der Platz reicht, sonst darüber.
+  const CHAR_W = 4.6; // grobe Zeichenbreite bei 8px Schrift (X-Achse)
+  const VALUE_CHAR_W = 5.0; // grobe Zeichenbreite bei 8px fett (Werte-Text)
+  const MAX_LABEL_CHARS = 18;
+  const dispRows = visibleRows.map(r => {
+    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
+    const valueText = formatGraphYMetric(r.value, yMetric);
+    return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW,
+      valueText, valueVertical: valueText.length*VALUE_CHAR_W > barW };
+  });
+  const anyRotate = dispRows.some(r => r.rotateLabel);
+  const maxLabelLen = anyRotate ? Math.max(...dispRows.filter(r=>r.rotateLabel).map(r=>r.dispLabel.length)) : 0;
+  const padBottom = anyRotate ? Math.min(96, Math.max(22, maxLabelLen*CHAR_W + 12)) : 22;
+  const anyValueVertical = dispRows.some(r => r.valueVertical);
+  const maxValueLen = anyValueVertical ? Math.max(...dispRows.filter(r=>r.valueVertical).map(r=>r.valueText.length)) : 0;
+  // Nur Platz reservieren, falls ein Werte-Text überhaupt senkrecht werden
+  // könnte — ob er dann tatsächlich oberhalb statt im Balken landet,
+  // entscheidet sich erst weiter unten anhand der jeweiligen Balkenhöhe.
+  const padTop = anyValueVertical ? Math.min(70, Math.max(14, maxValueLen*VALUE_CHAR_W + 8)) : 14;
   const scaleY = v => {
     let t = (v-barView.y0)/((barView.y1-barView.y0)||1);
     if (yReversed) t = 1-t;
     return padTop + plotH - t*plotH;
   };
   const ticks = computeNiceTicks(barView.y0, barView.y1, 7, yMetric==="count");
-  const visibleRows = rows
-    .map((r,i) => ({ ...r, idx: i }))
-    .filter(r => r.idx+1 > barView.x0 && r.idx < barView.x1);
-  const CHAR_W = 4.6; // grobe Zeichenbreite bei 8px Schrift
-  const MAX_LABEL_CHARS = 18;
-  const dispRows = visibleRows.map(r => {
-    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
-    return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW };
-  });
-  const anyRotate = dispRows.some(r => r.rotateLabel);
-  const maxLabelLen = anyRotate ? Math.max(...dispRows.filter(r=>r.rotateLabel).map(r=>r.dispLabel.length)) : 0;
-  const padBottom = anyRotate ? Math.min(96, Math.max(22, maxLabelLen*CHAR_W + 12)) : 22;
   const H = padTop + plotH + padBottom;
   const labelY = padTop + plotH + 10;
 
@@ -1440,11 +1454,22 @@ function GraphSection({ flights }) {
                   const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
                   const y = scaleY(r.value);
                   const h = (padTop+plotH) - y;
+                  // Werte-Text: waagrecht über dem Balken, falls er dort Platz hat;
+                  // sonst senkrecht — innerhalb des Balkens, wenn der Platz reicht
+                  // (dann dunkel für Kontrast auf dem türkisen Balken), sonst
+                  // ebenfalls senkrecht, aber darüber. Pro Balken unabhängig.
+                  const fitsInside = r.valueVertical && h >= r.valueText.length*VALUE_CHAR_W + 6;
                   return (
                     <g key={r.key}>
                       <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
-                      <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(r.value, yMetric)}</text>
-                      {r.rotateLabel ? (
+                      {!r.valueVertical ? (
+                        <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                      ) : fitsInside ? (
+                        <text x={cx} y={y+h/2} transform={`rotate(-90 ${cx} ${y+h/2})`} textAnchor="middle" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                      ) : (
+                        <text x={cx} y={y-4} transform={`rotate(-90 ${cx} ${y-4})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                      )}
+                      {anyRotate ? (
                         <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
                       ) : (
                         <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
