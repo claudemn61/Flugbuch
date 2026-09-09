@@ -233,12 +233,13 @@ const GLIDER_VARIANTS = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v1";
 
-const APP_VERSION = "5.9";
+const APP_VERSION = "6.0";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.0", note: "Graph-Badge (Statistik) fertig ausgebaut: öffnet jetzt formatfüllend über der ganzen Seite statt als Kachel, die Zeichenfläche misst ihre Breite laufend und nutzt beim Drehen ins Querformat den ganzen Bildschirm. Zwei Modi — \"Gruppiert\" (Balken je X-Wert; X/Y frei wählbar aus allen Flugdatenfeldern inkl. Flugnummer; bei Namensfeldern wie Reise/Schirm wahlweise alphabetisch oder nach dem angezeigten Y-Wert sortierbar) und \"Frei\" (ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste) — beide mit echtem Bereichs-Zoom per Pinch, Verschieben per Finger (X und Y mit je eigener Scrollrichtung), Achsen-Umkehr, und einer optionalen gestrichelten Trendlinie (lineare Regression, nur wo statistisch sinnvoll, ausblendbar). Bezug-Zeile führt direkt zur entsprechend gefilterten Flugliste und wieder zurück." },
   { v: "5.9", note: "Statistik: neues Badge \"📈 Graph\" — zeigt die gerade in der Flugliste aktive Gruppierung (Gr. 1°) und Filterung als Balkendiagramm; X-/Y-Achse danach im Badge selbst frei wählbar, bei gesetzter Gr. 2° zusätzlich ein \"Aufschlüsseln nach…\"-Dropdown zum Einschränken auf einen einzelnen Gr.-2°-Wert. Erste Ausbaustufe — weitere Darstellungen und Pinch-Zoom folgen. Ausserdem (statistik.jsx): derselbe Fix wie in 5.8.3 für mehrere Suchbegriffe ohne UND/&& sowie Klammern ohne Leerzeichen, und \"Monat\" auch hier als reguläres Suchfeld." },
   { v: "5.8.3", note: "Suche: \"Monat\" ist jetzt regulär als Feld wählbar (auch mit \"zwischen\"-Option, z.B. für Flüge in der ersten Jahreshälfte über alle Jahre). Fix: mehrere Suchbegriffe ohne UND/&& dazwischen (z.B. \"monat>=1 monat<=6\") wurden bisher stillschweigend auf den ersten Begriff reduziert statt kombiniert; ebenso wurden Klammern ohne Leerzeichen (z.B. \"(a)\") beim Zerlegen der Suchanfrage falsch behandelt." },
   { v: "5.8.2", note: "Flugdetail: der \"XContest\"-Button führt jetzt direkt zum passenden Flug (statt nur zur eigenen \"Meine Flüge\"-Übersicht) — Datum und Startzeit werden dafür automatisch in das von XContest erwartete Format bzw. in UTC umgerechnet (Zeitzone anhand Startkoordinate + Datum bestimmt, wie beim IGC-Import). Ohne Startkoordinate oder Startzeit bleibt der Link wie bisher auf der allgemeinen Übersicht." },
