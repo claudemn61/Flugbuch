@@ -246,6 +246,7 @@ function matchFlights(flights, q){
 // hier dupliziert (wie parseDateToTs oben schon), damit das Graph-Badge
 // exakt dieselben Gruppen bildet wie die Flugliste gerade anzeigt.
 const GROUP_FIELDS = [
+  { id: "nummer",  label: "Nummer" },
   { id: "jahr",    label: "Jahr" },
   { id: "monat",   label: "Monat" },
   { id: "std",     label: "Std." },
@@ -272,6 +273,7 @@ function sortFieldValue(f, sortId) {
     case "jahr":     return f.year || 0;
     case "monat":    return f.month ? +f.month : 0; // numeric 1-12, so groups sort chronologically not alphabetically
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? h : -1; }
+    case "nummer":   { const m = (f.name||"").match(/\d+/); return m ? +m[0] : 0; }
     // Numerische Flugdatenfelder (Dauer, Distanz, Höhe, Max.Steigen/Sinken
     // usw.) — dieselben wie im Modus "Frei", hier für X in "Gruppiert".
     default:         { const v = flightFieldValue(f, sortId); return Number.isFinite(v) ? v : 0; }
@@ -291,6 +293,7 @@ function formatSortValue(f, sortId) {
     case "jahr":     return f.year ? String(f.year) : "—";
     case "monat":    return f.month ? MONTH_NAMES_DE[+f.month-1] || "—" : "—";
     case "std":      { const h = parseInt((f.startTime||"").slice(0,2), 10); return Number.isFinite(h) ? String(h).padStart(2,"0")+"–"+String((h+1)%24).padStart(2,"0")+" Uhr" : "—"; }
+    case "nummer":   return f.name ? String(f.name) : "—";
     default: {
       const bf = GRAPH_Y_BASE_FIELDS.find(x => x.field === sortId);
       if (!bf) return "—";
@@ -851,13 +854,14 @@ function graphYLabel(bf, agg) {
 // Felder, deren Werte von Natur aus ganzzahlig/diskret sind — sowohl für
 // die Gruppierung im Modus "Gruppiert" als auch für "schöne" (ganzzahlige)
 // Achsen-Ticks im Modus "Frei".
-const GRAPH_NUMERIC_X_FIELDS = new Set(["jahr", "monat", "std", "rating"]);
+const GRAPH_NUMERIC_X_FIELDS = new Set(["nummer", "jahr", "monat", "std", "rating"]);
 // Felder, die (wie in "Frei") nicht über flightFieldValue, sondern über
 // dieselbe sortFieldValue-Logik wie die Gruppierungs-Engine laufen.
-const GRAPH_FREE_VIA_SORTFIELD = new Set(["jahr", "monat", "std"]);
-// Jahr/Monat/Std. zusätzlich als Y-Feld wählbar (Ø/Max.), für Feld-Parität
-// mit "Frei" — Summe ergibt bei diesen Feldern keinen Sinn.
+const GRAPH_FREE_VIA_SORTFIELD = new Set(["nummer", "jahr", "monat", "std"]);
+// Nummer/Jahr/Monat/Std. zusätzlich als Y-Feld wählbar (Ø/Max.), für
+// Feld-Parität mit "Frei" — Summe ergibt bei diesen Feldern keinen Sinn.
 const GRAPH_Y_EXTRA_FIELDS = [
+  { field: "nummer", label: "Nummer", unit: "", aggs: ["avg","max"] },
   { field: "jahr",  label: "Jahr",  unit: "", aggs: ["avg","max"] },
   { field: "monat", label: "Monat", unit: "", aggs: ["avg","max"] },
   { field: "std",   label: "Std.",  unit: "", aggs: ["avg","max"] },
@@ -980,6 +984,7 @@ function graphNiceDateTicks(minTs, maxTs, targetCount) {
 // Werte sowie Datum/Jahr/Monat/Std., sonst läge z.B. "Start müM" fast
 // nur oberhalb der Mitte der Fläche, und "Datum" bei Jahr 1970).
 const GRAPH_FREE_FIELDS = [
+  { field:"nummer", label:"Nummer", unit:"", zeroBased:false },
   { field:"datum", label:"Datum", unit:"", zeroBased:false },
   { field:"jahr",  label:"Jahr",  unit:"", zeroBased:false },
   { field:"monat", label:"Monat", unit:"", zeroBased:false },
