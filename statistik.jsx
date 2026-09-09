@@ -1551,10 +1551,10 @@ function GraphSection({ flights }) {
                       ) : aboveFits ? (
                         <text x={cx} y={y-4} transform={`rotate(-90 ${cx} ${y-4})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
                       ) : (
-                        <text x={cx} y={y+4} transform={`rotate(90 ${cx} ${y+4})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                        <text x={cx} y={y+4} transform={`rotate(-90 ${cx} ${y+4})`} textAnchor="end" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
                       )}
                       {anyRotate ? (
-                        <text x={cx} y={labelY} transform={`rotate(90 ${cx} ${labelY})`} textAnchor="start" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                        <text x={cx} y={labelY} transform={`rotate(-90 ${cx} ${labelY})`} textAnchor="end" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
                       ) : (
                         <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
                       )}
