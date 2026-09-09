@@ -1079,11 +1079,13 @@ function GraphSection({ flights }) {
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
-  // Tatsächlich verfügbare Breite der Zeichenfläche (CSS-Pixel) — ersetzt
-  // eine vorher feste Breite von 300, damit der Graph im neuen Vollbild
-  // (siehe attachChartTouch/ResizeObserver unten) auch im Querformat
-  // wirklich den ganzen Bildschirm nutzt statt in der Mitte klein zu bleiben.
+  // Tatsächlich verfügbare Breite UND Höhe der Zeichenfläche (CSS-Pixel) —
+  // ersetzt vorher feste Werte (300 / 122), damit der Graph im Vollbild auf
+  // Desktop/iPad (und beim Drehen ins Querformat) wirklich die ganze
+  // verfügbare Bildschirmfläche nutzt statt nur in der Mitte klein zu
+  // bleiben (siehe attachChartTouch/ResizeObserver unten).
   const [chartW, setChartW] = useState(300);
+  const [chartH, setChartH] = useState(170);
   const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
   const viewRef = useRef(null);
   const pinchRef = useRef(null);
@@ -1195,14 +1197,16 @@ function GraphSection({ flights }) {
     el.addEventListener("touchmove", onMove, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: true });
     el.addEventListener("touchcancel", onEnd, { passive: true });
-    // Breite der Zeichenfläche laufend messen (Vollbild-Umstellung, Dreh ins
-    // Querformat, Fenstergrösse) statt einer festen Konstante — Grundlage für
-    // W/W2 unten. getBoundingClientRect() statt entry.contentRect: liefert
-    // die volle sichtbare Breite inkl. Rahmen/Padding (hier zwar keins
-    // gesetzt, aber so bleibt es korrekt, falls sich das mal ändert).
+    // Breite UND Höhe der Zeichenfläche laufend messen (Vollbild-Umstellung,
+    // Dreh ins Querformat, Fenstergrösse) statt fester Konstanten —
+    // Grundlage für W/W2/plotH/plotH2 unten. getBoundingClientRect() statt
+    // entry.contentRect: liefert die volle sichtbare Fläche inkl.
+    // Rahmen/Padding (hier zwar keins gesetzt, aber so bleibt es korrekt,
+    // falls sich das mal ändert).
     const ro = new ResizeObserver(() => {
-      const w = el.getBoundingClientRect().width;
-      setChartW(prev => (Math.abs(prev - w) > 1 ? w : prev));
+      const r = el.getBoundingClientRect();
+      setChartW(prev => (Math.abs(prev - r.width) > 1 ? r.width : prev));
+      setChartH(prev => (Math.abs(prev - r.height) > 1 ? r.height : prev));
     });
     ro.observe(el);
     chartTouchCleanupRef.current = () => {
@@ -1252,7 +1256,7 @@ function GraphSection({ flights }) {
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
 
-  const W = Math.max(240, Math.round(chartW)), padLeft = 34, padRight = 10, plotH = 122, plotW = W-padLeft-padRight;
+  const W = Math.max(240, Math.round(chartW)), padLeft = 34, padRight = 10, plotW = W-padLeft-padRight;
   // Y-Spanne wie im Frei-Modus: additive Grössen (Anzahl/Gesamt/Ø) bei 0
   // beginnend, Peak-Werte (Max., aber auch Ø von Höhen-/Rate-Feldern) am
   // tatsächlichen Wertebereich — sonst würden z.B. negativ gespeicherte
@@ -1307,6 +1311,11 @@ function GraphSection({ flights }) {
   // (bei einem Deckel von 70 kann das bei besonders langen Werten und
   // hohen Balken knapp werden — dafür ist "innerhalb" die Rückfalloption).
   const padTop = anyValueVertical ? Math.min(70, Math.max(14, maxValueLen*VALUE_CHAR_W + 8)) : 14;
+  // Höhe der Zeichenfläche wie schon die Breite: tatsächlich gemessen
+  // (chartH, ResizeObserver in attachChartTouch) statt fest — füllt so
+  // auf Desktop/iPad wirklich die verfügbare Bildschirmhöhe im Vollbild,
+  // nicht nur die Breite.
+  const plotH = Math.max(80, Math.round(chartH) - padTop - padBottom);
   const scaleY = v => {
     let t = (v-barView.y0)/((barView.y1-barView.y0)||1);
     if (yReversed) t = 1-t;
@@ -1338,7 +1347,8 @@ function GraphSection({ flights }) {
   const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
   const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
 
-  const padLeft2 = 40, padRight2 = 14, padTop2 = 14, padBottom2 = 26, plotH2 = 122, W2 = Math.max(240, Math.round(chartW));
+  const padLeft2 = 40, padRight2 = 14, padTop2 = 14, padBottom2 = 26, W2 = Math.max(240, Math.round(chartW));
+  const plotH2 = Math.max(80, Math.round(chartH) - padTop2 - padBottom2);
   const plotW2 = W2 - padLeft2 - padRight2;
   const H2 = padTop2 + plotH2 + padBottom2;
   const freeXs = freePoints.map(p => p.x), freeYs = freePoints.map(p => p.y);
@@ -1388,7 +1398,7 @@ function GraphSection({ flights }) {
   const zoomed = !!view;
 
   return (
-    <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12}}>
+    <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12,boxSizing:"border-box",height:"100%",display:"flex",flexDirection:"column"}}>
       <a href={graphFluglisteUrl(filterText)} title="Zur Flugliste"
         style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,textDecoration:"none",color:"inherit"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
@@ -1515,11 +1525,11 @@ function GraphSection({ flights }) {
       {isEmptyChart ? (
         <div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"rgba(232,244,253,0.35)"}}>Keine Flüge für diese Auswahl.</div>
       ) : (
-        <div style={{position:"relative"}}>
+        <div style={{position:"relative",flex:1,minHeight:0,display:"flex",flexDirection:"column"}}>
           <div
             ref={attachChartTouch}
             onDoubleClick={resetZoom}
-            style={{overflow:"hidden",touchAction:"none",borderRadius:8}}>
+            style={{overflow:"hidden",touchAction:"none",borderRadius:8,flex:1,minHeight:0}}>
             {mode==="grouped" ? (
               <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
                 {ticks.map((t,i)=>{
