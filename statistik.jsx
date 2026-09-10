@@ -2107,7 +2107,20 @@ function SchirmTimeline({ flights }) {
                   style={{width:14,height:14,borderRadius:4,background:cellBg,border:"1px solid rgba(255,255,255,0.3)",flexShrink:0,cursor:"pointer",padding:0}} />
               </>
             )}
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{abbreviateGliderName(g.name, maxChars)}</span>
+            <span onClick={editMode ? undefined : () => {
+                // Gleicher Rückkehr-Mechanismus wie bei den anklickbaren
+                // Zeilen der anderen Statistik-Tabellen: tableId "schirm"
+                // sorgt dafür, dass "Zurück" wieder auf der Schirm-
+                // Zeitleiste landet statt auf der Tabellen-Übersicht. Im
+                // Bearbeiten-Modus deaktiviert, damit ein Klick auf den
+                // Namen nicht mitten im Umsortieren/Umfärben wegnavigiert.
+                try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "schirm", rowName: null })); } catch {}
+                window.location.href = `flugbuch.html?filter=${encodeURIComponent('schirm="'+g.name+'"')}&returnTo=${encodeURIComponent("statistik.html")}`;
+              }}
+              style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0,
+                cursor:editMode?"default":"pointer",
+                textDecoration:editMode?"none":"underline",
+                textDecorationColor:"rgba(232,244,253,0.25)",textUnderlineOffset:2}}>{abbreviateGliderName(g.name, maxChars)}</span>
           </div>
         </td>
         <td style={{position:"sticky",left:NAME_COL_W,width:SEIT_COL_W,minWidth:SEIT_COL_W,boxSizing:"border-box",background:"#2a0d17",padding:"4px 8px",textAlign:"center",color:"rgba(232,244,253,0.5)",zIndex:1}}>{secondColValue(g, config.sortField)}</td>
