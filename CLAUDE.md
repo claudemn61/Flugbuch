@@ -42,6 +42,12 @@ claudemn61, Standort Knonau ZH). Läuft live unter claudemn61.github.io/Flugbuch
 - Versionsnummer + Changelog-Eintrag stehen in `app.jsx` (`APP_VERSION`-Konstante
   und das Array direkt darunter, neuester Eintrag zuoberst).
 
+## Git-Workflow
+
+- Nach Abschluss einer Änderung **immer ungefragt**: committen, auf den
+  Feature-Branch pushen, nach `main` mergen und pushen. Kein Nachfragen mehr,
+  ob auf `main` gepusht werden soll.
+
 ## Vorgehen bei Änderungen
 
 - Nach jeder Änderung: **Klammern/Syntax wirklich prüfen**, nicht nur vermuten.
