@@ -1035,21 +1035,94 @@ function graphAxisTicks(fieldId, lo, hi) {
   if (fieldId === "datum") return graphNiceDateTicks(lo, hi, 5);
   return computeNiceTicks(lo, hi, 7, GRAPH_NUMERIC_X_FIELDS.has(fieldId));
 }
-// Einfache lineare Regression (kleinste Quadrate) für die Trendlinie in
-// beiden Graph-Modi. Liefert null, wenn sie statistisch nicht sinnvoll
-// ist: zu wenige Punkte (<3), oder X ohne jede Streuung (Steigung nicht
-// bestimmbar, z.B. wenn alle Punkte im selben Jahr liegen).
-function linearRegression(points) {
-  const pts = points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
-  if (pts.length < 3) return null;
+// Lineare Regression (kleinste Quadrate) auf rohen {x,y}-Punkten, liefert
+// Achsenabschnitt a und Steigung b (y = a + b·x) oder null, wenn X ohne
+// jede Streuung ist (Steigung nicht bestimmbar, z.B. alle Punkte im
+// selben Jahr).
+function linRegAB(pts) {
   const n = pts.length;
-  const meanX = pts.reduce((a,p)=>a+p.x, 0) / n;
-  const meanY = pts.reduce((a,p)=>a+p.y, 0) / n;
+  const meanX = pts.reduce((s,p)=>s+p.x, 0) / n;
+  const meanY = pts.reduce((s,p)=>s+p.y, 0) / n;
   let num = 0, den = 0;
   for (const p of pts) { num += (p.x-meanX)*(p.y-meanY); den += (p.x-meanX)**2; }
   if (den === 0) return null;
-  const slope = num/den;
-  return { slope, intercept: meanY - slope*meanX };
+  const b = num/den;
+  return { a: meanY - b*meanX, b };
+}
+// Bestimmtheitsmass R² eines Modells gegenüber den tatsächlichen Punkten.
+function trendR2(pts, predict) {
+  const meanY = pts.reduce((s,p)=>s+p.y, 0) / pts.length;
+  let ssRes = 0, ssTot = 0;
+  for (const p of pts) { const py = predict(p.x); ssRes += (p.y-py)**2; ssTot += (p.y-meanY)**2; }
+  return ssTot > 0 ? 1 - ssRes/ssTot : 0;
+}
+// Löst ein 3×3-Gleichungssystem per Cramerscher Regel (für die quadratische
+// Anpassung) — null bei (nahezu) singulärer Matrix.
+function solve3x3(A, B) {
+  const det = m => m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+                  - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+                  + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+  const D = det(A);
+  if (Math.abs(D) < 1e-9) return null;
+  const withCol = col => A.map((row,i) => row.map((v,j) => j===col ? B[i] : v));
+  return [det(withCol(0))/D, det(withCol(1))/D, det(withCol(2))/D];
+}
+// Vier Kandidaten-Modelle für die Trendlinie — linear, quadratisch
+// (Parabel), logarithmisch (sättigendes Wachstum) und exponentiell
+// (beschleunigtes Wachstum), letztere drei jeweils per Variablentausch auf
+// eine lineare Regression zurückgeführt. Jede Funktion liefert
+// {kind, predict} oder null, wenn die Voraussetzungen (Streuung, x>0, y>0)
+// nicht erfüllt sind.
+function fitLinear(pts) {
+  const ab = linRegAB(pts);
+  return ab ? { kind: "linear", predict: x => ab.a + ab.b*x } : null;
+}
+function fitQuadratic(pts) {
+  let sx=0,sx2=0,sx3=0,sx4=0,sy=0,sxy=0,sx2y=0;
+  for (const p of pts) {
+    const x=p.x, x2=x*x;
+    sx+=x; sx2+=x2; sx3+=x2*x; sx4+=x2*x2;
+    sy+=p.y; sxy+=x*p.y; sx2y+=x2*p.y;
+  }
+  const n = pts.length;
+  const sol = solve3x3([[n,sx,sx2],[sx,sx2,sx3],[sx2,sx3,sx4]], [sy,sxy,sx2y]);
+  if (!sol) return null;
+  const [a,b,c] = sol;
+  return { kind: "quadratic", predict: x => a + b*x + c*x*x };
+}
+function fitLog(pts) {
+  if (pts.some(p => p.x <= 0)) return null;
+  const ab = linRegAB(pts.map(p => ({ x: Math.log(p.x), y: p.y })));
+  return ab ? { kind: "log", predict: x => x>0 ? ab.a + ab.b*Math.log(x) : NaN } : null;
+}
+function fitExp(pts) {
+  if (pts.some(p => p.y <= 0)) return null;
+  const ab = linRegAB(pts.map(p => ({ x: p.x, y: Math.log(p.y) })));
+  return ab ? { kind: "exp", predict: x => Math.exp(ab.a + ab.b*x) } : null;
+}
+// Wählt die am besten passende Trendlinie für die Graph-Anzeige (beide
+// Modi): probiert linear, quadratisch, logarithmisch und exponentiell
+// durch und nimmt das beste R² — bevorzugt dabei aber die einfache
+// Gerade, ausser eine gekrümmte Variante passt spürbar besser (sonst
+// jagt die Trendlinie bei wenigen Punkten jedes Zufallsrauschen nach).
+// Liefert null, wenn sie statistisch nicht sinnvoll ist: zu wenige Punkte
+// (<3), oder X ohne jede Streuung.
+function fitTrend(points) {
+  const pts = points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (pts.length < 3) return null;
+  const lin = fitLinear(pts);
+  if (!lin) return null;
+  const candidates = [lin];
+  if (pts.length >= 5) {
+    [fitQuadratic(pts), fitLog(pts), fitExp(pts)].forEach(c => { if (c) candidates.push(c); });
+  }
+  for (const c of candidates) c.r2 = trendR2(pts, c.predict);
+  const nonlinear = candidates.filter(c => c.kind !== "linear");
+  if (nonlinear.length) {
+    const top = nonlinear.reduce((a,b) => b.r2>a.r2 ? b : a);
+    if (top.r2 > lin.r2 + 0.03 && top.r2 > 0.3) return top;
+  }
+  return lin;
 }
 // Baut die URL für den Sprung von Graph zur Flugliste (mit Rücksprung-
 // Mechanismus, wie ihn die Schirm/Startplatz/…-Zeilen der Statistik schon
@@ -1331,7 +1404,7 @@ function GraphSection({ flights }) {
   // Datenherkunft eine Zahl oder einen String (f.year), siehe derselbe
   // Stolperstein bereits in graphYMetricValue.
   const trendGrouped = GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)
-    ? linearRegression(rows.map(r => ({ x: +r.key, y: r.value }))) : null;
+    ? fitTrend(rows.map(r => ({ x: +r.key, y: r.value }))) : null;
 
   // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
   const freeXDef = GRAPH_FREE_FIELDS.find(f => f.field === freeX);
@@ -1382,7 +1455,7 @@ function GraphSection({ flights }) {
   };
   const freeTicksY = graphAxisTicks(freeY, freeView.y0, freeView.y1);
   const freeTicksX = graphAxisTicks(freeX, freeView.x0, freeView.x1);
-  const trendFree = linearRegression(freePoints.map(p => ({ x: p.x, y: p.y })));
+  const trendFree = fitTrend(freePoints.map(p => ({ x: p.x, y: p.y })));
 
   // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
   // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
@@ -1574,7 +1647,7 @@ function GraphSection({ flights }) {
                 {showTrend && trendGrouped && (
                   <polyline points={dispRows.map(r => {
                     const cx = padLeft + (r.idx+0.5-barView.x0)*slot;
-                    const ty = scaleY(trendGrouped.slope*r.key + trendGrouped.intercept);
+                    const ty = scaleY(trendGrouped.predict(+r.key));
                     return `${cx},${ty}`;
                   }).join(" ")} fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
                 )}
@@ -1591,9 +1664,11 @@ function GraphSection({ flights }) {
                   );
                 })}
                 {showTrend && trendFree && (
-                  <line x1={scaleX2(freeView.x0)} y1={scaleY2(trendFree.slope*freeView.x0 + trendFree.intercept)}
-                    x2={scaleX2(freeView.x1)} y2={scaleY2(trendFree.slope*freeView.x1 + trendFree.intercept)}
-                    stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
+                  <polyline points={Array.from({length: 48}, (_, i) => {
+                    const x = freeView.x0 + (freeView.x1-freeView.x0)*i/47;
+                    const y = trendFree.predict(x);
+                    return Number.isFinite(y) ? `${scaleX2(x)},${scaleY2(y)}` : null;
+                  }).filter(Boolean).join(" ")} fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
                 )}
                 {freePoints.map((p,i)=>(
                   <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
