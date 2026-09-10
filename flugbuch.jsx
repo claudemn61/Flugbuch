@@ -4444,8 +4444,8 @@ function ReiseSelect({ value, onSave }) {
 // actual names entered on the Service/Schirm page's 4 category tabs — not
 // the category labels (Solo, Solo light, etc.) themselves, just whatever
 // name the person gave each of their up-to-4 gliders there.
-function SchirmSelect({ value, onSave, extra }) {
-  const [names, setNames] = useState([]);
+function SchirmSelect({ value, onSave, extra, flights }) {
+  const [equipmentNames, setEquipmentNames] = useState([]);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
     (async () => {
@@ -4456,15 +4456,22 @@ function SchirmSelect({ value, onSave, extra }) {
           const list = Object.values(schirme)
             .map(s => s?.name)
             .filter(n => n && String(n).trim());
-          setNames(list);
+          setEquipmentNames(list);
         }
       } catch {}
     })();
   }, []);
 
+  // Vorschlagsliste umfasst nicht nur die aktuell in der Ausrüstung
+  // eingetragenen Schirme, sondern auch alle jemals in einem Flug
+  // verwendeten Namen (z.B. frühere, nicht mehr aktive Schirme) — sonst
+  // fehlt ein alter Schirm in der Autovervollständigung, sobald er aus der
+  // Ausrüstungsliste entfernt wurde.
+  const flightNames = [...new Set((flights||[]).map(f => f.glider).filter(Boolean))];
+  const names = [...new Set([...equipmentNames, ...flightNames])].sort((a,b)=>a.localeCompare(b,"de"));
+
   // The current value must always be selectable, even if it isn't among the
-  // registered Schirme on the Service page (e.g. older/imported flights, or
-  // a glider that was since renamed/removed there) — otherwise the browser
+  // known names (e.g. a glider typed in just now) — otherwise the browser
   // silently falls back to the first <option> ("—"), making the field look
   // empty even though the imported name is still there.
   const options = value && !names.includes(value) ? [value, ...names] : names;
@@ -5138,7 +5145,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
               // reorderable list below instead of being a fixed JSX sequence.
               const rows = {
                 date: () => <InlineField label="Datum" value={fl.date} onSave={v=>setConfirmDateChange(v)} />,
-                glider: () => <SchirmSelect value={fl.glider} onSave={v=>saveField({glider:v})}
+                glider: () => <SchirmSelect value={fl.glider} flights={flights} onSave={v=>saveField({glider:v})}
                   extra={(!fl.customFields?.typ && !typRevealed) ? (
                     <span onClick={(e)=>{ e.stopPropagation(); setTypRevealed(true); }}
                       style={{fontSize:11,color:"rgba(232,244,253,0.25)",cursor:"pointer"}}>
