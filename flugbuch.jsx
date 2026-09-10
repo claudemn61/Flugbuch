@@ -4485,12 +4485,13 @@ function SchirmSelect({ value, onSave, extra }) {
   return (
     <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
       <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
-      <select value={value||""} autoFocus onBlur={()=>setEditing(false)}
-        onChange={e=>{ onSave(e.target.value); setEditing(false); }}
-        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"4px 8px",color:value?"#e8f4fd":"rgba(232,244,253,0.4)",fontSize:13,textAlign:"right",maxWidth:180}}>
-        <option value="" style={{background:"#0a1628"}}>—</option>
-        {options.map(n => <option key={n} value={n} style={{background:"#0a1628"}}>{n}</option>)}
-      </select>
+      <input list="schirm-select-datalist" defaultValue={value||""} autoFocus
+        onBlur={e=>{ onSave(e.target.value); setEditing(false); }}
+        onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
+        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right",maxWidth:180}} />
+      <datalist id="schirm-select-datalist">
+        {options.map(n => <option key={n} value={n} />)}
+      </datalist>
     </div>
   );
 }
