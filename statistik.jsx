@@ -2130,8 +2130,15 @@ function SchirmTimeline({ flights }) {
           const barGradient = c2 ? `linear-gradient(90deg, ${c1} 0%, ${c1} 50%, ${c2} 83%, ${c2} 100%)` : c1;
           const isFirstActive = active && (yearCols[yi-1]===undefined || !(yearCols[yi-1] >= g.since && yearCols[yi-1] <= g.until));
           const isLastActive = active && (yearCols[yi+1]===undefined || !(yearCols[yi+1] >= g.since && yearCols[yi+1] <= g.until));
+          const clickable = !editMode && !!count;
           return (
-            <td key={y} style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700}}>
+            <td key={y} onClick={clickable ? () => {
+                // Gleicher Rückkehr-Mechanismus wie beim Schirmnamen —
+                // zusätzlich auf das angeklickte Jahr gefiltert.
+                try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "schirm", rowName: null })); } catch {}
+                window.location.href = `flugbuch.html?filter=${encodeURIComponent('schirm="'+g.name+'" jahr='+y)}&returnTo=${encodeURIComponent("statistik.html")}`;
+              } : undefined}
+              style={{textAlign:"center",padding:"4px 6px",position:"relative",height:22,fontWeight:700,cursor:clickable?"pointer":"default"}}>
               {active && (
                 <div style={{position:"absolute",top:"50%",left:isFirstActive?2:0,right:isLastActive?2:0,height:16,transform:"translateY(-50%)",
                   borderRadius:0,
