@@ -245,12 +245,15 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.1";
+const APP_VERSION = "6.1.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.1.3", note: "Fix Flugdetail: der Schirm-Name liess sich in der Inline-Schnellbearbeitung nur aus der Ausrüstungsliste auswählen (reines Dropdown), nicht mehr frei eintippen. Jetzt ein Textfeld mit Autovervollständigung — beliebiger Name überschreibbar." },
+  { v: "6.1.2", note: "Statistik, Schirm-Zeitleiste: Klick auf ein Jahr im Balken eines Schirms öffnet die Flugliste gefiltert auf diesen Schirm UND dieses Jahr, gleicher Rücksprung wie beim Schirmnamen." },
+  { v: "6.1.1", note: "Statistik, Schirm-Zeitleiste: Schirmnamen sind jetzt anklickbar und öffnen die Flugliste gefiltert auf diesen Schirm, mit Rücksprung wieder zur Zeitleiste." },
   { v: "6.1", note: "Schirm-Icon auf der Karte/Cine-Wiedergabe wird jetzt automatisch anhand des Schirm-Namens im Flug gewählt (z.B. \"Mentor\" bei \"Ozone Mentor 7\") statt eines fest gewählten Icons. Ohne Treffer kommt das eigene Symbol aus den Einstellungen zum Einsatz." },
   { v: "6.0", note: "Graph-Badge (Statistik) fertig ausgebaut: öffnet jetzt formatfüllend über der ganzen Seite statt als Kachel, die Zeichenfläche misst ihre Breite laufend und nutzt beim Drehen ins Querformat den ganzen Bildschirm. Zwei Modi — \"Gruppiert\" (Balken je X-Wert; X/Y frei wählbar aus allen Flugdatenfeldern inkl. Flugnummer; bei Namensfeldern wie Reise/Schirm wahlweise alphabetisch oder nach dem angezeigten Y-Wert sortierbar) und \"Frei\" (ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste) — beide mit echtem Bereichs-Zoom per Pinch, Verschieben per Finger (X und Y mit je eigener Scrollrichtung), Achsen-Umkehr, und einer optionalen gestrichelten Trendlinie (lineare Regression, nur wo statistisch sinnvoll, ausblendbar). Bezug-Zeile führt direkt zur entsprechend gefilterten Flugliste und wieder zurück." },
   { v: "5.9", note: "Statistik: neues Badge \"📈 Graph\" — zeigt die gerade in der Flugliste aktive Gruppierung (Gr. 1°) und Filterung als Balkendiagramm; X-/Y-Achse danach im Badge selbst frei wählbar, bei gesetzter Gr. 2° zusätzlich ein \"Aufschlüsseln nach…\"-Dropdown zum Einschränken auf einen einzelnen Gr.-2°-Wert. Erste Ausbaustufe — weitere Darstellungen und Pinch-Zoom folgen. Ausserdem (statistik.jsx): derselbe Fix wie in 5.8.3 für mehrere Suchbegriffe ohne UND/&& sowie Klammern ohne Leerzeichen, und \"Monat\" auch hier als reguläres Suchfeld." },

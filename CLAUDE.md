@@ -38,7 +38,10 @@ claudemn61, Standort Knonau ZH). Läuft live unter claudemn61.github.io/Flugbuch
 - **Patch** = Bugfix, **Minor** = neues Feature, **Major** = Architekturänderung.
 - **Vor jeder Code-Änderung fragen**, welche Stufe zutrifft (ausser ich sage explizit
   "nichts" / "keine Version").
-- Bei **Minor**: `hilfe.jsx` (Voll- **und** Kurzfassung) im selben Zug aktualisieren.
+- **Jede Stufe (auch Patch)** erhöht `APP_VERSION` + eigenen Changelog-Eintrag in
+  `app.jsx` — nur bei Patch bleibt `hilfe.jsx` unangetastet.
+- Bei **Minor**: zusätzlich `hilfe.jsx` (Voll- **und** Kurzfassung) im selben Zug
+  aktualisieren.
 - Versionsnummer + Changelog-Eintrag stehen in `app.jsx` (`APP_VERSION`-Konstante
   und das Array direkt darunter, neuester Eintrag zuoberst).
 
