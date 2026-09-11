@@ -5745,8 +5745,13 @@ function FlugbuchApp() {
   // settings in flugbuchListSettings.
   const [savedViews, setSavedViewsRaw] = useState([]);
   const [showViewsMenu, setShowViewsMenu] = useState(false);
-  const [viewsMode, setViewsMode] = useState("none"); // "none" | "move" | "delete"
+  const [viewsMode, setViewsMode] = useState("none"); // "none" | "move" | "delete" | "edit"
   const [savingViewName, setSavingViewName] = useState(null); // string while the "Speichern als…" input is open, else null
+  // {id, name, filterText} while a saved Darstellung's Name/Filter is being
+  // edited inline (viewsMode "edit"), else null — analog zum Tauchbuch:
+  // Name und Filter lassen sich so nachträglich ändern, ohne die
+  // Darstellung löschen und neu speichern zu müssen.
+  const [editingView, setEditingView] = useState(null);
   // Name of the saved Darstellung last applied via applyView, shown next to
   // the flight count so it's clear which view is currently active. Cleared
   // the moment any of Suchen/Sortieren/Gruppieren is changed by hand (via
@@ -5795,6 +5800,18 @@ function FlugbuchApp() {
     const config = { filterText, sortId, sortDir, group1Id, group1Dir, group1SortField, group2Id, group2Dir, group2SortField };
     setSavedViews(prev => [...prev, { id: "view_"+Date.now(), name: trimmed, config }]);
     setSavingViewName(null);
+  };
+  // Aktualisiert Name und Filter einer bestehenden Darstellung an Ort und
+  // Stelle (gleiche id, restliche config unverändert) statt sie löschen und
+  // neu speichern zu müssen.
+  const saveEditedView = () => {
+    if (!editingView) return;
+    const trimmed = editingView.name.trim();
+    if (!trimmed) return;
+    setSavedViews(prev => prev.map(x => x.id===editingView.id
+      ? { ...x, name: trimmed, config: { ...x.config, filterText: editingView.filterText } }
+      : x));
+    setEditingView(null);
   };
   // Restores the previously used Suchen/Sortieren/Gruppieren settings on
   // mount — flugbuch.html is a separate page (full navigation, not a
@@ -7011,7 +7028,7 @@ function FlugbuchApp() {
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
           🌐
         </button>
-        <button onClick={()=>{ setShowViewsMenu(m=>!m); setShowImportMenu(false); setShowBackupMenu(false); setViewsMode("none"); setSavingViewName(null); }} title="Gespeicherte Darstellungen"
+        <button onClick={()=>{ setShowViewsMenu(m=>!m); setShowImportMenu(false); setShowBackupMenu(false); setViewsMode("none"); setSavingViewName(null); setEditingView(null); }} title="Gespeicherte Darstellungen"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showViewsMenu?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:showViewsMenu?"2px solid rgba(239,68,68,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
           💡
         </button>
@@ -7024,17 +7041,22 @@ function FlugbuchApp() {
       {showViewsMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,maxHeight:340,overflowY:"auto"}}>
           <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>{ setSavingViewName(s=>s===null?"":null); setViewsMode("none"); }}
+            <button onClick={()=>{ setSavingViewName(s=>s===null?"":null); setViewsMode("none"); setEditingView(null); }}
               title="Speichern als…"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:savingViewName!==null?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${savingViewName!==null?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.1)"}`}}>
               💾
             </button>
-            <button onClick={()=>{ setViewsMode(m=>m==="move"?"none":"move"); setSavingViewName(null); }}
+            <button onClick={()=>{ setViewsMode(m=>m==="move"?"none":"move"); setSavingViewName(null); setEditingView(null); }}
               title="Verschieben"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="move"?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
               🔀
             </button>
-            <button onClick={()=>{ setViewsMode(m=>m==="delete"?"none":"delete"); setSavingViewName(null); }}
+            <button onClick={()=>{ setViewsMode(m=>m==="edit"?"none":"edit"); setSavingViewName(null); setEditingView(null); }}
+              title="Bearbeiten"
+              style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="edit"?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="edit"?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.1)"}`}}>
+              ✏️
+            </button>
+            <button onClick={()=>{ setViewsMode(m=>m==="delete"?"none":"delete"); setSavingViewName(null); setEditingView(null); }}
               title="Löschen"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="delete"?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="delete"?"rgba(239,68,68,0.4)":"rgba(255,255,255,0.1)"}`}}>
               🗑
@@ -7055,6 +7077,24 @@ function FlugbuchApp() {
             <div style={{padding:"10px 12px",fontSize:12,color:"rgba(232,244,253,0.35)",fontStyle:"italic"}}>Noch keine gespeicherten Darstellungen</div>
           )}
           {savedViews.map((v, idx) => (
+            editingView?.id === v.id ? (
+              <div key={v.id} style={{display:"flex",flexDirection:"column",gap:6,padding:"9px 12px"}}>
+                <input autoFocus value={editingView.name} onChange={e=>setEditingView(ev=>({...ev,name:e.target.value}))}
+                  onKeyDown={e=>{ if(e.key==="Enter") saveEditedView(); if(e.key==="Escape") setEditingView(null); }}
+                  placeholder="Name der Darstellung…"
+                  style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"7px 10px",color:"#e8f4fd",fontSize:13}} />
+                <div style={{display:"flex",gap:6}}>
+                  <input value={editingView.filterText} onChange={e=>setEditingView(ev=>({...ev,filterText:e.target.value}))}
+                    onKeyDown={e=>{ if(e.key==="Enter") saveEditedView(); if(e.key==="Escape") setEditingView(null); }}
+                    placeholder="Filter…"
+                    style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"7px 10px",color:"#e8f4fd",fontSize:13}} />
+                  <button onClick={saveEditedView}
+                    style={{flexShrink:0,background:"rgba(74,222,128,0.2)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 12px",color:"#4ade80",fontWeight:700,cursor:"pointer"}}>✓</button>
+                  <button onClick={()=>setEditingView(null)}
+                    style={{flexShrink:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"0 12px",color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>✕</button>
+                </div>
+              </div>
+            ) : (
             <div key={v.id}
               onClick={()=>{ if (viewsMode==="none") applyView(v); }}
               style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,fontSize:13,cursor:viewsMode==="none"?"pointer":"default",color:"rgba(232,244,253,0.85)"}}>
@@ -7067,11 +7107,16 @@ function FlugbuchApp() {
                     style={{opacity:idx===savedViews.length-1?0.3:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,width:26,height:26,color:"#e8f4fd",cursor:idx===savedViews.length-1?"default":"pointer"}}>↓</button>
                 </>
               )}
+              {viewsMode==="edit" && (
+                <button onClick={e=>{ e.stopPropagation(); setEditingView({ id:v.id, name:v.name, filterText:v.config?.filterText||"" }); }}
+                  style={{background:"rgba(251,191,36,0.2)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:6,width:26,height:26,color:"#fbbf24",cursor:"pointer"}}>✏️</button>
+              )}
               {viewsMode==="delete" && (
                 <button onClick={e=>{ e.stopPropagation(); setSavedViews(prev=>prev.filter(x=>x.id!==v.id)); }}
                   style={{background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:6,width:26,height:26,color:"#f87171",cursor:"pointer"}}>✕</button>
               )}
             </div>
+            )
           ))}
         </div>
       )}
