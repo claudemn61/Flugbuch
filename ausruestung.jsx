@@ -1742,20 +1742,24 @@ function PerspectiveCropModal({ src, onDone, onCancel }) {
 function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
   const cameraRef = useRef(null);
   const libraryRef = useRef(null);
+  const cameraBackRef = useRef(null);
+  const libraryBackRef = useRef(null);
   const [nameEditing, setNameEditing] = useState(false);
   const [nameVal, setNameVal] = useState(entry.name || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [cropSrc, setCropSrc] = useState(null); // rohes Bild, wartet auf Zuschnitt
+  const [cropSide, setCropSide] = useState("front"); // "front" | "back" — welche Seite gerade zugeschnitten wird
 
   const commitName = () => { setNameEditing(false); if (nameVal !== (entry.name||"")) onUpdate({...entry, name: nameVal}); };
 
   // Datei wird zuerst nur eingelesen (nicht sofort verkleinert) und dem
   // Zuschnitt-Dialog übergeben — die eigentliche Verkleinerung/Kompression
   // passiert danach auf dem bereits zugeschnittenen Ausschnitt.
-  const onPickFile = (file) => {
+  const onPickFile = (file, side) => {
     if (!file) return;
     setErr("");
+    setCropSide(side);
     const reader = new FileReader();
     reader.onload = () => setCropSrc(reader.result);
     reader.onerror = () => setErr("Datei konnte nicht gelesen werden.");
@@ -1764,15 +1768,19 @@ function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
 
   const onCropDone = (dataUrl) => {
     setCropSrc(null);
-    onUpdate({ ...entry, photo: dataUrl });
+    onUpdate({ ...entry, [cropSide === "back" ? "photoBack" : "photo"]: dataUrl });
   };
 
   return (
     <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:16,overflow:"hidden",marginBottom:16}}>
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
-        onChange={e=>{ onPickFile(e.target.files[0]); e.target.value=""; }} />
+        onChange={e=>{ onPickFile(e.target.files[0], "front"); e.target.value=""; }} />
       <input ref={libraryRef} type="file" accept="image/*" style={{display:"none"}}
-        onChange={e=>{ onPickFile(e.target.files[0]); e.target.value=""; }} />
+        onChange={e=>{ onPickFile(e.target.files[0], "front"); e.target.value=""; }} />
+      <input ref={cameraBackRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
+        onChange={e=>{ onPickFile(e.target.files[0], "back"); e.target.value=""; }} />
+      <input ref={libraryBackRef} type="file" accept="image/*" style={{display:"none"}}
+        onChange={e=>{ onPickFile(e.target.files[0], "back"); e.target.value=""; }} />
 
       {cropSrc && <PerspectiveCropModal src={cropSrc} onDone={onCropDone} onCancel={()=>setCropSrc(null)} />}
 
@@ -1796,7 +1804,12 @@ function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
         {busy ? (
           <div style={{color:"rgba(232,244,253,0.5)",fontSize:12}}>⏳ Foto wird verarbeitet…</div>
         ) : entry.photo ? (
-          <img onClick={()=>onOpenFullscreen(entry.photo)} src={entry.photo} alt="Ausweis" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",cursor:"pointer"}} />
+          <>
+            <img onClick={()=>onOpenFullscreen(entry.photo)} src={entry.photo} alt="Ausweis" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",cursor:"pointer"}} />
+            {entry.photoBack && (
+              <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",color:"rgba(255,255,255,0.8)",fontSize:11,fontWeight:700}}>Vorderseite</div>
+            )}
+          </>
         ) : (
           <div style={{textAlign:"center",color:"rgba(232,244,253,0.35)"}}>
             <div style={{fontSize:28,marginBottom:10}}>📷</div>
@@ -1815,7 +1828,7 @@ function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
         )}
         {entry.photo && !busy && (
           <div style={{position:"absolute",bottom:8,right:8,display:"flex",gap:6}}>
-            <button onClick={e=>{e.stopPropagation(); setCropSrc(entry.photo);}} title="Automatisch zuschneiden"
+            <button onClick={e=>{e.stopPropagation(); setCropSide("front"); setCropSrc(entry.photo);}} title="Automatisch zuschneiden"
               style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
               ✂️
             </button>
@@ -1826,6 +1839,45 @@ function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
             <button onClick={e=>{e.stopPropagation(); libraryRef.current?.click();}} title="Aus Fotos wählen"
               style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
               🖼
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Rückseite — optional, unter demselben Titel wie die Vorderseite */}
+      <div style={{borderTop:"1px solid rgba(255,255,255,0.06)",position:"relative",width:"100%",aspectRatio:entry.photoBack?"3/2":undefined,background:entry.photoBack?"#0a0714":undefined,display:entry.photoBack?"flex":undefined,alignItems:entry.photoBack?"center":undefined,justifyContent:entry.photoBack?"center":undefined}}>
+        {entry.photoBack ? (
+          <>
+            <img onClick={()=>onOpenFullscreen(entry.photoBack)} src={entry.photoBack} alt="Rückseite" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",cursor:"pointer"}} />
+            <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",color:"rgba(255,255,255,0.8)",fontSize:11,fontWeight:700}}>Rückseite</div>
+            <div style={{position:"absolute",bottom:8,right:8,display:"flex",gap:6}}>
+              <button onClick={e=>{e.stopPropagation(); setCropSide("back"); setCropSrc(entry.photoBack);}} title="Automatisch zuschneiden"
+                style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+                ✂️
+              </button>
+              <button onClick={e=>{e.stopPropagation(); cameraBackRef.current?.click();}} title="Neu aufnehmen"
+                style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+                📷
+              </button>
+              <button onClick={e=>{e.stopPropagation(); libraryBackRef.current?.click();}} title="Aus Fotos wählen"
+                style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+                🖼
+              </button>
+              <button onClick={e=>{e.stopPropagation(); onUpdate({...entry, photoBack:null});}} title="Rückseite entfernen"
+                style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+                🗑
+              </button>
+            </div>
+          </>
+        ) : (
+          <div style={{padding:"12px 14px",display:"flex",justifyContent:"center",gap:8}}>
+            <button onClick={()=>cameraBackRef.current?.click()}
+              style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"7px 12px",color:"#c4b5fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              📷 + Rückseite
+            </button>
+            <button onClick={()=>libraryBackRef.current?.click()}
+              style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 12px",color:"rgba(232,244,253,0.6)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              🖼 + Rückseite
             </button>
           </div>
         )}
