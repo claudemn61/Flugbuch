@@ -1401,9 +1401,25 @@ function GraphSection({ flights }) {
     ? baseFiltered.filter(f => formatSortValue(f, g2Field) === drillValue)
     : baseFiltered;
 
+  // Kategorische Felder (Reise, Schirm, …) alphabetisch wie bisher — bei
+  // Feldern mit natürlicher zeitlicher/numerischer Reihenfolge (Monat,
+  // Jahr, Std., …) stattdessen nach dem tatsächlichen Wert sortieren, sonst
+  // stünden z.B. die Monate alphabetisch (April vor August vor Dezember)
+  // statt chronologisch.
   const drillOptions = g2Field
-    ? ["Alle", ...[...new Set(baseFiltered.map(f => formatSortValue(f, g2Field)).filter(v => v && v !== "—"))]
-        .sort((a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}))]
+    ? (() => {
+        const valueByLabel = new Map();
+        baseFiltered.forEach(f => {
+          const label = formatSortValue(f, g2Field);
+          if (!label || label === "—" || valueByLabel.has(label)) return;
+          valueByLabel.set(label, sortFieldValue(f, g2Field));
+        });
+        const labels = [...valueByLabel.keys()];
+        labels.sort(GRAPH_NUMERIC_X_FIELDS.has(g2Field)
+          ? (a,b) => valueByLabel.get(a) - valueByLabel.get(b)
+          : (a,b) => String(a).localeCompare(String(b), "de", {numeric:true, sensitivity:"base"}));
+        return ["Alle", ...labels];
+      })()
     : null;
   const g2Label = g2Field ? (GROUP_FIELDS.find(g => g.id === g2Field)?.label || g2Field) : null;
 
