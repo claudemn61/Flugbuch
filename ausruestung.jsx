@@ -1182,102 +1182,119 @@ function GewichteApp() {
   );
 
   // ── iPhone: Tab-Umschalter (wie Reserve/Schirm/Sitz), nur das aktive
-  // Setup sichtbar. ─────────────────────────────────────────────────────
-  const renderNarrow = () => {
-    const activeSetup = data.setups.find(s => s.id===activeSetupId) || data.setups[0] || null;
-    const activeIdx = activeSetup ? data.setups.findIndex(s => s.id===activeSetup.id) : -1;
-    return (
-      <div>
-        {/* Tabs: tap an inactive tab to switch to it; tap the already-
-            active tab again to rename it — gleiches Verhalten wie bei
-            Reserve/Schirm/Sitz. */}
-        <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4,overflowX:"auto"}}>
-          {data.setups.map(s => {
-            const isActive = activeSetup && s.id===activeSetup.id;
-            const isEditing = editingSetupId===s.id;
-            const tabStyle = {
-              flex:"1 1 0",minWidth:70,padding:"9px 6px",borderRadius:9,border:"none",
-              fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-              background: isActive ? "rgba(125,211,252,0.22)" : "transparent",
-              color: isActive ? "#7dd3fc" : "rgba(232,244,253,0.5)",
-            };
-            if (isEditing) {
-              return (
-                <input key={s.id} autoFocus value={s.name}
-                  onChange={e=>renameSetup(s.id, e.target.value)}
-                  onBlur={()=>setEditingSetupId(null)}
-                  onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                  style={{...tabStyle, cursor:"text", outline:"none"}} />
-              );
-            }
-            return (
-              <button key={s.id}
-                onClick={()=> isActive ? setEditingSetupId(s.id) : setActiveSetupId(s.id)}
-                style={{...tabStyle, cursor:"pointer"}}>
-                {s.name || "Setup"}
-              </button>
-            );
-          })}
+  // Setup sichtbar. Die Setup-Tabs sind hier die dominante Reihe — die
+  // Werkzeugleiste (+Setup/🔀/🗑) steht kleiner darunter, nicht darüber. ──
+  const activeSetup = data.setups.find(s => s.id===activeSetupId) || data.setups[0] || null;
+  const activeIdx = activeSetup ? data.setups.findIndex(s => s.id===activeSetup.id) : -1;
+
+  const renderNarrowTabs = () => (
+    <div style={{display:"flex",gap:6,marginBottom:10,background:"rgba(255,255,255,0.03)",borderRadius:14,padding:5,overflowX:"auto"}}>
+      {data.setups.map(s => {
+        const isActive = activeSetup && s.id===activeSetup.id;
+        const isEditing = editingSetupId===s.id;
+        const tabStyle = {
+          flex:"1 1 0",minWidth:78,padding:"13px 8px",borderRadius:11,border:"none",
+          fontSize:14,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+          background: isActive ? "rgba(125,211,252,0.22)" : "transparent",
+          color: isActive ? "#7dd3fc" : "rgba(232,244,253,0.5)",
+        };
+        if (isEditing) {
+          return (
+            <input key={s.id} autoFocus value={s.name}
+              onChange={e=>renameSetup(s.id, e.target.value)}
+              onBlur={()=>setEditingSetupId(null)}
+              onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+              style={{...tabStyle, cursor:"text", outline:"none"}} />
+          );
+        }
+        return (
+          <button key={s.id}
+            onClick={()=> isActive ? setEditingSetupId(s.id) : setActiveSetupId(s.id)}
+            style={{...tabStyle, cursor:"pointer"}}>
+            {s.name || "Setup"}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderNarrowBody = () => (
+    <div>
+      {(setupsMoveMode || setupsDeleteMode) && activeSetup && (
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          {setupsMoveMode && (
+            <>
+              <button disabled={activeIdx===0} onClick={()=>moveSetup(activeIdx,-1)}
+                style={{opacity:activeIdx===0?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===0?"default":"pointer"}}>◀ Nach links</button>
+              <button disabled={activeIdx===data.setups.length-1} onClick={()=>moveSetup(activeIdx,1)}
+                style={{opacity:activeIdx===data.setups.length-1?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===data.setups.length-1?"default":"pointer"}}>Nach rechts ▶</button>
+            </>
+          )}
+          {setupsDeleteMode && (
+            <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)}
+              style={{flex:1,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px",color:"#f87171",fontWeight:700,cursor:"pointer"}}>🗑 "{activeSetup.name}" löschen</button>
+          )}
         </div>
+      )}
 
-        {(setupsMoveMode || setupsDeleteMode) && activeSetup && (
-          <div style={{display:"flex",gap:8,marginBottom:14}}>
-            {setupsMoveMode && (
-              <>
-                <button disabled={activeIdx===0} onClick={()=>moveSetup(activeIdx,-1)}
-                  style={{opacity:activeIdx===0?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===0?"default":"pointer"}}>◀ Nach links</button>
-                <button disabled={activeIdx===data.setups.length-1} onClick={()=>moveSetup(activeIdx,1)}
-                  style={{opacity:activeIdx===data.setups.length-1?0.3:1,flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"8px",color:"#e8f4fd",cursor:activeIdx===data.setups.length-1?"default":"pointer"}}>Nach rechts ▶</button>
-              </>
-            )}
-            {setupsDeleteMode && (
-              <button onClick={()=>setConfirmDeleteSetup(activeSetup.id)}
-                style={{flex:1,background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px",color:"#f87171",fontWeight:700,cursor:"pointer"}}>🗑 "{activeSetup.name}" löschen</button>
-            )}
-          </div>
-        )}
-
-        {activeSetup ? renderCardBody(activeSetup) : (
-          <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
-            <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
-            <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div style={{padding:"14px 16px 40px"}}>
-      {/* Einmaliger, fixer Werkzeugleisten-Block — + legt ein neues Setup
-          an; 🔀/🗑 schalten je einen Modus um. Auf dem iPhone alle drei
-          gleich breit und die ganze Zeilenbreite füllend; auf iPad/Mac
-          ebenfalls alle drei gleich breit, aber kompakt. */}
-      <div style={{display:"flex",gap:8,marginBottom:14}}>
-        <button onClick={addSetup} title="Neues Setup"
-          style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,color:"#4ade80",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-          + Setup
-        </button>
-        {data.setups.length>1 && (
-          <button onClick={()=>{ setSetupsMoveMode(m=>!m); setSetupsDeleteMode(false); }} title="Setups verschieben"
-            style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(14,165,233,0.1)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.5)":"rgba(14,165,233,0.3)"}`,borderRadius:8,color:"#7dd3fc",fontSize:15,cursor:"pointer"}}>
-            🔀
-          </button>
-        )}
-        {data.setups.length>0 && (
-          <button onClick={()=>{ setSetupsDeleteMode(m=>!m); setSetupsMoveMode(false); }} title="Setups löschen"
-            style={{flex:isWide?"0 0 70px":1,height:isWide?38:48,background:setupsDeleteMode?"rgba(239,68,68,0.18)":"rgba(239,68,68,0.1)",border:`1px solid ${setupsDeleteMode?"rgba(239,68,68,0.5)":"rgba(239,68,68,0.25)"}`,borderRadius:8,color:"#f87171",fontSize:14,cursor:"pointer"}}>
-            🗑
-          </button>
-        )}
-      </div>
-
-      {data.setups.length === 0 ? (
+      {activeSetup ? renderCardBody(activeSetup) : (
         <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
           <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
           <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
         </div>
-      ) : isWide ? renderWide() : renderNarrow()}
+      )}
+    </div>
+  );
+
+  // Werkzeugleiste + Setup/🔀/🗑 — auf iPad/Mac und im Leerzustand wie
+  // bisher die dominante erste Reihe; auf dem iPhone (dominant=false)
+  // kleiner und zurückhaltender, weil dort die Setup-Tabs oben Vorrang
+  // haben.
+  const renderSetupsToolbar = (dominant) => (
+    <div style={{display:"flex",gap:dominant?8:6,marginBottom:14}}>
+      <button onClick={addSetup} title="Neues Setup"
+        style={{flex:isWide?"0 0 70px":1,height:dominant?(isWide?38:48):32,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,color:"#4ade80",fontSize:dominant?13:12,fontWeight:dominant?700:600,cursor:"pointer"}}>
+        + Setup
+      </button>
+      {data.setups.length>1 && (
+        <button onClick={()=>{ setSetupsMoveMode(m=>!m); setSetupsDeleteMode(false); }} title="Setups verschieben"
+          style={{flex:isWide?"0 0 70px":1,height:dominant?(isWide?38:48):32,background:setupsMoveMode?"rgba(14,165,233,0.18)":"rgba(14,165,233,0.1)",border:`1px solid ${setupsMoveMode?"rgba(14,165,233,0.5)":"rgba(14,165,233,0.3)"}`,borderRadius:8,color:"#7dd3fc",fontSize:dominant?15:13,cursor:"pointer"}}>
+          🔀
+        </button>
+      )}
+      {data.setups.length>0 && (
+        <button onClick={()=>{ setSetupsDeleteMode(m=>!m); setSetupsMoveMode(false); }} title="Setups löschen"
+          style={{flex:isWide?"0 0 70px":1,height:dominant?(isWide?38:48):32,background:setupsDeleteMode?"rgba(239,68,68,0.18)":"rgba(239,68,68,0.1)",border:`1px solid ${setupsDeleteMode?"rgba(239,68,68,0.5)":"rgba(239,68,68,0.25)"}`,borderRadius:8,color:"#f87171",fontSize:dominant?14:12,cursor:"pointer"}}>
+          🗑
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{padding:"14px 16px 40px"}}>
+      {data.setups.length === 0 ? (
+        <>
+          {renderSetupsToolbar(true)}
+          <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
+            <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
+            <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
+          </div>
+        </>
+      ) : isWide ? (
+        <>
+          {renderSetupsToolbar(true)}
+          {renderWide()}
+        </>
+      ) : (
+        <>
+          {/* Setup-Tabs sind hier die dominante Reihe, die Werkzeugleiste
+              (+Setup/🔀/🗑) folgt kleiner darunter. */}
+          {renderNarrowTabs()}
+          {renderSetupsToolbar(false)}
+          {renderNarrowBody()}
+        </>
+      )}
 
       {confirmDeleteSetup && (
         <div onClick={()=>setConfirmDeleteSetup(null)}
