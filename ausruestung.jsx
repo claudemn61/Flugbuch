@@ -958,7 +958,7 @@ function GewichteApp() {
     const { totalWeight, rucksackgewicht, reserve, rangePercent, flaechenbelastung } = computeSetupStats(setup);
     return (
       <>
-        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Gesamtgewicht</div>
             <div style={{fontSize:24,fontWeight:900,color:"#7dd3fc"}}>{totalWeight.toFixed(1)} kg</div>
