@@ -5492,7 +5492,7 @@ function ColumnConfigModal({ title, hint, defs, columns, onSave, onClose }) {
   });
   const labelFor = key => defs.find(c=>c.key===key)?.label || key;
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div onClick={()=>{ onSave(local); onClose(); }} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div onClick={e=>e.stopPropagation()}
         style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
         <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{title}</div>
@@ -5519,7 +5519,7 @@ function ColumnConfigModal({ title, hint, defs, columns, onSave, onClose }) {
           </button>
           <button onClick={()=>{ onSave(local); onClose(); }}
             style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-            Speichern
+            Schliessen
           </button>
         </div>
       </div>
@@ -7868,16 +7868,13 @@ function FlugbuchApp() {
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>
             <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}{filteredFlights.length} Flüge</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
-            {showSearchStats && filteredFlights.length>0 && (
-              <span onClick={e=>{e.stopPropagation();setShowSearchStatsConfig(true);}} title="Statistik-Werte bearbeiten"
-                style={{marginLeft:"auto",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer"}}>⚙️</span>
-            )}
           </div>
           {showSearchStats && filteredFlights.length>0 && (() => {
             const statsMap = new Map(computeSearchStats(filteredFlights).map(s=>[s.key,s]));
             const visible = searchStatsColumns.filter(c=>c.enabled).map(c=>statsMap.get(c.key)).filter(Boolean);
             return (
-              <div style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3}}>
+              <div onClick={()=>setShowSearchStatsConfig(true)} title="Statistik-Werte bearbeiten"
+                style={{marginTop:5,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"7px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:14,rowGap:3,cursor:"pointer"}}>
                 {visible.map(s => (
                   <div key={s.key} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:6,minWidth:0}}>
                     <span style={{fontSize:10,color:"rgba(232,244,253,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
