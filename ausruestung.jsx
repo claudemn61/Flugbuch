@@ -818,6 +818,7 @@ function GewichteApp() {
   // (Tab-)Setup.
   const [setupsMoveMode, setSetupsMoveMode] = useState(false);
   const [setupsDeleteMode, setSetupsDeleteMode] = useState(false);
+  const [toolbarOpen, setToolbarOpen] = useState(false); // Werkzeugleiste +Setup/🔀/🗑 — zugeklappt, solange bereits Setups bestehen
   const [confirmDeleteSetup, setConfirmDeleteSetup] = useState(null);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // { catId, itemId, name }
   // Proj. Fläche / Gewichtslimite (nur bei Schirm-Positionen) sind leer oft
@@ -1271,11 +1272,28 @@ function GewichteApp() {
     </div>
   );
 
+  // Solange bereits Setups bestehen, ist die Werkzeugleiste hinter einem
+  // schmalen Auf-/Zuklapp-Header versteckt (zugeklappt als Startzustand) —
+  // im Leerzustand (noch kein Setup) bleibt sie immer offen, da "+ Setup"
+  // dort der einzige Weg ist, überhaupt eines anzulegen.
+  const renderToolbarSection = (dominant) => (
+    data.setups.length === 0 ? renderSetupsToolbar(dominant) : (
+      <>
+        <div onClick={()=>setToolbarOpen(o=>!o)}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"7px 10px",marginBottom:toolbarOpen?8:14,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8}}>
+          <span style={{fontSize:12,fontWeight:700,color:"rgba(232,244,253,0.55)"}}>⚙️ Setups verwalten</span>
+          <span style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{toolbarOpen ? "▾" : "▸"}</span>
+        </div>
+        {toolbarOpen && renderSetupsToolbar(dominant)}
+      </>
+    )
+  );
+
   return (
     <div style={{padding:"14px 16px 40px"}}>
       {data.setups.length === 0 ? (
         <>
-          {renderSetupsToolbar(true)}
+          {renderToolbarSection(true)}
           <div style={{textAlign:"center",padding:"50px 20px",color:"rgba(232,244,253,0.35)"}}>
             <div style={{fontSize:40,marginBottom:10}}>⚖️</div>
             <div style={{fontSize:14}}>Noch kein Setup — "+ Setup" oben zum Anlegen.</div>
@@ -1283,15 +1301,15 @@ function GewichteApp() {
         </>
       ) : isWide ? (
         <>
-          {renderSetupsToolbar(true)}
+          {renderToolbarSection(true)}
           {renderWide()}
         </>
       ) : (
         <>
           {/* Setup-Tabs sind hier die dominante Reihe, die Werkzeugleiste
-              (+Setup/🔀/🗑) folgt kleiner darunter. */}
+              (+Setup/🔀/🗑) folgt kleiner darunter, auf-/zuklappbar. */}
           {renderNarrowTabs()}
-          {renderSetupsToolbar(false)}
+          {renderToolbarSection(false)}
           {renderNarrowBody()}
         </>
       )}
