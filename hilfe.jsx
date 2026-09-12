@@ -14,7 +14,7 @@ const SECTIONS = [
         <tr><td>✈️</td><td><b>Flugbuch</b></td><td>Liste aller Flüge, Suche, IGC-/CSV-Import, Backup, Detailansicht mit Karte und Höhenprofil</td></tr>
         <tr><td>📊</td><td><b>Statistik</b></td><td>Automatische Auswertungen nach Schirm, Start-/Landeplätzen, Passagieren und Saison</td></tr>
         <tr><td>🧭</td><td><b>Reisen</b></td><td>Flüge zu Reisen zusammengefasst, mit Kennzahlen je Reise</td></tr>
-        <tr><td>🎒</td><td><b>Ausrüstung</b></td><td>Zwei Tabs: <b>⚖️ Gewichte</b> (Material in 8 Kategorien, Setups mit Gesamtgewicht/Limite) und <b>🛠️ Wartung</b> (Reserve/Schirm/Sitz, Check-Intervall und fälliges Check-Datum)</td></tr>
+        <tr><td>🎒</td><td><b>Ausrüstung, Brevet</b></td><td>Drei Tabs: <b>⚖️ Gewichte</b> (Material in 8 Kategorien, Setups mit Gesamtgewicht/Limite), <b>🛠️ Wartung</b> (Reserve/Schirm/Sitz, Check-Intervall und fälliges Check-Datum) und <b>🎓 Brevet</b> (Ausweise mit Foto, Perspektiv-Korrektur beim Zuschneiden)</td></tr>
       </tbody></table>
       <h3>1.2 Offline-Nutzung</h3>
       <p>Die App merkt sich beim ersten erfolgreichen Online-Aufruf automatisch ihre eigenen Dateien (Service Worker). Ab dem <b>zweiten</b> Online-Start funktioniert sie danach auch komplett ohne Internetverbindung, inkl. Öffnen der App über das Home-Bildschirm-Icon. Fehlt die Verbindung, erscheint unten ein gelbes Banner "Offline — zuletzt gespeicherter Stand" — die Nutzung ist davon nicht eingeschränkt.</p>
@@ -126,21 +126,23 @@ const SECTIONS = [
     body: () => (<p>Fasst Flüge zu Reisen zusammen. Reisen erstellen/verwalten über „Reisen verwalten&quot;. Jede Reisekarte zeigt Titel, Zeitraum, Schirm, alle zugehörigen Flüge mit Distanz/Dauer sowie Gesamtkennzahlen (Flüge, Flugzeit, Ø Zeit/Flug, Nummernbereich).</p>),
   },
   {
-    id: "ausruestung", title: "6. Ausrüstung",
+    id: "ausruestung", title: "6. Ausrüstung, Brevet",
     body: () => (<>
-      <p>Zwei Tabs oben, im Design analog Wartungs eigenem Reserve/Schirm/Sitz-Umschalter: <b>⚖️ Ausrüstung, Gewichte</b> und <b>🛠️ Wartung</b> — jeweils nur einer aktiv.</p>
+      <p>Drei Tabs oben, im Design analog Wartungs eigenem Reserve/Schirm/Sitz-Umschalter: <b>⚖️ Ausrüstung, Gewichte</b>, <b>🛠️ Wartung</b> und <b>🎓 Brevet</b> — jeweils nur einer aktiv.</p>
       <h4>⚖️ Ausrüstung, Gewichte</h4>
       <p>Erfasst das Material in 8 festen, farblich unterschiedenen Kategorien: 🪂 Schirm, 💺 Sitz, 🛟 Reserve, 🎒 Packhilfen, 📟 Geräte, 🧥 Kleidung, 🧰 Zubehör, ⚖️ Körpergewicht. Innerhalb jeder Kategorie werden Positionen frei hinzugefügt ("+ Position") — Bezeichnung und Gewicht (kg) beide direkt editierbar, Gewicht wird manuell erfasst (kein automatischer Online-Abgleich).</p>
       <p>Mehrere <b>Setups</b> (z.B. "Tandem", "Solo", "H&F leicht") sind frei anlegbar ("+ Setup") und umbenennbar (Titel antippen). Auf iPad/Mac stehen alle Setups nebeneinander als Spalten, auf dem iPhone per Tab-Umschalter (nur eins sichtbar). Jedes Setup wählt per Checkbox unabhängig aus, welche Positionen mitzählen. Angezeigt werden: Gesamtgewicht (mit "Rucksack"-Teilgewicht ohne Körpergewicht/Kleidung), Reserve und Fläch.-Belastung — beide aus der beim Schirm angehakten Gewichtslimite bzw. Proj. Fläche berechnet. Die Gewichtslimite eines Schirms ist ein Range (Min–Max); unter Reserve steht zusätzlich klein und grau, wie viel Prozent dieser Range das aktuelle Gesamtgewicht ausmacht (0% = Min, 100% = Max, auch negativ oder über 100% möglich). ✏️/✓ auf jeder Kategorie-Zeile schaltet global zwischen Übersicht (nur angehakte Positionen) und Bearbeiten (alle Positionen, Duplizieren, Löschen) um.</p>
       <h4>🛠️ Wartung</h4>
       <p>Verwaltet Ausrüstung in drei Kapiteln: 🪂 Reserve (3 Positionen), ⛰️ Schirm (4 Positionen), 💺 Sitz (5 Positionen). Für jede Position: Name, Serien-Nummer, Zulassung (bei Schirm/Sitz), Kaufdatum, Check-Intervall (Monate) und eine Liste vergangener Checks mit Datum und Notiz. Das nächste fällige Check-Datum wird automatisch angezeigt (grün/gelb/rot je nach Dringlichkeit).</p>
       <p>Die Titel der einzelnen Positionen sind direkt editierbar: auf einen bereits ausgewählten (hervorgehobenen) Titel nochmals tippen öffnet ein Eingabefeld zum Umbenennen. Ohne eigene Eingabe erscheinen generische Platzhalter ("Reserve 1", "Schirm 1" usw.). Ab 768px Breite sind alle Positionen einer Kategorie gleichzeitig als feste Spalten sichtbar, statt einzeln per Tab.</p>
+      <h4>🎓 Brevet</h4>
+      <p>Erfasst Ausweise/Brevets (z.B. Passagierflugausweis) mit Name und Foto. Ein Foto lässt sich per Kamera aufnehmen oder aus der Galerie wählen; danach kann es per Perspektiv-Korrektur ("✂️") entzerrt werden — vier Eckpunkte auf dem Foto verschieben (Kanten werden automatisch erkannt und vorgeschlagen), das Ergebnis wird gerade zugeschnitten. Fotos lassen sich per Tippen formatfüllend ansehen, einzelne Brevets über "🗑" löschen. Über "+ Weiteres Brevet hinzufügen" lassen sich beliebig viele Einträge anlegen.</p>
     </>),
   },
   {
     id: "backup", title: "7. Datensicherung",
     body: () => (<>
-      <p>Über den 💾-Button im Flugbuch oder die Einstellungen kann der komplette Datenbestand (Flüge, Wartung, Ausrüstungsgewichte, Reisen, Notizen) als Datei exportiert und auf einem anderen Gerät oder nach einem Neustart wieder eingespielt werden. Regelmässige Backups werden empfohlen.</p>
+      <p>Über den 💾-Button im Flugbuch oder die Einstellungen kann der komplette Datenbestand (Flüge, Wartung, Ausrüstungsgewichte, Brevets, Reisen, Notizen) als Datei exportiert und auf einem anderen Gerät oder nach einem Neustart wieder eingespielt werden. Regelmässige Backups werden empfohlen.</p>
       <p>Der Export wird automatisch gzip-komprimiert (Dateiendung <code>.json.gz</code>) — deutlich kleiner als reines JSON. Der Import erkennt sowohl komprimierte als auch ältere, unkomprimierte <code>.json</code>-Backups automatisch, unabhängig vom Dateinamen.</p>
       <p>Ein roter Punkt am 💾-Button zeigt an, dass es seit dem letzten Backup ungesicherte Änderungen an Flügen oder Feld-Definitionen gibt. Er verschwindet nach einem erfolgreichen Export oder Import. Änderungen, die ausschliesslich in Wartung, Ausrüstungsgewichten, Reisen oder Notizen gemacht werden, lösen den Hinweis nicht aus.</p>
       <p>iOS/Safari kann die App bei wenig Speicher jederzeit unerwartet beenden — beim nächsten Öffnen landet man dadurch normalerweise auf Home, egal welcher Flug gerade offen war. Die App merkt sich laufend, welcher Flug/welche Ansicht zuletzt offen war (inkl. Scroll-Position) und springt nach einem solchen unerwarteten Neustart automatisch dorthin zurück, statt auf der Startseite zu bleiben. Bewusstes Antippen von 🏠 führt weiterhin ganz normal nach Home. Unsicherte Text-Eingaben in einem offenen Bearbeiten-Formular können dabei nicht wiederhergestellt werden, nur dass die richtige Ansicht wieder aufgeht.</p>
@@ -178,8 +180,8 @@ function KurzContent() {
       <p>7 Badges (Passagiere/Hike blenden sich einzeln aus, wenn nicht zutreffend): Schirm · Startplätze · Landeplätze · Passagiere · Hike (gruppiert nach Ort) · Saison (Jahresübersicht + Rekorde) · Graph (öffnet formatfüllend, passt sich dem Querformat an; Gruppiert: Balken zur Flugliste-Gruppierung, X/Y frei wählbar aus allen Flugdatenfeldern, bei Namen alphabetisch/nach Wert sortierbar; Frei: ein Punkt je Flug, gleiche Feldliste — beide mit optionaler Trendlinie, runden Achsen-Ticks, Gr.-2°-Aufschlüsselung, echtem Bereichs-Zoom per Pinch)</p>
       <h3>Reisen</h3>
       <p>Flüge zu Reisen zusammenfassen, automatische Zuordnung nach Datum möglich</p>
-      <h3>Ausrüstung</h3>
-      <p>Zwei Tabs: <b>⚖️ Gewichte</b> — 8 farblich unterschiedene Kategorien (Schirm/Sitz/Reserve/Packhilfen/Geräte/Kleidung/Zubehör/Körpergewicht), Positionen frei hinzufügbar (Name+kg, manuell erfasst), mehrere Setups (z.B. Tandem/Solo) je mit eigener Positions-Auswahl, nur eins gleichzeitig sichtbar, Gesamtgewicht/Limite/Reserve. <b>🛠️ Wartung</b> — 3 Kapitel: Reserve (3) · Schirm (4) · Sitz (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt</p>
+      <h3>Ausrüstung, Brevet</h3>
+      <p>Drei Tabs: <b>⚖️ Gewichte</b> — 8 farblich unterschiedene Kategorien (Schirm/Sitz/Reserve/Packhilfen/Geräte/Kleidung/Zubehör/Körpergewicht), Positionen frei hinzufügbar (Name+kg, manuell erfasst), mehrere Setups (z.B. Tandem/Solo) je mit eigener Positions-Auswahl, nur eins gleichzeitig sichtbar, Gesamtgewicht/Limite/Reserve. <b>🛠️ Wartung</b> — 3 Kapitel: Reserve (3) · Schirm (4) · Sitz (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt. <b>🎓 Brevet</b> — Ausweise mit Name und Foto, Perspektiv-Korrektur beim Zuschneiden, im Backup enthalten</p>
       <h3>Weltkarte</h3>
       <p>MapTiler-Geländekarte, deutsche Beschriftung, echtes Pinch-Zoom. Suche wie Flugliste (Zeilen-Baukasten, UND/ODER)</p>
       <h3>Offline</h3>

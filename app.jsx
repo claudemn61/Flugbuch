@@ -245,12 +245,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.1.4";
+const APP_VERSION = "6.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.2", note: "Neue Kachel \"🎓 Brevet\" in Ausrüstung (neben Gewichte und Wartung): Ausweise/Brevets mit Foto erfassen, inkl. Perspektiv-Korrektur beim Fotografieren (analog Tauchbuch). Im Backup-Export/-Import enthalten." },
   { v: "6.1.4", note: "Gespeicherte Darstellungen (Flugliste): neuer ✏️-Bearbeiten-Modus zum Ändern von Name und Filter einer bestehenden Darstellung, ohne sie löschen und neu speichern zu müssen." },
   { v: "6.1.3", note: "Fix Flugdetail: der Schirm-Name liess sich in der Inline-Schnellbearbeitung nur aus der Ausrüstungsliste auswählen (reines Dropdown), nicht mehr frei eintippen. Jetzt ein Textfeld mit Autovervollständigung — beliebiger Name überschreibbar." },
   { v: "6.1.2", note: "Statistik, Schirm-Zeitleiste: Klick auf ein Jahr im Balken eines Schirms öffnet die Flugliste gefiltert auf diesen Schirm UND dieses Jahr, gleicher Rücksprung wie beim Schirmnamen." },
@@ -948,7 +949,7 @@ function HomeApp() {
     },
     {
       id: "service",
-      label: "Ausrüstung",
+      label: "Ausrüstung, Brevet",
       icon: "🎒",
       color: "#22c55e",
       glow: "rgba(34,197,94,0.5)",

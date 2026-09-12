@@ -1,4 +1,4 @@
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 
 function useIsWide() {
   const [isWide, setIsWide] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : false);
@@ -1320,9 +1320,590 @@ function GewichteApp() {
   );
 }
 
-// ── Top-level shell: Ausrüstung, Gewichte | Wartung ─────────────────────
+// ── Brevet ───────────────────────────────────────────────────────────────
+// Analog zur Tauchbuch-App (gleiche Struktur/Optik übernommen): Fotos von
+// Lizenz-/Brevet-Ausweisen erfassen, inkl. perspektivischer Entzerrung
+// beim Fotografieren in einem Winkel.
+
+// Verkleinert/komprimiert ein bereits fertiges Canvas (z.B. nach dem
+// Zuschnitt) auf dieselbe Weise wie resizeImage() für Dateien.
+function canvasToCompressed(canvas, maxDim, quality) {
+  maxDim = maxDim || 1600;
+  quality = quality || 0.85;
+  let w = canvas.width, h = canvas.height;
+  if (w > maxDim || h > maxDim) {
+    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+    else { w = Math.round(w * maxDim / h); h = maxDim; }
+    const small = document.createElement("canvas");
+    small.width = w; small.height = h;
+    small.getContext("2d").drawImage(canvas, 0, 0, w, h);
+    return small.toDataURL("image/jpeg", quality);
+  }
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+// ── Perspektivische Entzerrung ──────────────────────────────────────────
+// Canvas 2D kennt keine echte 4-Punkt- (projektive) Transformation, nur
+// affine (Dreiecks-)Transformationen. Deshalb wird die Zielfläche in ein
+// feines Gitter unterteilt und jede Gitterzelle einzeln affin entzerrt
+// ("Dreiecks-Mesh-Warp") — Standardtechnik für Dokumenten-Scanner-Apps.
+function invert3x3(m) {
+  const a=m[0][0],b=m[0][1],c=m[0][2], d=m[1][0],e=m[1][1],f=m[1][2], g=m[2][0],h=m[2][1],i=m[2][2];
+  const det = a*(e*i-f*h) - b*(d*i-f*g) + c*(d*h-e*g);
+  if (Math.abs(det) < 1e-10) return null;
+  const id = 1/det;
+  return [
+    [ (e*i-f*h)*id, (c*h-b*i)*id, (b*f-c*e)*id ],
+    [ (f*g-d*i)*id, (a*i-c*g)*id, (c*d-a*f)*id ],
+    [ (d*h-e*g)*id, (b*g-a*h)*id, (a*e-b*d)*id ],
+  ];
+}
+function affineFromTriangles(s0,s1,s2,d0,d1,d2) {
+  const S = [[s0.x,s1.x,s2.x],[s0.y,s1.y,s2.y],[1,1,1]];
+  const inv = invert3x3(S);
+  if (!inv) return null;
+  const mulRow = (row) => [0,1,2].map(j => row[0]*inv[0][j]+row[1]*inv[1][j]+row[2]*inv[2][j]);
+  const [a,c,e] = mulRow([d0.x,d1.x,d2.x]);
+  const [b,d,f] = mulRow([d0.y,d1.y,d2.y]);
+  return {a,b,c,d,e,f};
+}
+function drawWarpedTriangle(ctx, img, s0,s1,s2, d0,d1,d2) {
+  const t = affineFromTriangles(s0,s1,s2,d0,d1,d2);
+  if (!t) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x,d0.y); ctx.lineTo(d1.x,d1.y); ctx.lineTo(d2.x,d2.y); ctx.closePath();
+  ctx.clip();
+  ctx.setTransform(t.a,t.b,t.c,t.d,t.e,t.f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+// quad = {tl,tr,br,bl} in Quellbild-Pixelkoordinaten. Liefert ein neues
+// Canvas der Grösse outW×outH mit dem entzerrten Bildausschnitt.
+function warpQuadToCanvas(img, quad, outW, outH, gridN) {
+  gridN = gridN || 20;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(outW); canvas.height = Math.round(outH);
+  const ctx = canvas.getContext("2d");
+  const lerp = (a,b,t) => ({ x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t });
+  const srcAt = (u,v) => lerp(lerp(quad.tl,quad.tr,u), lerp(quad.bl,quad.br,u), v);
+  for (let j=0;j<gridN;j++) {
+    for (let i=0;i<gridN;i++) {
+      const u0=i/gridN, u1=(i+1)/gridN, v0=j/gridN, v1=(j+1)/gridN;
+      const dx0=u0*outW, dx1=u1*outW, dy0=v0*outH, dy1=v1*outH;
+      const s00=srcAt(u0,v0), s10=srcAt(u1,v0), s01=srcAt(u0,v1), s11=srcAt(u1,v1);
+      drawWarpedTriangle(ctx, img, s00,s10,s01, {x:dx0,y:dy0},{x:dx1,y:dy0},{x:dx0,y:dy1});
+      drawWarpedTriangle(ctx, img, s10,s11,s01, {x:dx1,y:dy0},{x:dx1,y:dy1},{x:dx0,y:dy1});
+    }
+  }
+  return canvas;
+}
+
+// ── Automatische Kantenerkennung ─────────────────────────────────────────
+// Die reine Zeilen-/Spalten-Summierung war zu ungenau (Hintergrundtextur
+// und Inhalte im Dokument selbst verzerren die Summen). Stattdessen wird
+// jetzt der tatsächlich von Kanten umschlossene Bereich gesucht:
+// 1. Graustufen + leichte Weichzeichnung (Rauschen reduzieren)
+// 2. Sobel-Kantengradient, automatische Schwelle per Otsu-Methode
+// 3. Kanten-Maske leicht "aufdicken" (Dilatation), damit kleine Lücken
+//    in der Umriss-Linie nicht durchlässig bleiben
+// 4. Flutfüllung ausgehend von allen Bildrändern über die Nicht-Kanten-
+//    Pixel — alles, was dabei NICHT erreicht wird, liegt innerhalb einer
+//    geschlossenen Kontur (= vermutlich das Dokument)
+// 5. Grösste zusammenhängende "nicht erreichte" Fläche = Dokument;
+//    daraus die 4 Eckpunkte bestimmen
+// Schlägt ein Schritt fehl oder liefert ein unplausibles Ergebnis, greift
+// automatisch die nächste, einfachere Fallback-Stufe.
+function otsuThreshold(values, bins) {
+  bins = bins || 256;
+  let max = 0;
+  for (let i=0;i<values.length;i++) if (values[i]>max) max = values[i];
+  if (max <= 0) return 0;
+  const hist = new Float64Array(bins);
+  for (let i=0;i<values.length;i++) hist[Math.min(bins-1, Math.floor(values[i]/max*(bins-1)))]++;
+  const total = values.length;
+  let sum = 0; for (let i=0;i<bins;i++) sum += i*hist[i];
+  let sumB=0, wB=0, varMax=0, thBin=0;
+  for (let i=0;i<bins;i++) {
+    wB += hist[i];
+    if (wB===0) continue;
+    const wF = total - wB;
+    if (wF===0) break;
+    sumB += i*hist[i];
+    const mB = sumB/wB, mF = (sum-sumB)/wF;
+    const between = wB*wF*(mB-mF)*(mB-mF);
+    if (between > varMax) { varMax = between; thBin = i; }
+  }
+  return thBin/(bins-1)*max;
+}
+
+function detectContentBoundsViaFlood(img) {
+  const maxW = 380;
+  const scale = Math.min(1, maxW / img.naturalWidth);
+  const w = Math.max(2, Math.round(img.naturalWidth * scale));
+  const h = Math.max(2, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  // Graustufen + 3x3 Box-Blur in einem Durchgang (auf Graustufen-Array)
+  const gray0 = new Float32Array(w*h);
+  for (let i=0;i<w*h;i++) gray0[i] = 0.299*data[i*4] + 0.587*data[i*4+1] + 0.114*data[i*4+2];
+  const gray = new Float32Array(w*h);
+  for (let y=0;y<h;y++) {
+    for (let x=0;x<w;x++) {
+      let s=0, n=0;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+        const xx=x+dx, yy=y+dy;
+        if (xx>=0&&xx<w&&yy>=0&&yy<h) { s+=gray0[yy*w+xx]; n++; }
+      }
+      gray[y*w+x] = s/n;
+    }
+  }
+
+  const grad = new Float32Array(w*h);
+  for (let y=1;y<h-1;y++) {
+    for (let x=1;x<w-1;x++) {
+      const gx = gray[(y-1)*w+(x+1)] + 2*gray[y*w+(x+1)] + gray[(y+1)*w+(x+1)]
+               - gray[(y-1)*w+(x-1)] - 2*gray[y*w+(x-1)] - gray[(y+1)*w+(x-1)];
+      const gy = gray[(y+1)*w+(x-1)] + 2*gray[(y+1)*w+x] + gray[(y+1)*w+(x+1)]
+               - gray[(y-1)*w+(x-1)] - 2*gray[(y-1)*w+x] - gray[(y-1)*w+(x+1)];
+      grad[y*w+x] = Math.sqrt(gx*gx + gy*gy);
+    }
+  }
+
+  const otsu = otsuThreshold(grad);
+
+  const tryWithThreshold = (thMul) => {
+    const th = otsu * thMul;
+    const edge = new Uint8Array(w*h);
+    for (let i=0;i<w*h;i++) edge[i] = grad[i] >= th ? 1 : 0;
+    // Dilatation (1 Iteration, 4-Nachbarschaft) — schliesst kleine Lücken
+    const edgeD = new Uint8Array(w*h);
+    for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+      let v = edge[y*w+x];
+      if (!v) {
+        if (x>0 && edge[y*w+x-1]) v=1;
+        else if (x<w-1 && edge[y*w+x+1]) v=1;
+        else if (y>0 && edge[(y-1)*w+x]) v=1;
+        else if (y<h-1 && edge[(y+1)*w+x]) v=1;
+      }
+      edgeD[y*w+x] = v;
+    }
+
+    // Flutfüllung von allen Rändern aus über Nicht-Kanten-Pixel
+    const visited = new Uint8Array(w*h);
+    const stack = [];
+    for (let x=0;x<w;x++) { stack.push(x); stack.push(x+(h-1)*w); }
+    for (let y=0;y<h;y++) { stack.push(y*w); stack.push(y*w+(w-1)); }
+    while (stack.length) {
+      const idx = stack.pop();
+      if (idx<0 || idx>=w*h || visited[idx] || edgeD[idx]) continue;
+      visited[idx] = 1;
+      const x = idx % w, y = (idx / w) | 0;
+      if (x>0) stack.push(idx-1);
+      if (x<w-1) stack.push(idx+1);
+      if (y>0) stack.push(idx-w);
+      if (y<h-1) stack.push(idx+w);
+    }
+
+    // Grösste zusammenhängende "nicht erreichte" Fläche per einfachem
+    // Component-Labeling (BFS) suchen
+    const compId = new Int32Array(w*h).fill(-1);
+    let bestId = -1, bestSize = 0, bestBox = null;
+    let nextId = 0;
+    for (let start=0; start<w*h; start++) {
+      if (visited[start] || edgeD[start] || compId[start] !== -1) continue;
+      const id = nextId++;
+      let minX=w, maxX=0, minY=h, maxY=0, size=0;
+      const q = [start]; compId[start] = id;
+      while (q.length) {
+        const idx = q.pop();
+        size++;
+        const x = idx % w, y = (idx / w) | 0;
+        if (x<minX) minX=x; if (x>maxX) maxX=x;
+        if (y<minY) minY=y; if (y>maxY) maxY=y;
+        const neigh = [idx-1,idx+1,idx-w,idx+w];
+        for (const nIdx of neigh) {
+          if (nIdx<0 || nIdx>=w*h) continue;
+          if (compId[nIdx] !== -1 || visited[nIdx] || edgeD[nIdx]) continue;
+          // Zeilenüberlauf bei idx-1/idx+1 an Bildrand vermeiden
+          if ((nIdx===idx-1 || nIdx===idx+1) && ((idx%w===0 && nIdx===idx-1) || (idx%w===w-1 && nIdx===idx+1))) continue;
+          compId[nIdx] = id;
+          q.push(nIdx);
+        }
+      }
+      if (size > bestSize) { bestSize = size; bestId = id; bestBox = {minX,maxX,minY,maxY}; }
+    }
+
+    if (bestId === -1) return null;
+    const areaFrac = bestSize / (w*h);
+    const boxFrac = ((bestBox.maxX-bestBox.minX)*(bestBox.maxY-bestBox.minY)) / (w*h);
+    // Plausibilitäts-Check: Fläche darf weder winzig noch (fast) das
+    // ganze Bild sein, und die gefundene Fläche soll die Bounding-Box
+    // einigermassen ausfüllen (sonst eher Rauschen als ein Dokument).
+    if (areaFrac < 0.08 || areaFrac > 0.92 || boxFrac < 0.15 || (bestSize/((bestBox.maxX-bestBox.minX+1)*(bestBox.maxY-bestBox.minY+1))) < 0.35) {
+      return null;
+    }
+    const padX = (bestBox.maxX-bestBox.minX)*0.015, padY = (bestBox.maxY-bestBox.minY)*0.015;
+    return {
+      x0: Math.max(0, bestBox.minX-padX)/w, y0: Math.max(0, bestBox.minY-padY)/h,
+      x1: Math.min(w, bestBox.maxX+padX)/w, y1: Math.min(h, bestBox.maxY+padY)/h,
+    };
+  };
+
+  return tryWithThreshold(1.0) || tryWithThreshold(0.55);
+}
+
+// Einfachere Zeilen-/Spalten-Projektion als zweite Fallback-Stufe, falls
+// die Flutfüllung (z.B. bei sehr unruhigem Hintergrund) kein plausibles
+// Ergebnis liefert.
+function detectContentBoundsViaProjection(img) {
+  const maxW = 400;
+  const scale = Math.min(1, maxW / img.naturalWidth);
+  const w = Math.max(2, Math.round(img.naturalWidth * scale));
+  const h = Math.max(2, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+  const gray = new Float32Array(w*h);
+  for (let i=0;i<w*h;i++) gray[i] = 0.299*data[i*4] + 0.587*data[i*4+1] + 0.114*data[i*4+2];
+  const grad = new Float32Array(w*h);
+  for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+    const gx = gray[(y-1)*w+(x+1)] + 2*gray[y*w+(x+1)] + gray[(y+1)*w+(x+1)]
+             - gray[(y-1)*w+(x-1)] - 2*gray[y*w+(x-1)] - gray[(y+1)*w+(x-1)];
+    const gy = gray[(y+1)*w+(x-1)] + 2*gray[(y+1)*w+x] + gray[(y+1)*w+(x+1)]
+             - gray[(y-1)*w+(x-1)] - 2*gray[(y-1)*w+x] - gray[(y-1)*w+(x+1)];
+    grad[y*w+x] = Math.sqrt(gx*gx + gy*gy);
+  }
+  const rowSum = new Float32Array(h), colSum = new Float32Array(w);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) { const g=grad[y*w+x]; rowSum[y]+=g; colSum[x]+=g; }
+  const findEdge = (arr, fromStart) => {
+    const total = arr.reduce((a,b)=>a+b,0);
+    if (total <= 0) return null;
+    const thresh = total * 0.02;
+    let acc = 0;
+    if (fromStart) { for (let i=0;i<arr.length;i++){ acc+=arr[i]; if (acc>=thresh) return i; } }
+    else { for (let i=arr.length-1;i>=0;i--){ acc+=arr[i]; if (acc>=thresh) return i; } }
+    return null;
+  };
+  const top = findEdge(rowSum, true), bottom = findEdge(rowSum, false);
+  const left = findEdge(colSum, true), right = findEdge(colSum, false);
+  if (top==null || bottom==null || left==null || right==null || bottom<=top || right<=left ||
+      (bottom-top) < h*0.25 || (right-left) < w*0.25) return null;
+  const padX = (right-left)*0.02, padY = (bottom-top)*0.02;
+  return {
+    x0: Math.max(0, left-padX)/w, y0: Math.max(0, top-padY)/h,
+    x1: Math.min(w, right+padX)/w, y1: Math.min(h, bottom+padY)/h,
+  };
+}
+
+function detectContentBounds(img) {
+  try {
+    return detectContentBoundsViaFlood(img) || detectContentBoundsViaProjection(img) || { x0:0.06, y0:0.06, x1:0.94, y1:0.94 };
+  } catch {
+    try { return detectContentBoundsViaProjection(img) || { x0:0.06, y0:0.06, x1:0.94, y1:0.94 }; }
+    catch { return { x0:0.06, y0:0.06, x1:0.94, y1:0.94 }; }
+  }
+}
+
+// Startposition der Ecken wird automatisch per Kantenerkennung bestimmt
+// (siehe detectContentBounds) — passt sich dem tatsächlichen Foto an,
+// unabhängig davon, wie/wo genau fotografiert wurde. Reicht die
+// Erkennung nicht, lassen sich alle 4 Ecken frei nachjustieren.
+function PerspectiveCropModal({ src, onDone, onCancel }) {
+  const imgRef = useRef(null);
+  const boxRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [natural, setNatural] = useState({ w: 1, h: 1 });
+  const [corners, setCorners] = useState({
+    tl: { x: 0.06, y: 0.06 }, tr: { x: 0.94, y: 0.06 },
+    br: { x: 0.94, y: 0.94 }, bl: { x: 0.06, y: 0.94 },
+  });
+  const dragKey = useRef(null);
+  const [busy, setBusy] = useState(false);
+
+  const onImgLoad = () => {
+    setNatural({ w: imgRef.current.naturalWidth, h: imgRef.current.naturalHeight });
+    const b = detectContentBounds(imgRef.current);
+    setCorners({
+      tl: { x: b.x0, y: b.y0 }, tr: { x: b.x1, y: b.y0 },
+      br: { x: b.x1, y: b.y1 }, bl: { x: b.x0, y: b.y1 },
+    });
+    setReady(true);
+  };
+
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const posFromEvent = (e) => {
+    const rect = boxRef.current.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    return { x: clamp01((pt.clientX - rect.left) / rect.width), y: clamp01((pt.clientY - rect.top) / rect.height) };
+  };
+  const startDrag = (key) => (e) => { e.preventDefault(); dragKey.current = key; };
+  useEffect(() => {
+    const move = (e) => {
+      if (!dragKey.current) return;
+      const p = posFromEvent(e);
+      setCorners(c => ({ ...c, [dragKey.current]: p }));
+    };
+    const up = () => { dragKey.current = null; };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchend", up);
+    };
+  }, []);
+
+  const applyCrop = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const q = {
+        tl: { x: corners.tl.x*natural.w, y: corners.tl.y*natural.h },
+        tr: { x: corners.tr.x*natural.w, y: corners.tr.y*natural.h },
+        br: { x: corners.br.x*natural.w, y: corners.br.y*natural.h },
+        bl: { x: corners.bl.x*natural.w, y: corners.bl.y*natural.h },
+      };
+      const edgeLen = (a,b) => Math.hypot(b.x-a.x, b.y-a.y);
+      const outW = Math.round((edgeLen(q.tl,q.tr) + edgeLen(q.bl,q.br)) / 2);
+      const outH = Math.round((edgeLen(q.tl,q.bl) + edgeLen(q.tr,q.br)) / 2);
+      const canvas = warpQuadToCanvas(imgRef.current, q, Math.max(outW,50), Math.max(outH,50));
+      const dataUrl = canvasToCompressed(canvas, 1600, 0.88);
+      setBusy(false);
+      onDone(dataUrl);
+    }, 30);
+  };
+
+  const useWholeImage = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = natural.w; canvas.height = natural.h;
+    canvas.getContext("2d").drawImage(imgRef.current, 0, 0);
+    onDone(canvasToCompressed(canvas, 1600, 0.88));
+  };
+
+  const handles = [
+    ["tl","Oben links"], ["tr","Oben rechts"], ["br","Unten rechts"], ["bl","Unten links"],
+  ];
+  const poly = `${corners.tl.x*100},${corners.tl.y*100} ${corners.tr.x*100},${corners.tr.y*100} ${corners.br.x*100},${corners.br.y*100} ${corners.bl.x*100},${corners.bl.y*100}`;
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000",zIndex:500,display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",color:"#fff",fontSize:13,textAlign:"center",background:"rgba(0,0,0,0.6)"}}>
+        Automatisch erkannter Ausschnitt — bei Bedarf Ecken nachjustieren
+      </div>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflow:"hidden"}}>
+        <div ref={boxRef} style={{position:"relative",maxWidth:"100%",maxHeight:"100%",touchAction:"none"}}>
+          <img ref={imgRef} src={src} onLoad={onImgLoad} alt="Zuschnitt-Vorschau"
+            style={{display:"block",maxWidth:"100%",maxHeight:"70vh",width:"auto",height:"auto"}} />
+          {ready && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+              <polygon points={poly} fill="rgba(56,189,248,0.2)" stroke="#38bdf8" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+            </svg>
+          )}
+          {ready && handles.map(([key]) => (
+            <div key={key}
+              onMouseDown={startDrag(key)} onTouchStart={startDrag(key)}
+              style={{position:"absolute",left:`${corners[key].x*100}%`,top:`${corners[key].y*100}%`,
+                width:28,height:28,marginLeft:-14,marginTop:-14,borderRadius:"50%",
+                background:"rgba(56,189,248,0.9)",border:"3px solid #fff",boxShadow:"0 2px 6px rgba(0,0,0,0.4)",
+                cursor:"grab",touchAction:"none"}} />
+          ))}
+        </div>
+      </div>
+      <div style={{padding:"12px 16px calc(16px + env(safe-area-inset-bottom, 0px))",background:"rgba(0,0,0,0.6)",display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onCancel}
+            style={{flex:1,background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:10,padding:"11px",color:"#fff",fontSize:14,cursor:"pointer"}}>
+            Abbrechen
+          </button>
+          <button onClick={applyCrop} disabled={busy || !ready}
+            style={{flex:2,background:"linear-gradient(135deg,#0ea5e9,#0284c7)",color:"#fff",border:"none",borderRadius:10,padding:11,fontSize:14,fontWeight:800,cursor:busy?"default":"pointer",opacity:busy?0.6:1}}>
+            {busy ? "⏳ Wird zugeschnitten…" : "✓ Zuschneiden & übernehmen"}
+          </button>
+        </div>
+        <button onClick={useWholeImage}
+          style={{background:"none",border:"none",color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer",padding:4}}>
+          Ohne Zuschnitt: ganzes Bild übernehmen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BrevetCard({ entry, onUpdate, onDelete, onOpenFullscreen }) {
+  const cameraRef = useRef(null);
+  const libraryRef = useRef(null);
+  const [nameEditing, setNameEditing] = useState(false);
+  const [nameVal, setNameVal] = useState(entry.name || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [cropSrc, setCropSrc] = useState(null); // rohes Bild, wartet auf Zuschnitt
+
+  const commitName = () => { setNameEditing(false); if (nameVal !== (entry.name||"")) onUpdate({...entry, name: nameVal}); };
+
+  // Datei wird zuerst nur eingelesen (nicht sofort verkleinert) und dem
+  // Zuschnitt-Dialog übergeben — die eigentliche Verkleinerung/Kompression
+  // passiert danach auf dem bereits zugeschnittenen Ausschnitt.
+  const onPickFile = (file) => {
+    if (!file) return;
+    setErr("");
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result);
+    reader.onerror = () => setErr("Datei konnte nicht gelesen werden.");
+    reader.readAsDataURL(file);
+  };
+
+  const onCropDone = (dataUrl) => {
+    setCropSrc(null);
+    onUpdate({ ...entry, photo: dataUrl });
+  };
+
+  return (
+    <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:16,overflow:"hidden",marginBottom:16}}>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
+        onChange={e=>{ onPickFile(e.target.files[0]); e.target.value=""; }} />
+      <input ref={libraryRef} type="file" accept="image/*" style={{display:"none"}}
+        onChange={e=>{ onPickFile(e.target.files[0]); e.target.value=""; }} />
+
+      {cropSrc && <PerspectiveCropModal src={cropSrc} onDone={onCropDone} onCancel={()=>setCropSrc(null)} />}
+
+      <div style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        {nameEditing ? (
+          <input value={nameVal} onChange={e=>setNameVal(e.target.value)} onBlur={commitName} autoFocus
+            onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();commitName();}}}
+            placeholder="z.B. Passagierflugausweis"
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(167,139,250,0.4)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:15,fontWeight:700,minWidth:0}} />
+        ) : (
+          <span onClick={()=>{setNameVal(entry.name||"");setNameEditing(true);}}
+            style={{flex:1,fontSize:15,fontWeight:700,color:entry.name?"#e8f4fd":"rgba(232,244,253,0.3)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {entry.name || "Brevet-Name eintragen…"}
+          </span>
+        )}
+        <button onClick={()=>onDelete(entry.id)} style={{background:"none",border:"none",color:"rgba(248,113,113,0.6)",fontSize:16,cursor:"pointer",flexShrink:0}}>🗑</button>
+      </div>
+
+      <div onClick={()=>{ if (busy || entry.photo) return; }}
+        style={{position:"relative",width:"100%",aspectRatio:"3/2",background:"#0a0714",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {busy ? (
+          <div style={{color:"rgba(232,244,253,0.5)",fontSize:12}}>⏳ Foto wird verarbeitet…</div>
+        ) : entry.photo ? (
+          <img onClick={()=>onOpenFullscreen(entry.photo)} src={entry.photo} alt="Ausweis" style={{width:"100%",height:"100%",objectFit:"cover",display:"block",cursor:"pointer"}} />
+        ) : (
+          <div style={{textAlign:"center",color:"rgba(232,244,253,0.35)"}}>
+            <div style={{fontSize:28,marginBottom:10}}>📷</div>
+            <div style={{fontSize:12,marginBottom:12}}>Foto des Ausweises hinzufügen</div>
+            <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+              <button onClick={()=>cameraRef.current?.click()}
+                style={{background:"rgba(167,139,250,0.18)",border:"1px solid rgba(167,139,250,0.4)",borderRadius:10,padding:"8px 12px",color:"#c4b5fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                📷 Aufnehmen
+              </button>
+              <button onClick={()=>libraryRef.current?.click()}
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"8px 12px",color:"rgba(232,244,253,0.7)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                🖼 Auswählen
+              </button>
+            </div>
+          </div>
+        )}
+        {entry.photo && !busy && (
+          <div style={{position:"absolute",bottom:8,right:8,display:"flex",gap:6}}>
+            <button onClick={e=>{e.stopPropagation(); setCropSrc(entry.photo);}} title="Automatisch zuschneiden"
+              style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              ✂️
+            </button>
+            <button onClick={e=>{e.stopPropagation(); cameraRef.current?.click();}} title="Neu aufnehmen"
+              style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              📷
+            </button>
+            <button onClick={e=>{e.stopPropagation(); libraryRef.current?.click();}} title="Aus Fotos wählen"
+              style={{background:"rgba(0,0,0,0.55)",border:"none",borderRadius:16,padding:"5px 9px",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              🖼
+            </button>
+          </div>
+        )}
+      </div>
+      {err && <div style={{padding:"6px 14px 10px",fontSize:11,color:"#f87171"}}>{err}</div>}
+    </div>
+  );
+}
+
+// Kein eigener Seiten-Header (Zurück/Hilfe) — läuft als Tab-Inhalt innerhalb
+// von AusruestungApp, die den Header schon stellt. "service:"-Präfix beim
+// Storage-Key, damit die Einträge (Name + Foto) vom Backup-Export/Import
+// in flugbuch.jsx erfasst werden.
+function BrevetApp() {
+  const isWide = useIsWide();
+  const [entries, setEntries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:brevet");
+        if (r) setEntries(JSON.parse(r.value) || []);
+      } catch (e) { console.error("Load error (brevet):", e); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = async (next) => {
+    setEntries(next);
+    try { await window.storage.set("service:brevet", JSON.stringify(next)); } catch (e) { console.error("Save error (brevet):", e); }
+  };
+
+  const addEntry = () => {
+    const entry = { id: `brevet_${Date.now()}`, name: "", photo: null };
+    persist([...entries, entry]);
+  };
+  const updateEntry = (updated) => persist(entries.map(e => e.id === updated.id ? updated : e));
+  const deleteEntry = (id) => persist(entries.filter(e => e.id !== id));
+
+  if (!loaded) return null;
+
+  return (
+    <div style={{padding:16,maxWidth:isWide?1000:undefined,margin:isWide?"0 auto":undefined}}>
+      {entries.length === 0 && (
+        <div style={{textAlign:"center",padding:"30px 16px",color:"rgba(232,244,253,0.4)",fontSize:13}}>
+          Noch kein Brevet erfasst. Tippe unten, um eines hinzuzufügen.
+        </div>
+      )}
+      <div style={isWide ? {display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))",gap:16} : undefined}>
+        {entries.map(entry => (
+          <BrevetCard key={entry.id} entry={entry} onUpdate={updateEntry} onDelete={deleteEntry} onOpenFullscreen={setFullscreenPhoto} />
+        ))}
+      </div>
+
+      <button onClick={addEntry}
+        style={{width:"100%",background:"rgba(167,139,250,0.12)",border:"1px dashed rgba(167,139,250,0.4)",borderRadius:14,padding:"14px",color:"#c4b5fd",fontSize:14,fontWeight:700,cursor:"pointer",marginTop:isWide?16:0}}>
+        + Weiteres Brevet hinzufügen
+      </button>
+
+      {fullscreenPhoto && (
+        <div onClick={()=>setFullscreenPhoto(null)}
+          style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <img src={fullscreenPhoto} alt="Ausweis Vollbild" style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />
+          <button onClick={()=>setFullscreenPhoto(null)}
+            style={{position:"absolute",top:"calc(16px + env(safe-area-inset-top, 0px))",right:16,background:"rgba(255,255,255,0.15)",border:"none",borderRadius:20,width:36,height:36,color:"#fff",fontSize:18,cursor:"pointer"}}>
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Top-level shell: Ausrüstung, Gewichte | Wartung | Brevet ────────────
 function AusruestungApp() {
-  const [tab, setTab] = useState("gewichte"); // "gewichte" | "wartung"
+  const [tab, setTab] = useState("gewichte"); // "gewichte" | "wartung" | "brevet"
   return (
     <div style={{minHeight:"100vh",background:"#051d0e",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -1351,9 +1932,13 @@ function AusruestungApp() {
           style={{flex:1,background:tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           🛠️ Wartung
         </button>
+        <button onClick={()=>setTab("brevet")}
+          style={{flex:1,background:tab==="brevet"?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="brevet"?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="brevet"?"#a78bfa":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          🎓 Brevet
+        </button>
       </div>
 
-      {tab==="gewichte" ? <GewichteApp/> : <WartungApp/>}
+      {tab==="gewichte" ? <GewichteApp/> : tab==="wartung" ? <WartungApp/> : <BrevetApp/>}
     </div>
   );
 }
