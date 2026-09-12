@@ -830,8 +830,8 @@ function SeasonSection({ flights }) {
 // nach sichtbarer Spanne auf Jahres-, Monats- oder Tages-Raster
 // ausgerichtet).
 const GRAPH_Y_BASE_FIELDS = [
-  { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg"] },
-  { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg"] },
+  { field: "dauer",         label: "Dauer",           unit: "h",    aggs: ["sum","avg","max"] },
+  { field: "distanz",       label: "Distanz",         unit: "km",   aggs: ["sum","avg","max"] },
   { field: "höhe",          label: "Höhe",            unit: "m",    aggs: ["avg","max"] },
   { field: "startalt",      label: "Start müM",       unit: "m",    aggs: ["avg","max"] },
   { field: "endalt",        label: "Landung müM",     unit: "m",    aggs: ["avg","max"] },
@@ -847,8 +847,8 @@ const GRAPH_Y_BASE_FIELDS = [
 ];
 const GRAPH_AGG_PREFIX = { sum: "Gesamt", avg: "Ø", max: "Max." };
 function graphYLabel(bf, agg) {
-  if (bf.field === "dauer") return agg==="sum" ? "Gesamtdauer" : "Ø Dauer";
-  if (bf.field === "distanz") return agg==="sum" ? "Gesamtdistanz" : "Ø Distanz";
+  if (bf.field === "dauer" && agg !== "max") return agg==="sum" ? "Gesamtdauer" : "Ø Dauer";
+  if (bf.field === "distanz" && agg !== "max") return agg==="sum" ? "Gesamtdistanz" : "Ø Distanz";
   return `${GRAPH_AGG_PREFIX[agg]} ${bf.label}`;
 }
 // Felder, deren Werte von Natur aus ganzzahlig/diskret sind — sowohl für
