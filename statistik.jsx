@@ -1007,7 +1007,11 @@ const GRAPH_X_SORT_NUMERIC_FIELDS = new Set([...GRAPH_NUMERIC_X_FIELDS, ...GRAPH
 function formatFreeFieldValue(v, fieldDef) {
   if (!fieldDef) return String(Math.round(v));
   if (fieldDef.field === "datum") return fmtDateShort(v);
-  if (fieldDef.field === "dauer") return v.toFixed(1).replace(".", ",") + "h";
+  if (fieldDef.field === "dauer") {
+    let h = Math.floor(v), m = Math.round((v-h)*60);
+    if (m === 60) { h++; m = 0; }
+    return `${h}:${String(m).padStart(2,"0")}`;
+  }
   const decimals = ["speed","rating","maxsteigen","maxsinken"].includes(fieldDef.field) ? 1 : 0;
   const num = decimals ? v.toFixed(1).replace(".", ",") : String(Math.round(v));
   return fieldDef.unit ? num + " " + fieldDef.unit : num;
