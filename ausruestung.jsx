@@ -830,8 +830,15 @@ function GewichteApp({ toolbarOpen, setToolbarOpen }) {
   const revealField = (itemId, field) => setRevealedFields(prev => new Set(prev).add(itemId+":"+field));
   // Im Normalzustand zeigt jede Kategorie nur die für das jeweilige Setup
   // angehakten Positionen (Übersicht) — im Bearbeiten-Modus alle
-  // verfügbaren Positionen zum An-/Abhaken. Gilt global für alle Spalten.
-  const [editMode, setEditMode] = useState(false);
+  // verfügbaren Positionen zum An-/Abhaken. Jede Kategorie unabhängig:
+  // Klick auf den Namen (z.B. "Schirm") öffnet/schliesst nur diese eine,
+  // kein eigener ✏️/✓-Button mehr nötig.
+  const [openCategories, setOpenCategories] = useState(new Set());
+  const toggleCategoryOpen = (id) => setOpenCategories(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   useEffect(() => {
     (async () => {
@@ -986,10 +993,11 @@ function GewichteApp({ toolbarOpen, setToolbarOpen }) {
 
         {GEWICHTE_CATEGORIES.map(cat => {
           const allItems = data.items[cat.id];
+          const editMode = openCategories.has(cat.id);
           const visibleItems = editMode ? allItems : allItems.filter(it => setup.selected[it.id]);
           return (
           <div key={cat.id} style={{marginTop:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <div onClick={()=>toggleCategoryOpen(cat.id)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer"}}>
               <span style={{fontSize:14}}>{cat.icon}</span>
               <span style={{fontSize:13,fontWeight:800,color:cat.color,flex:1}}>{cat.label}</span>
               {(() => {
@@ -998,10 +1006,7 @@ function GewichteApp({ toolbarOpen, setToolbarOpen }) {
                   <span style={{flexShrink:0,fontSize:12,color:"rgba(232,244,253,0.45)"}}>{fmtNum(catWeight)} kg</span>
                 ) : null;
               })()}
-              <button onClick={()=>setEditMode(m=>!m)} title={editMode ? "Fertig" : "Positionen bearbeiten"}
-                style={{flexShrink:0,width:26,height:26,borderRadius:8,fontSize:12,cursor:"pointer",background:editMode?"rgba(74,222,128,0.15)":"rgba(125,211,252,0.1)",border:`1px solid ${editMode?"rgba(74,222,128,0.4)":"rgba(125,211,252,0.3)"}`,color:editMode?"#4ade80":"#7dd3fc"}}>
-                {editMode ? "✓" : "✏️"}
-              </button>
+              <span style={{flexShrink:0,fontSize:12,color:"rgba(232,244,253,0.4)"}}>{editMode?"▾":"▸"}</span>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {!editMode && visibleItems.length===0 && (
