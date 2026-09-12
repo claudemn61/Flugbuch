@@ -195,9 +195,8 @@ async function readServiceUrgency() {
     .sort((a,b) => a.days - b.days)[0] || null;
   let nextReserve = null;
   if (upcomingReserve) {
-    const now = new Date();
-    const dueInSameMonth = upcomingReserve.nextDue.getFullYear()===now.getFullYear() && upcomingReserve.nextDue.getMonth()===now.getMonth();
-    nextReserve = { ...upcomingReserve, categoryLabel: "Reserve", color: dueInSameMonth ? "#fcd34d" : "#4ade80" };
+    const soonDue = upcomingReserve.days <= 30; // gleiche Schwelle wie unter Wartung
+    nextReserve = { ...upcomingReserve, categoryLabel: "Reserve", color: soonDue ? "#fcd34d" : "#4ade80" };
   }
 
   return { overdue, nextReserve };
@@ -245,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.2";
+const APP_VERSION = "6.2.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.2.1", note: "Fix Home/Ausrüstung-Kachel: die gelb/grün-Einfärbung des nächsten Reserve-Packdatums nutzt jetzt dieselbe Schwelle (fällig innert 30 Tagen) wie unter Wartung, statt \"noch im laufenden Kalendermonat\"." },
   { v: "6.2", note: "Neue Kachel \"🎓 Brevet\" in Ausrüstung (neben Gewichte und Wartung): Ausweise/Brevets mit Foto erfassen, inkl. Perspektiv-Korrektur beim Fotografieren (analog Tauchbuch). Im Backup-Export/-Import enthalten." },
   { v: "6.1.4", note: "Gespeicherte Darstellungen (Flugliste): neuer ✏️-Bearbeiten-Modus zum Ändern von Name und Filter einer bestehenden Darstellung, ohne sie löschen und neu speichern zu müssen." },
   { v: "6.1.3", note: "Fix Flugdetail: der Schirm-Name liess sich in der Inline-Schnellbearbeitung nur aus der Ausrüstungsliste auswählen (reines Dropdown), nicht mehr frei eintippen. Jetzt ein Textfeld mit Autovervollständigung — beliebiger Name überschreibbar." },
