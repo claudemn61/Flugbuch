@@ -1141,6 +1141,67 @@ function graphFluglisteUrl(filterText) {
   return `flugbuch.html?${params.toString()}`;
 }
 
+// Reihenfolge einer Achsen-Felderliste (X-Gruppiert, Y-Gruppiert oder die
+// gemeinsame Frei-Feldliste) mit ↑/↓ neu anordnen — analog zur Kurz-
+// statistik-Auswahl in der Flugliste, hier aber ohne Checkbox (nur
+// Reihenfolge, keine Sichtbarkeit): alle Felder bleiben wählbar, nur ihre
+// Position im Dropdown ändert sich.
+function applyFieldOrder(defs, keyProp, order) {
+  if (!order) return defs;
+  const byKey = new Map(defs.map(d => [d[keyProp], d]));
+  const ordered = order.filter(k => byKey.has(k)).map(k => byKey.get(k));
+  defs.forEach(d => { if (!order.includes(d[keyProp])) ordered.push(d); });
+  return ordered;
+}
+function FieldOrderModal({ title, defs, keyProp, order, onSave, onClose }) {
+  const initial = (() => {
+    const byKey = new Map(defs.map(d => [d[keyProp], d]));
+    const base = (order || defs.map(d=>d[keyProp])).filter(k => byKey.has(k));
+    defs.forEach(d => { if (!base.includes(d[keyProp])) base.push(d[keyProp]); });
+    return base;
+  })();
+  const [local, setLocal] = useState(initial);
+  const byKey = new Map(defs.map(d => [d[keyProp], d]));
+  const move = (idx, dir) => setLocal(list => {
+    const next = [...list];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return list;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    return next;
+  });
+  const commit = () => { onSave(local); onClose(); };
+  return (
+    <div onClick={commit} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{title}</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Mit ↑/↓ in die gewünschte Reihenfolge bringen — wirkt sich auf die Auswahlliste aus, nicht auf die Sichtbarkeit.</div>
+        <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+          {local.map((key, idx) => (
+            <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
+              <span style={{flex:1,fontSize:13,color:"#e8f4fd"}}>{byKey.get(key)?.label || key}</span>
+              <button onClick={()=>move(idx,-1)} disabled={idx===0}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===0?"default":"pointer"}}>▲</button>
+              <button onClick={()=>move(idx,1)} disabled={idx===local.length-1}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===local.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===local.length-1?"default":"pointer"}}>▼</button>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:16}}>
+          <button onClick={()=>setLocal(defs.map(d=>d[keyProp]))}
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
+            Zurücksetzen
+          </button>
+          <button onClick={commit}
+            style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+            Schliessen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GraphSection({ flights }) {
   const [listSettings, setListSettings] = useState(null);
   const [mode, setMode] = useState("grouped"); // "grouped" | "free"
@@ -1155,6 +1216,26 @@ function GraphSection({ flights }) {
   const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
+  // Reihenfolge der Achsen-Auswahllisten — null = Standard-Reihenfolge
+  // (wie im Code definiert). Persistiert, damit sie über einen Neustart
+  // hinweg erhalten bleibt.
+  const [xFieldOrder, setXFieldOrder] = useState(null);
+  const [yMetricOrder, setYMetricOrder] = useState(null);
+  const [freeFieldOrder, setFreeFieldOrder] = useState(null);
+  const [fieldOrderModal, setFieldOrderModal] = useState(null); // "x" | "y" | "free" | null
+  useEffect(() => {
+    (async () => {
+      try { const r = await window.storage.get("service:graphXFieldOrder"); if (r && r.value) setXFieldOrder(JSON.parse(r.value)); } catch {}
+      try { const r = await window.storage.get("service:graphYMetricOrder"); if (r && r.value) setYMetricOrder(JSON.parse(r.value)); } catch {}
+      try { const r = await window.storage.get("service:graphFreeFieldOrder"); if (r && r.value) setFreeFieldOrder(JSON.parse(r.value)); } catch {}
+    })();
+  }, []);
+  const saveXFieldOrder = (order) => { setXFieldOrder(order); window.storage.set("service:graphXFieldOrder", JSON.stringify(order)).catch(()=>{}); };
+  const saveYMetricOrder = (order) => { setYMetricOrder(order); window.storage.set("service:graphYMetricOrder", JSON.stringify(order)).catch(()=>{}); };
+  const saveFreeFieldOrder = (order) => { setFreeFieldOrder(order); window.storage.set("service:graphFreeFieldOrder", JSON.stringify(order)).catch(()=>{}); };
+  const orderedXFields = applyFieldOrder(GRAPH_X_FIELDS, "id", xFieldOrder);
+  const orderedYMetrics = applyFieldOrder(GRAPH_Y_METRICS, "id", yMetricOrder);
+  const orderedFreeFields = applyFieldOrder(GRAPH_FREE_FIELDS, "field", freeFieldOrder);
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
   // Tatsächlich verfügbare Breite UND Höhe der Zeichenfläche (CSS-Pixel) —
   // ersetzt vorher feste Werte (300 / 122), damit der Graph im Vollbild auf
@@ -1508,11 +1589,15 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={xField} onChange={e=>setXField(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GRAPH_X_FIELDS.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+                {orderedXFields.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
               </select>
               <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setFieldOrderModal("x")} title="Reihenfolge der Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ≡
               </button>
             </div>
           </div>
@@ -1521,11 +1606,15 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GRAPH_Y_METRICS.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
+                {orderedYMetrics.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
               </select>
               <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setFieldOrderModal("y")} title="Reihenfolge der Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ≡
               </button>
             </div>
           </div>
@@ -1546,11 +1635,15 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={freeX} onChange={e=>setFreeX(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GRAPH_FREE_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+                {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
               </select>
               <button onClick={()=>setXReversed(r=>!r)} title="X-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setFieldOrderModal("free")} title="Reihenfolge der Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ≡
               </button>
             </div>
           </div>
@@ -1559,11 +1652,15 @@ function GraphSection({ flights }) {
             <div style={{display:"flex",gap:6}}>
               <select value={freeY} onChange={e=>setFreeY(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {GRAPH_FREE_FIELDS.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+                {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
               </select>
               <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setFieldOrderModal("free")} title="Reihenfolge der Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                ≡
               </button>
             </div>
           </div>
@@ -1692,6 +1789,18 @@ function GraphSection({ flights }) {
             <div style={{textAlign:"center",fontSize:10,color:"rgba(232,244,253,0.28)",marginTop:4}}>🤏 Pinch zum Zoomen · ziehen zum Verschieben · Doppeltipp zurücksetzen</div>
           )}
         </div>
+      )}
+      {fieldOrderModal==="x" && (
+        <FieldOrderModal title="X-Achse: Reihenfolge" defs={GRAPH_X_FIELDS} keyProp="id" order={xFieldOrder}
+          onSave={saveXFieldOrder} onClose={()=>setFieldOrderModal(null)} />
+      )}
+      {fieldOrderModal==="y" && (
+        <FieldOrderModal title="Y-Achse: Reihenfolge" defs={GRAPH_Y_METRICS} keyProp="id" order={yMetricOrder}
+          onSave={saveYMetricOrder} onClose={()=>setFieldOrderModal(null)} />
+      )}
+      {fieldOrderModal==="free" && (
+        <FieldOrderModal title="Frei: Reihenfolge der Felder" defs={GRAPH_FREE_FIELDS} keyProp="field" order={freeFieldOrder}
+          onSave={saveFreeFieldOrder} onClose={()=>setFieldOrderModal(null)} />
       )}
     </div>
   );

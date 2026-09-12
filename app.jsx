@@ -244,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.2.2";
+const APP_VERSION = "6.2.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.2.3", note: "Statistik, Graph: die Auswahllisten für X-/Y-Achse (Gruppiert und Frei) lassen sich jetzt per neuem ≡-Button frei umsortieren (↑/↓), unabhängig von der festen Standard-Reihenfolge im Code." },
   { v: "6.2.2", note: "Ausrüstung, Gewichte: jede Kategorie (Schirm, Sitz, ...) klappt jetzt unabhängig per Klick auf den Namen auf/zu, statt über einen gemeinsamen ✏️/✓-Button für alle Kategorien gleichzeitig. Flugliste: die Kurzstatistik-Kachel unter der Flug-Anzahl öffnet die Werte-Auswahl jetzt per Klick auf die Werte selbst statt über ein eigenes ⚙️-Icon; deren Popup schliesst jetzt über \"Schliessen\" (speichert automatisch), auch bei Klick daneben." },
   { v: "6.2.1", note: "Fix Home/Ausrüstung-Kachel: die gelb/grün-Einfärbung des nächsten Reserve-Packdatums nutzt jetzt dieselbe Schwelle (fällig innert 30 Tagen) wie unter Wartung, statt \"noch im laufenden Kalendermonat\"." },
   { v: "6.2", note: "Neue Kachel \"🎓 Brevet\" in Ausrüstung (neben Gewichte und Wartung): Ausweise/Brevets mit Foto erfassen, inkl. Perspektiv-Korrektur beim Fotografieren (analog Tauchbuch). Im Backup-Export/-Import enthalten." },
