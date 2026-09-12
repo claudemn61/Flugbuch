@@ -805,7 +805,7 @@ function fmtNum(v) {
   return String(Math.round(n * 100) / 100);
 }
 
-function GewichteApp() {
+function GewichteApp({ toolbarOpen, setToolbarOpen }) {
   const isWide = useIsWide();
   const [data, setData] = useState(emptyGewichteData());
   const [loaded, setLoaded] = useState(false);
@@ -818,7 +818,9 @@ function GewichteApp() {
   // (Tab-)Setup.
   const [setupsMoveMode, setSetupsMoveMode] = useState(false);
   const [setupsDeleteMode, setSetupsDeleteMode] = useState(false);
-  const [toolbarOpen, setToolbarOpen] = useState(false); // Werkzeugleiste +Setup/🔀/🗑 — zugeklappt, solange bereits Setups bestehen
+  // toolbarOpen/setToolbarOpen kommen als Props von AusruestungApp — das
+  // ⚙️-Icon zum Auf-/Zuklappen sitzt in der Kachelecke des "Ausrüstung,
+  // Gewichte"-Tabs oben, nicht hier in der Seite selbst.
   const [confirmDeleteSetup, setConfirmDeleteSetup] = useState(null);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // { catId, itemId, name }
   // Proj. Fläche / Gewichtslimite (nur bei Schirm-Positionen) sind leer oft
@@ -1272,22 +1274,13 @@ function GewichteApp() {
     </div>
   );
 
-  // Solange bereits Setups bestehen, ist die Werkzeugleiste hinter einem
-  // schmalen Auf-/Zuklapp-Header versteckt (zugeklappt als Startzustand) —
-  // im Leerzustand (noch kein Setup) bleibt sie immer offen, da "+ Setup"
-  // dort der einzige Weg ist, überhaupt eines anzulegen.
+  // Solange bereits Setups bestehen, ist die Werkzeugleiste nur sichtbar,
+  // wenn toolbarOpen (per ⚙️-Icon in der Kachelecke "Ausrüstung, Gewichte"
+  // oben in AusruestungApp) eingeschaltet ist — im Leerzustand (noch kein
+  // Setup) bleibt sie immer offen, da "+ Setup" dort der einzige Weg ist,
+  // überhaupt eines anzulegen.
   const renderToolbarSection = (dominant) => (
-    data.setups.length === 0 ? renderSetupsToolbar(dominant) : (
-      <>
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:toolbarOpen?8:14}}>
-          <button onClick={()=>setToolbarOpen(o=>!o)} title="Setups verwalten"
-            style={{width:28,height:28,borderRadius:8,background:toolbarOpen?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${toolbarOpen?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,color:toolbarOpen?"#7dd3fc":"rgba(232,244,253,0.55)",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            ⚙️
-          </button>
-        </div>
-        {toolbarOpen && renderSetupsToolbar(dominant)}
-      </>
-    )
+    (data.setups.length === 0 || toolbarOpen) ? renderSetupsToolbar(dominant) : null
   );
 
   return (
@@ -1992,6 +1985,9 @@ function BrevetApp() {
 // ── Top-level shell: Ausrüstung, Gewichte | Wartung | Brevet ────────────
 function AusruestungApp() {
   const [tab, setTab] = useState("gewichte"); // "gewichte" | "wartung" | "brevet"
+  // Werkzeugleiste +Setup/🔀/🗑 in Ausrüstung, Gewichte — zugeklappt als
+  // Startzustand, umschaltbar per ⚙️ in der Kachelecke des Tabs unten.
+  const [gewichteToolbarOpen, setGewichteToolbarOpen] = useState(false);
   return (
     <div style={{minHeight:"100vh",background:"#051d0e",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -2012,10 +2008,16 @@ function AusruestungApp() {
       {/* Ausrüstung, Gewichte / Wartung — Design analog Wartungs eigenem
           Reserve/Schirm/Sitz-Umschalter (gleiche Optik, eine Ebene höher). */}
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
-        <button onClick={()=>setTab("gewichte")}
-          style={{flex:1,background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          ⚖️ Ausrüstung, Gewichte
-        </button>
+        <div style={{flex:1,position:"relative"}}>
+          <button onClick={()=>setTab("gewichte")}
+            style={{width:"100%",boxSizing:"border-box",background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+            ⚖️ Ausrüstung, Gewichte
+          </button>
+          <button onClick={e=>{e.stopPropagation(); setGewichteToolbarOpen(o=>!o);}} title="Setups verwalten"
+            style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:6,background:"rgba(0,0,0,0.25)",border:"none",color:"rgba(255,255,255,0.85)",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
+            ⚙️
+          </button>
+        </div>
         <button onClick={()=>setTab("wartung")}
           style={{flex:1,background:tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           🛠️ Wartung
@@ -2026,7 +2028,7 @@ function AusruestungApp() {
         </button>
       </div>
 
-      {tab==="gewichte" ? <GewichteApp/> : tab==="wartung" ? <WartungApp/> : <BrevetApp/>}
+      {tab==="gewichte" ? <GewichteApp toolbarOpen={gewichteToolbarOpen} setToolbarOpen={setGewichteToolbarOpen}/> : tab==="wartung" ? <WartungApp/> : <BrevetApp/>}
     </div>
   );
 }
