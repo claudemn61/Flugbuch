@@ -776,24 +776,36 @@ function HomeApp() {
   const [titleCfg, setTitleCfg] = useState(null);
   const [editingTitle, setEditingTitle] = useState(false);
 
+  // "service:"-Präfix, damit Titel-Editor und Home-Foto vom Backup-Export/
+  // Import erfasst werden (siehe exportBackup/importBackup in flugbuch.jsx).
+  // Waren vorher direkt (ohne Präfix) in localStorage abgelegt und dadurch
+  // nie Teil eines Backups — beim ersten Laden nach diesem Update wird ein
+  // dort noch vorhandener alter Wert einmalig übernommen.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("flugbuch:titleConfig");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.segments) setTitleCfg(parsed);
-      }
-    } catch {}
+    (async () => {
+      try {
+        const r = await window.storage.get("service:titleConfig");
+        let cfg = r ? JSON.parse(r.value) : null;
+        if (!cfg) {
+          const legacy = localStorage.getItem("flugbuch:titleConfig");
+          if (legacy) {
+            cfg = JSON.parse(legacy);
+            if (cfg) window.storage.set("service:titleConfig", JSON.stringify(cfg)).catch(()=>{});
+          }
+        }
+        if (cfg && cfg.segments) setTitleCfg(cfg);
+      } catch {}
+    })();
   }, []);
   const saveTitleCfg = (cfg) => {
     setTitleCfg(cfg);
     setEditingTitle(false);
-    try { localStorage.setItem("flugbuch:titleConfig", JSON.stringify(cfg)); } catch (e) { console.error("Titel-Speicherfehler:", e); }
+    window.storage.set("service:titleConfig", JSON.stringify(cfg)).catch(e => console.error("Titel-Speicherfehler:", e));
   };
   const resetTitleCfg = () => {
     setTitleCfg(null);
     setEditingTitle(false);
-    try { localStorage.removeItem("flugbuch:titleConfig"); } catch {}
+    window.storage.delete("service:titleConfig").catch(()=>{});
   };
 
   useEffect(() => {
@@ -829,11 +841,26 @@ function HomeApp() {
 
   useEffect(() => {
     // Load previously saved photo (stored as a base64 data URL, since blob:
-    // URLs from createObjectURL don't survive a reload).
-    try {
-      const saved = localStorage.getItem("flugbuch:homePhoto");
-      if (saved) setPhotoUrl(saved);
-    } catch {}
+    // URLs from createObjectURL don't survive a reload). "service:"-Präfix
+    // fürs Backup — siehe Kommentar bei titleConfig oben, gleiche einmalige
+    // Übernahme aus dem alten, unpräfixierten localStorage-Key.
+    (async () => {
+      try {
+        // Als JSON-String abgelegt (nicht roh) — der generische "service:"-
+        // Sammeltopf im Backup-Export parst jeden Wert per JSON.parse, ein
+        // rohes data:-URL würde dort scheitern und stillschweigend fehlen.
+        const r = await window.storage.get("service:homePhoto");
+        let dataUrl = r ? JSON.parse(r.value) : null;
+        if (!dataUrl) {
+          const legacy = localStorage.getItem("flugbuch:homePhoto");
+          if (legacy) {
+            dataUrl = legacy;
+            window.storage.set("service:homePhoto", JSON.stringify(dataUrl)).catch(()=>{});
+          }
+        }
+        if (dataUrl) setPhotoUrl(dataUrl);
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
@@ -879,12 +906,10 @@ function HomeApp() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
         setPhotoUrl(dataUrl);
-        try {
-          localStorage.setItem("flugbuch:homePhoto", dataUrl);
-        } catch (err) {
+        window.storage.set("service:homePhoto", JSON.stringify(dataUrl)).catch(err => {
           console.error("Photo save error:", err);
           alert("Foto konnte nicht gespeichert werden (Speicherplatz voll?). Es bleibt nur bis zum nächsten Laden sichtbar.");
-        }
+        });
       };
       img.src = reader.result;
     };
