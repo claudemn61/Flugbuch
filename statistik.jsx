@@ -1141,27 +1141,28 @@ function graphFluglisteUrl(filterText) {
   return `flugbuch.html?${params.toString()}`;
 }
 
-// Reihenfolge einer Achsen-Felderliste (X-Gruppiert, Y-Gruppiert oder die
-// gemeinsame Frei-Feldliste) mit ↑/↓ neu anordnen — analog zur Kurz-
-// statistik-Auswahl in der Flugliste, hier aber ohne Checkbox (nur
-// Reihenfolge, keine Sichtbarkeit): alle Felder bleiben wählbar, nur ihre
-// Position im Dropdown ändert sich.
-function applyFieldOrder(defs, keyProp, order) {
-  if (!order) return defs;
+// Reihenfolge + Sichtbarkeit einer Achsen-Felderliste (X-Gruppiert,
+// Y-Gruppiert oder die gemeinsame Frei-Feldliste) — analog zur
+// bestehenden Kurzstatistik-Auswahl in der Flugliste (Checkbox + ↑/↓).
+// order ist ein Array {key, enabled} | null (= Standard: alle sichtbar,
+// Code-Reihenfolge). Neu hinzugekommene Felder (die noch nicht im
+// gespeicherten order stecken) werden immer als sichtbar angehängt,
+// damit sie nicht versehentlich verschwinden.
+function fieldOrderEntries(defs, keyProp, order) {
   const byKey = new Map(defs.map(d => [d[keyProp], d]));
-  const ordered = order.filter(k => byKey.has(k)).map(k => byKey.get(k));
-  defs.forEach(d => { if (!order.includes(d[keyProp])) ordered.push(d); });
-  return ordered;
+  const list = (order || []).filter(o => byKey.has(o.key)).map(o => ({ key: o.key, enabled: o.enabled !== false }));
+  const seen = new Set(list.map(o=>o.key));
+  defs.forEach(d => { if (!seen.has(d[keyProp])) list.push({ key: d[keyProp], enabled: true }); });
+  return list;
+}
+function visibleOrderedFields(defs, keyProp, order) {
+  const byKey = new Map(defs.map(d => [d[keyProp], d]));
+  return fieldOrderEntries(defs, keyProp, order).filter(e=>e.enabled).map(e=>byKey.get(e.key));
 }
 function FieldOrderModal({ title, defs, keyProp, order, onSave, onClose }) {
-  const initial = (() => {
-    const byKey = new Map(defs.map(d => [d[keyProp], d]));
-    const base = (order || defs.map(d=>d[keyProp])).filter(k => byKey.has(k));
-    defs.forEach(d => { if (!base.includes(d[keyProp])) base.push(d[keyProp]); });
-    return base;
-  })();
-  const [local, setLocal] = useState(initial);
+  const [local, setLocal] = useState(() => fieldOrderEntries(defs, keyProp, order));
   const byKey = new Map(defs.map(d => [d[keyProp], d]));
+  const toggle = (key) => setLocal(list => list.map(e => e.key===key ? {...e, enabled: !e.enabled} : e));
   const move = (idx, dir) => setLocal(list => {
     const next = [...list];
     const j = idx + dir;
@@ -1175,11 +1176,15 @@ function FieldOrderModal({ title, defs, keyProp, order, onSave, onClose }) {
       <div onClick={e=>e.stopPropagation()}
         style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
         <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{title}</div>
-        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Mit ↑/↓ in die gewünschte Reihenfolge bringen — wirkt sich auf die Auswahlliste aus, nicht auf die Sichtbarkeit.</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen.</div>
         <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-          {local.map((key, idx) => (
-            <div key={key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.03)"}}>
-              <span style={{flex:1,fontSize:13,color:"#e8f4fd"}}>{byKey.get(key)?.label || key}</span>
+          {local.map((e, idx) => (
+            <div key={e.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:e.enabled?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.03)"}}>
+              <div onClick={()=>toggle(e.key)}
+                style={{width:20,height:20,borderRadius:6,border:`2px solid ${e.enabled?"#4ade80":"rgba(232,244,253,0.3)"}`,background:e.enabled?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                {e.enabled && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
+              </div>
+              <span style={{flex:1,fontSize:13,color:e.enabled?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{byKey.get(e.key)?.label || e.key}</span>
               <button onClick={()=>move(idx,-1)} disabled={idx===0}
                 style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===0?"default":"pointer"}}>▲</button>
               <button onClick={()=>move(idx,1)} disabled={idx===local.length-1}
@@ -1188,7 +1193,7 @@ function FieldOrderModal({ title, defs, keyProp, order, onSave, onClose }) {
           ))}
         </div>
         <div style={{display:"flex",gap:8,marginTop:16}}>
-          <button onClick={()=>setLocal(defs.map(d=>d[keyProp]))}
+          <button onClick={()=>setLocal(defs.map(d=>({key:d[keyProp], enabled:true})))}
             style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
             Zurücksetzen
           </button>
@@ -1233,9 +1238,22 @@ function GraphSection({ flights }) {
   const saveXFieldOrder = (order) => { setXFieldOrder(order); window.storage.set("service:graphXFieldOrder", JSON.stringify(order)).catch(()=>{}); };
   const saveYMetricOrder = (order) => { setYMetricOrder(order); window.storage.set("service:graphYMetricOrder", JSON.stringify(order)).catch(()=>{}); };
   const saveFreeFieldOrder = (order) => { setFreeFieldOrder(order); window.storage.set("service:graphFreeFieldOrder", JSON.stringify(order)).catch(()=>{}); };
-  const orderedXFields = applyFieldOrder(GRAPH_X_FIELDS, "id", xFieldOrder);
-  const orderedYMetrics = applyFieldOrder(GRAPH_Y_METRICS, "id", yMetricOrder);
-  const orderedFreeFields = applyFieldOrder(GRAPH_FREE_FIELDS, "field", freeFieldOrder);
+  const orderedXFields = visibleOrderedFields(GRAPH_X_FIELDS, "id", xFieldOrder);
+  const orderedYMetrics = visibleOrderedFields(GRAPH_Y_METRICS, "id", yMetricOrder);
+  const orderedFreeFields = visibleOrderedFields(GRAPH_FREE_FIELDS, "field", freeFieldOrder);
+  // Falls das gerade gewählte Feld per Checkbox ausgeblendet wurde, auf das
+  // erste noch sichtbare Feld ausweichen, statt eine im Dropdown gar nicht
+  // mehr existierende Auswahl anzuzeigen.
+  useEffect(() => {
+    if (orderedXFields.length && !orderedXFields.some(f=>f.id===xField)) setXField(orderedXFields[0].id);
+  }, [xFieldOrder]);
+  useEffect(() => {
+    if (orderedYMetrics.length && !orderedYMetrics.some(m=>m.id===yMetric)) setYMetric(orderedYMetrics[0].id);
+  }, [yMetricOrder]);
+  useEffect(() => {
+    if (orderedFreeFields.length && !orderedFreeFields.some(f=>f.field===freeX)) setFreeX(orderedFreeFields[0].field);
+    if (orderedFreeFields.length && !orderedFreeFields.some(f=>f.field===freeY)) setFreeY(orderedFreeFields[0].field);
+  }, [freeFieldOrder]);
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
   // Tatsächlich verfügbare Breite UND Höhe der Zeichenfläche (CSS-Pixel) —
   // ersetzt vorher feste Werte (300 / 122), damit der Graph im Vollbild auf
