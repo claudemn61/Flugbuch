@@ -1279,10 +1279,11 @@ function GewichteApp() {
   const renderToolbarSection = (dominant) => (
     data.setups.length === 0 ? renderSetupsToolbar(dominant) : (
       <>
-        <div onClick={()=>setToolbarOpen(o=>!o)}
-          style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"7px 10px",marginBottom:toolbarOpen?8:14,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8}}>
-          <span style={{fontSize:12,fontWeight:700,color:"rgba(232,244,253,0.55)"}}>⚙️ Setups verwalten</span>
-          <span style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{toolbarOpen ? "▾" : "▸"}</span>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:toolbarOpen?8:14}}>
+          <button onClick={()=>setToolbarOpen(o=>!o)} title="Setups verwalten"
+            style={{width:28,height:28,borderRadius:8,background:toolbarOpen?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${toolbarOpen?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,color:toolbarOpen?"#7dd3fc":"rgba(232,244,253,0.55)",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            ⚙️
+          </button>
         </div>
         {toolbarOpen && renderSetupsToolbar(dominant)}
       </>
