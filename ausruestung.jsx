@@ -2010,11 +2010,11 @@ function AusruestungApp() {
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
         <div style={{flex:1,position:"relative"}}>
           <button onClick={()=>setTab("gewichte")}
-            style={{width:"100%",boxSizing:"border-box",background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+            style={{width:"100%",boxSizing:"border-box",background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 20px 12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
             Ausrüstung, Gewichte
           </button>
           <button onClick={e=>{e.stopPropagation(); setGewichteToolbarOpen(o=>!o);}} title="Setups verwalten"
-            style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:6,background:"rgba(0,0,0,0.25)",border:"none",color:"rgba(255,255,255,0.85)",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
+            style={{position:"absolute",top:4,right:4,width:17,height:17,borderRadius:5,background:"rgba(0,0,0,0.25)",border:"none",color:"rgba(255,255,255,0.85)",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
             ⚙️
           </button>
         </div>
