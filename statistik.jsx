@@ -1470,7 +1470,7 @@ function GraphSection({ flights }) {
   const MAX_LABEL_CHARS = 18;
   const dispRows = visibleRows.map(r => {
     const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
-    const valueText = formatGraphYMetric(r.value, yMetric);
+    const valueText = r.value ? formatGraphYMetric(r.value, yMetric) : "";
     return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW,
       valueText, valueVertical: valueText.length*VALUE_CHAR_W > barW };
   });
