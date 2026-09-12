@@ -2011,7 +2011,7 @@ function AusruestungApp() {
         <div style={{flex:1,position:"relative"}}>
           <button onClick={()=>setTab("gewichte")}
             style={{width:"100%",boxSizing:"border-box",background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-            ⚖️ Ausrüstung, Gewichte
+            Ausrüstung, Gewichte
           </button>
           <button onClick={e=>{e.stopPropagation(); setGewichteToolbarOpen(o=>!o);}} title="Setups verwalten"
             style={{position:"absolute",top:5,right:5,width:20,height:20,borderRadius:6,background:"rgba(0,0,0,0.25)",border:"none",color:"rgba(255,255,255,0.85)",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
@@ -2020,11 +2020,11 @@ function AusruestungApp() {
         </div>
         <button onClick={()=>setTab("wartung")}
           style={{flex:1,background:tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          🛠️ Wartung
+          Wartung
         </button>
         <button onClick={()=>setTab("brevet")}
           style={{flex:1,background:tab==="brevet"?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="brevet"?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="brevet"?"#a78bfa":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          🎓 Brevet
+          Brevet
         </button>
       </div>
 
