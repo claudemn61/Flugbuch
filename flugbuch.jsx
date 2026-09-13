@@ -583,24 +583,6 @@ function removeStrayMapTilerWarnings() {
 }
 
 
-// Für die Weltkarte (viele Tracks gleichzeitig, WebGL-Speicher begrenzt —
-// vor allem auf iOS): Track auf max. MAX_PTS Punkte ausdünnen, Anfang/Ende
-// immer erhalten. Bei z.B. 30 mehrstündigen Flügen (oft tausende Punkte
-// je Track) hat das ungekürzte Zusammenführen zu einem Absturz geführt
-// ("Script error." ohne Details, da der Fehler in der von der CDN
-// geladenen MapTiler-Bibliothek auftritt — siehe Kommentar bei den
-// window.addEventListener("error", …)-Handlern in den *.html-Dateien).
-// Für die Übersicht auf der Weltkarte reicht die grobe Linienform völlig,
-// die volle Auflösung bleibt der Einzelflug-Kartenansicht vorbehalten.
-function simplifyTrackForMap(track, maxPts = 400) {
-  const valid = track.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
-  if (valid.length <= maxPts) return valid.map(p => [p.lon, p.lat]);
-  const step = Math.ceil(valid.length / maxPts);
-  const out = valid.filter((_, i) => i % step === 0);
-  if (out[out.length-1] !== valid[valid.length-1]) out.push(valid[valid.length-1]);
-  return out.map(p => [p.lon, p.lat]);
-}
-
 function WorldMapView({ flights, selectedIds, onBack }) {
   const mapDivRef = useRef(null);
   const mapRef = useRef(null);
@@ -645,8 +627,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
     return searched
       .filter(f => f.track?.length > 1)
-      .map(f => ({ id: f.id, coords: simplifyTrackForMap(f.track) }))
-      .filter(t => t.coords.length > 1);
+      .map(f => ({ id: f.id, coords: f.track.map(p => [p.lon, p.lat]) }));
   }, [relevantFlights, showIGC, search]);
 
   // MapTiler SDK map, same approach as meintauchbuch's MiniMap: OUTDOOR
