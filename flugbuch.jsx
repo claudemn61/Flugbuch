@@ -698,10 +698,10 @@ function WorldMapView({ flights, selectedIds, onBack }) {
           });
           map.addLayer({ id: "igc-tracks-casing", type: "line", source: "igc-tracks",
             layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "rgba(255,255,255,0.5)", "line-width": 3.5 } });
+            paint: { "line-color": "rgba(255,255,255,0.5)", "line-width": 5.5 } });
           map.addLayer({ id: "igc-tracks-line", type: "line", source: "igc-tracks",
             layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#4169e1", "line-width": 2, "line-opacity": 0.85 } });
+            paint: { "line-color": "#4169e1", "line-width": 3.5, "line-opacity": 0.85 } });
         }
       });
     };
