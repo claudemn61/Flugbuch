@@ -1387,13 +1387,14 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        // Scrollrichtung Y: der INHALT bewegt sich mit dem Finger, in
-        // beiden Modi. X ebenso in "Gruppiert" — in "Frei" (auf
-        // expliziten Wunsch umgekehrt) bewegt sich dort stattdessen die
-        // ANSICHT mit dem Finger.
+        // Scrollrichtung X: der INHALT bewegt sich mit dem Finger in
+        // "Gruppiert" — in "Frei" (auf expliziten Wunsch umgekehrt)
+        // bewegt sich dort stattdessen die ANSICHT mit dem Finger.
+        // Y: in beiden Modi bewegt sich die ANSICHT mit dem Finger
+        // (klassische Scrollbar-Logik).
         const xSign = modeRef.current === "free" ? 1 : -1;
         let x0 = sv.x0 + xSign*dxData, x1 = sv.x1 + xSign*dxData;
-        let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
+        let y0 = sv.y0+dyData, y1 = sv.y1+dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
         if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
