@@ -1140,6 +1140,17 @@ function graphFluglisteUrl(filterText) {
   params.set("returnTo", "statistik.html");
   return `flugbuch.html?${params.toString()}`;
 }
+// Öffnet einen einzelnen Flug direkt im Flugdetail (Modus "Frei", Punkt
+// antippen) — gleiche openFlightId/returnTo-Konvention wie beim Öffnen
+// eines Flugs aus Reisen/anderen Statistik-Tabellen; der Zurück-Pfeil im
+// Flugdetail führt damit wieder genau zu diesem offenen Graph-Badge.
+function graphFlightDetailUrl(flightId) {
+  try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "graph", rowName: null })); } catch {}
+  const params = new URLSearchParams();
+  params.set("openFlightId", String(flightId));
+  params.set("returnTo", "statistik.html");
+  return `flugbuch.html?${params.toString()}`;
+}
 
 // Reihenfolge + Sichtbarkeit einer Achsen-Felderliste (X-Gruppiert,
 // Y-Gruppiert oder die gemeinsame Frei-Feldliste) — analog zur
@@ -1294,6 +1305,9 @@ function GraphSection({ flights }) {
     if (orderedFreeFields.length && !orderedFreeFields.some(f=>f.field===freeY)) setFreeY(orderedFreeFields[0].field);
   }, [freeFieldOrder]);
   const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
+  // Modus "Frei", nur im Zoom: ein einzelner angetippter Punkt zeigt seine
+  // Flugnummer, ein weiterer Tipp auf die Nummer öffnet das Flugdetail.
+  const [tappedFreeKey, setTappedFreeKey] = useState(null);
   // Tatsächlich verfügbare Breite UND Höhe der Zeichenfläche (CSS-Pixel) —
   // ersetzt vorher feste Werte (300 / 122), damit der Graph im Vollbild auf
   // Desktop/iPad (und beim Drehen ins Querformat) wirklich die ganze
@@ -1303,7 +1317,6 @@ function GraphSection({ flights }) {
   const [chartH, setChartH] = useState(170);
   const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
   const viewRef = useRef(null);
-  const modeRef = useRef(mode); // für onMove (Closure aus useCallback([]) ist sonst veraltet) — pro Render aktualisiert
   const pinchRef = useRef(null);
   const panRef = useRef(null);
 
@@ -1322,7 +1335,7 @@ function GraphSection({ flights }) {
     })();
   };
   useEffect(loadSync, []);
-  const resetZoom = () => setView(null);
+  const resetZoom = () => { setView(null); setTappedFreeKey(null); };
   useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
@@ -1387,14 +1400,10 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        // Scrollrichtung X: der INHALT bewegt sich mit dem Finger in
-        // "Gruppiert" — in "Frei" (auf expliziten Wunsch umgekehrt)
-        // bewegt sich dort stattdessen die ANSICHT mit dem Finger.
-        // Y: in beiden Modi bewegt sich die ANSICHT mit dem Finger
-        // (klassische Scrollbar-Logik).
-        const xSign = modeRef.current === "free" ? 1 : -1;
-        let x0 = sv.x0 + xSign*dxData, x1 = sv.x1 + xSign*dxData;
-        let y0 = sv.y0+dyData, y1 = sv.y1+dyData;
+        // Scrollrichtung X UND Y, in "Gruppiert" UND "Frei" einheitlich:
+        // der INHALT bewegt sich mit dem Finger, nicht die Ansicht.
+        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
+        let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
         if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
@@ -1645,7 +1654,6 @@ function GraphSection({ flights }) {
     ? { padLeft, padTop, plotW, plotH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 }
     : { padLeft: padLeft2, padTop: padTop2, plotW: plotW2, plotH: plotH2, fullX0: freeFullView.x0, fullX1: freeFullView.x1, fullY0: freeFullView.y0, fullY1: freeFullView.y1 };
   viewRef.current = mode === "grouped" ? barView : freeView;
-  modeRef.current = mode;
 
   const curEmptyCount = mode === "grouped" ? emptyCount : freeEmptyCount;
   const curYLabel = mode === "grouped" ? (GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label||"") : (freeYDef?.label||"");
@@ -1838,9 +1846,30 @@ function GraphSection({ flights }) {
                     return Number.isFinite(y) ? `${scaleX2(x)},${scaleY2(y)}` : null;
                   }).filter(Boolean).join(" ")} fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
                 )}
-                {freePoints.map((p,i)=>(
-                  <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
-                ))}
+                {freePoints.map((p,i)=>{
+                  const cx = scaleX2(p.x), cy = scaleY2(p.y);
+                  return (
+                    <g key={p.key||i}>
+                      {zoomed && (
+                        <circle cx={cx} cy={cy} r={10} fill="transparent" style={{cursor:"pointer"}}
+                          onClick={e=>{ e.stopPropagation(); setTappedFreeKey(k => k===p.key ? null : p.key); }} />
+                      )}
+                      <circle cx={cx} cy={cy} r={2.6*markScale} fill="#22d3ee" style={zoomed?{pointerEvents:"none"}:undefined}/>
+                    </g>
+                  );
+                })}
+                {zoomed && tappedFreeKey && (() => {
+                  const p = freePoints.find(pt => pt.key === tappedFreeKey);
+                  const fl = p && flights.find(f => f.id === tappedFreeKey);
+                  if (!p || !fl) return null;
+                  const cx = scaleX2(p.x), cy = scaleY2(p.y);
+                  return (
+                    <text x={cx} y={cy-9} textAnchor="middle" fontSize="10" fontWeight="800" fill="#fbbf24" style={{cursor:"pointer"}}
+                      onClick={e=>{ e.stopPropagation(); window.location.href = graphFlightDetailUrl(fl.id); }}>
+                      {fl.name}
+                    </text>
+                  );
+                })()}
                 {freeTicksX.map((t,i)=>(
                   <text key={i} x={scaleX2(t)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{xRankByY ? String(Math.round(t)) : graphFormatAxisValue(freeX, t)}</text>
                 ))}
