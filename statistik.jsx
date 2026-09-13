@@ -1264,7 +1264,6 @@ function GraphSection({ flights }) {
   const [chartH, setChartH] = useState(170);
   const chartGeomRef = useRef(null); // {padLeft,padTop,plotW,plotH,fullX0,fullX1,fullY0,fullY1} — pro Render aktualisiert
   const viewRef = useRef(null);
-  const modeRef = useRef(mode); // für onMove (Closure aus useCallback([]) ist sonst veraltet) — pro Render aktualisiert
   const pinchRef = useRef(null);
   const panRef = useRef(null);
 
@@ -1348,13 +1347,9 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        // Scrollrichtung Y: der INHALT bewegt sich mit dem Finger. X
-        // ebenso im Modus "Gruppiert" — im Modus "Frei" (auf expliziten
-        // Wunsch nochmals umgekehrt) bewegt sich dort stattdessen die
-        // ANSICHT mit dem Finger (klassische Scrollbar-Logik), bewusst
-        // eine andere Konvention als bei "Gruppiert".
-        const xSign = modeRef.current === "free" ? 1 : -1;
-        let x0 = sv.x0 + xSign*dxData, x1 = sv.x1 + xSign*dxData;
+        // Scrollrichtung X UND Y, in "Gruppiert" UND "Frei" einheitlich:
+        // der INHALT bewegt sich mit dem Finger, nicht die Ansicht.
+        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
         let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
@@ -1586,7 +1581,6 @@ function GraphSection({ flights }) {
     ? { padLeft, padTop, plotW, plotH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 }
     : { padLeft: padLeft2, padTop: padTop2, plotW: plotW2, plotH: plotH2, fullX0: freeFullView.x0, fullX1: freeFullView.x1, fullY0: freeFullView.y0, fullY1: freeFullView.y1 };
   viewRef.current = mode === "grouped" ? barView : freeView;
-  modeRef.current = mode;
 
   const curEmptyCount = mode === "grouped" ? emptyCount : freeEmptyCount;
   const curYLabel = mode === "grouped" ? (GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label||"") : (freeYDef?.label||"");
@@ -1624,7 +1618,13 @@ function GraphSection({ flights }) {
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
+              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>X-Achse</p>
+              <button onClick={()=>setFieldOrderModal("x")} title="Auswahlliste bearbeiten"
+                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+                ⚙️
+              </button>
+            </div>
             <div style={{display:"flex",gap:6}}>
               <select value={xField} onChange={e=>setXField(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1634,14 +1634,22 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
-              <button onClick={()=>setFieldOrderModal("x")} title="Reihenfolge der Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ≡
-              </button>
+              {xIsCategorical && (
+                <button onClick={()=>setXSortByValue(v=>!v)} title="X-Achse: A–Z oder nach Y-Wert sortieren"
+                  style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xSortByValue?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xSortByValue?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xSortByValue?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                  {xSortByValue ? "Wert" : "A–Z"}
+                </button>
+              )}
             </div>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
+              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>Y-Achse</p>
+              <button onClick={()=>setFieldOrderModal("y")} title="Auswahlliste bearbeiten"
+                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+                ⚙️
+              </button>
+            </div>
             <div style={{display:"flex",gap:6}}>
               <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1651,26 +1659,20 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
-              <button onClick={()=>setFieldOrderModal("y")} title="Reihenfolge der Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ≡
-              </button>
             </div>
           </div>
         </div>
       ) : null}
-      {mode==="grouped" && xIsCategorical && (
-        <div onClick={()=>setXSortByValue(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
-          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${xSortByValue?"#22d3ee":"rgba(232,244,253,0.3)"}`,background:xSortByValue?"#22d3ee":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {xSortByValue && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
-          </div>
-          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>X-Achse nach Y-Wert sortieren (statt A–Z)</span>
-        </div>
-      )}
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
+              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>X-Achse</p>
+              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
+                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+                ⚙️
+              </button>
+            </div>
             <div style={{display:"flex",gap:6}}>
               <select value={freeX} onChange={e=>setFreeX(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1680,14 +1682,16 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
-              <button onClick={()=>setFieldOrderModal("free")} title="Reihenfolge der Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ≡
-              </button>
             </div>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
+              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>Y-Achse</p>
+              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
+                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+                ⚙️
+              </button>
+            </div>
             <div style={{display:"flex",gap:6}}>
               <select value={freeY} onChange={e=>setFreeY(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1696,10 +1700,6 @@ function GraphSection({ flights }) {
               <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
-              </button>
-              <button onClick={()=>setFieldOrderModal("free")} title="Reihenfolge der Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ≡
               </button>
             </div>
           </div>
