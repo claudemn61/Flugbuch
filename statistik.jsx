@@ -1942,10 +1942,22 @@ function GraphSection({ flights }) {
                         <circle cx={cx} cy={cy} r={10} fill="transparent" style={{cursor:"pointer"}}
                           onClick={e=>{ e.stopPropagation(); setTappedFreeKey(k => k===p.key ? null : p.key); }} />
                       )}
-                      <circle cx={cx} cy={cy} r={2.6*markScale} fill={isHighlighted?"#f87171":"#22d3ee"} style={zoomed?{pointerEvents:"none"}:undefined}/>
+                      {/* Markierter Punkt wird separat NACH dieser Schleife gezeichnet
+                          (grösser + zuoberst), damit er nicht von anderen Punkten verdeckt wird. */}
+                      {!isHighlighted && <circle cx={cx} cy={cy} r={2.6*markScale} fill="#22d3ee" style={zoomed?{pointerEvents:"none"}:undefined}/>}
                     </g>
                   );
                 })}
+                {(() => {
+                  const nr = highlightFreeNr.trim();
+                  if (!nr) return null;
+                  const hp = freePoints.find(p => {
+                    const fl = flights.find(f => f.id === p.key);
+                    return fl && String((fl.name||"").match(/\d+/)?.[0] || "") === nr;
+                  });
+                  if (!hp) return null;
+                  return <circle cx={scaleX2(hp.x)} cy={scaleY2(hp.y)} r={4.5*markScale} fill="#f87171" style={{pointerEvents:"none"}}/>;
+                })()}
                 {zoomed && tappedFreeKey && (() => {
                   const p = freePoints.find(pt => pt.key === tappedFreeKey);
                   const fl = p && flights.find(f => f.id === tappedFreeKey);
