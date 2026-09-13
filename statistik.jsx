@@ -1862,6 +1862,17 @@ function GraphSection({ flights }) {
             placeholder="Nr." inputMode="numeric" title="Flugnummer eingeben, um den Punkt rot zu markieren"
             style={{flexShrink:0,width:56,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12,fontWeight:700}} />
         )}
+        {mode==="free" && (
+          <button onClick={()=>{
+              setFreeX(freeY); setFreeY(freeX);
+              setXReversed(yReversed); setYReversed(xReversed);
+              setXRankByY(yRankByX); setYRankByX(xRankByY);
+            }}
+            title="X und Y vertauschen"
+            style={{marginLeft:"auto",flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            ↔ X/Y
+          </button>
+        )}
       </div>
       {drillPopupOpen && (
         <AxisOptionsPopup title={`Aufschlüsseln nach ${g2Label}`} onClose={()=>setDrillPopupOpen(false)}>
