@@ -1221,6 +1221,13 @@ function GraphSection({ flights }) {
   const [yReversed, setYReversed] = useState(false);
   const [freeX, setFreeX] = useState("datum");
   const [freeY, setFreeY] = useState("distanz");
+  // Modus "Frei": statt am eigenen Feldwert kann eine Achse auch am Rang
+  // innerhalb der jeweils anderen Achse aufgereiht werden (z.B. X = Nr.,
+  // aber angeordnet nach dem Rang des Y-Werts) — ergibt eine sortierte
+  // Verteilungskurve statt eines Streudiagramms. Richtung (auf-/absteigend)
+  // läuft über den bereits vorhandenen ⇅-Umkehren-Button der Achse.
+  const [xRankByY, setXRankByY] = useState(false);
+  const [yRankByX, setYRankByX] = useState(false);
   // Reihenfolge der Achsen-Auswahllisten — null = Standard-Reihenfolge
   // (wie im Code definiert). Persistiert, damit sie über einen Neustart
   // hinweg erhalten bleibt.
@@ -1283,7 +1290,7 @@ function GraphSection({ flights }) {
   };
   useEffect(loadSync, []);
   const resetZoom = () => setView(null);
-  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY]);
+  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1526,13 +1533,28 @@ function GraphSection({ flights }) {
   // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
   const freeXDef = GRAPH_FREE_FIELDS.find(f => f.field === freeX);
   const freeYDef = GRAPH_FREE_FIELDS.find(f => f.field === freeY);
-  const freePointsRaw = filtered
-    .map(f => {
-      const xv = graphFreeFieldValue(f, freeX);
-      const yv = graphFreeFieldValue(f, freeY);
-      return { key: f.id, x: xv, y: yv, xLabel: graphFormatAxisValue(freeX, xv) };
+  const freePointsBase = filtered
+    .map(f => ({ key: f.id, xv: graphFreeFieldValue(f, freeX), yv: graphFreeFieldValue(f, freeY) }))
+    .filter(p => (freeX !== "datum" || p.xv > 0) && (freeY !== "datum" || p.yv > 0));
+  // Rang statt Feldwert: die Punkte werden nach dem Wert der JEWEILS
+  // ANDEREN Achse sortiert und stattdessen ihre Position (1..N) als
+  // Wert dieser Achse verwendet — ergibt eine sortierte Verteilungskurve
+  // statt eines Streudiagramms (z.B. X = Rang nach Distanz).
+  let xRankOf = null, yRankOf = null;
+  if (xRankByY) {
+    const sorted = [...freePointsBase].sort((a,b) => a.yv-b.yv);
+    xRankOf = new Map(sorted.map((p,i) => [p.key, i+1]));
+  }
+  if (yRankByX) {
+    const sorted = [...freePointsBase].sort((a,b) => a.xv-b.xv);
+    yRankOf = new Map(sorted.map((p,i) => [p.key, i+1]));
+  }
+  const freePointsRaw = freePointsBase
+    .map(p => {
+      const x = xRankOf ? xRankOf.get(p.key) : p.xv;
+      const y = yRankOf ? yRankOf.get(p.key) : p.yv;
+      return { key: p.key, x, y, xLabel: xRankByY ? String(x) : graphFormatAxisValue(freeX, x) };
     })
-    .filter(p => (freeX !== "datum" || p.x > 0) && (freeY !== "datum" || p.y > 0))
     .sort((a,b) => a.x - b.x);
   const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
   const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
@@ -1570,8 +1592,8 @@ function GraphSection({ flights }) {
     if (yReversed) t = 1-t;
     return padTop2 + plotH2 - t*plotH2;
   };
-  const freeTicksY = graphAxisTicks(freeY, freeView.y0, freeView.y1);
-  const freeTicksX = graphAxisTicks(freeX, freeView.x0, freeView.x1);
+  const freeTicksY = graphAxisTicks(yRankByX ? "nummer" : freeY, freeView.y0, freeView.y1);
+  const freeTicksX = graphAxisTicks(xRankByY ? "nummer" : freeX, freeView.x0, freeView.x1);
   const trendFree = fitTrend(freePoints.map(p => ({ x: p.x, y: p.y })));
 
   // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
@@ -1593,7 +1615,7 @@ function GraphSection({ flights }) {
         style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 10px",marginBottom:10,textDecoration:"none",color:"inherit"}}>
         <span style={{fontSize:13,flexShrink:0}}>🔗</span>
         <span style={{flex:1,fontSize:12,color:"rgba(232,244,253,0.6)",lineHeight:1.35}}>
-          Bezug: <b style={{color:"#e8f4fd"}}>{mode==="grouped" ? (listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel) : `Frei: ${freeXDef?.label} → ${freeYDef?.label}`}</b>
+          Bezug: <b style={{color:"#e8f4fd"}}>{mode==="grouped" ? (listSettings.group1Id ? "Gr. 1° "+xLabel : "kein Gr. 1° — Standard "+xLabel) : `Frei: ${xRankByY?"Rang nach "+freeYDef?.label:freeXDef?.label} → ${yRankByX?"Rang nach "+freeXDef?.label:freeYDef?.label}`}</b>
           {filterText && <> · Filter «<b style={{color:"#e8f4fd"}}>{filterText}</b>»</>}
           {g2Field && drillValue !== "Alle" && <> · <b style={{color:"#e8f4fd"}}>{g2Label}: {drillValue}</b></>} · {filtered.length} Flüge
         </span>
@@ -1672,6 +1694,10 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
+              <button onClick={()=>setXRankByY(v=>!v)} title="X-Achse: Feldwert oder Rang nach Y-Wert (ergibt eine sortierte Verteilungskurve)"
+                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xRankByY?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xRankByY?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xRankByY?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                {xRankByY ? "Rang" : "Wert"}
+              </button>
               <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
                 style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
                 ⚙️
@@ -1688,6 +1714,10 @@ function GraphSection({ flights }) {
               <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setYRankByX(v=>!v)} title="Y-Achse: Feldwert oder Rang nach X-Wert (ergibt eine sortierte Verteilungskurve)"
+                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yRankByX?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yRankByX?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yRankByX?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                {yRankByX ? "Rang" : "Wert"}
               </button>
               <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
                 style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
@@ -1790,7 +1820,7 @@ function GraphSection({ flights }) {
                   return (
                     <g key={i}>
                       <line x1={padLeft2} y1={y} x2={W2-padRight2} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{graphFormatAxisValue(freeY, t)}</text>
+                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{yRankByX ? String(Math.round(t)) : graphFormatAxisValue(freeY, t)}</text>
                     </g>
                   );
                 })}
@@ -1805,7 +1835,7 @@ function GraphSection({ flights }) {
                   <circle key={p.key||i} cx={scaleX2(p.x)} cy={scaleY2(p.y)} r={2.6*markScale} fill="#22d3ee"/>
                 ))}
                 {freeTicksX.map((t,i)=>(
-                  <text key={i} x={scaleX2(t)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{graphFormatAxisValue(freeX, t)}</text>
+                  <text key={i} x={scaleX2(t)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{xRankByY ? String(Math.round(t)) : graphFormatAxisValue(freeX, t)}</text>
                 ))}
               </svg>
             )}

@@ -244,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.2.4";
+const APP_VERSION = "6.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.3", note: "Graph, Modus Frei: neues \"Wert\"/\"Rang\"-Feld je Achse (neben ⇅) — bei \"Rang\" wird die Achse statt am eigenen Feldwert nach dem Rang der jeweils anderen Achse angeordnet (z.B. X = Rang nach Distanz statt Flugnummer), ergibt eine sortierte Verteilungskurve statt eines Streudiagramms. Richtung läuft über den bestehenden ⇅-Button." },
   { v: "6.2.4", note: "Graph: Verschieberichtung per Finger jetzt in Gruppiert und Frei sowie auf beiden Achsen einheitlich (Inhalt bewegt sich mit dem Finger). Auswahllisten-Icon (X-/Y-Achse) verkleinert zu ⚙️ und auf die Achsen-Titelzeile verschoben; an dessen alter Stelle bei kategorischem X (Gruppiert) neu ein kompaktes A-Z/Wert-Sortierfeld statt der bisherigen Checkbox-Zeile." },
   { v: "6.2.3", note: "Statistik, Graph: die Auswahllisten für X-/Y-Achse (Gruppiert und Frei) lassen sich jetzt per neuem ≡-Button frei umsortieren (↑/↓), unabhängig von der festen Standard-Reihenfolge im Code." },
   { v: "6.2.2", note: "Ausrüstung, Gewichte: jede Kategorie (Schirm, Sitz, ...) klappt jetzt unabhängig per Klick auf den Namen auf/zu, statt über einen gemeinsamen ✏️/✓-Button für alle Kategorien gleichzeitig. Flugliste: die Kurzstatistik-Kachel unter der Flug-Anzahl öffnet die Werte-Auswahl jetzt per Klick auf die Werte selbst statt über ein eigenes ⚙️-Icon; deren Popup schliesst jetzt über \"Schliessen\" (speichert automatisch), auch bei Klick daneben." },
