@@ -1144,8 +1144,13 @@ function graphFluglisteUrl(filterText) {
 // antippen) — gleiche openFlightId/returnTo-Konvention wie beim Öffnen
 // eines Flugs aus Reisen/anderen Statistik-Tabellen; der Zurück-Pfeil im
 // Flugdetail führt damit wieder genau zu diesem offenen Graph-Badge.
-function graphFlightDetailUrl(flightId) {
+// graphState (mode/freeX/freeY/view/xRankByY/yRankByX/xReversed/yReversed)
+// wird mitgesichert, damit beim Zurückkommen exakt dieselbe Ansicht samt
+// Zoom wiederhergestellt werden kann, statt bei den Standardwerten zu
+// beginnen (siehe graphReturnState in GraphSection).
+function graphFlightDetailUrl(flightId, graphState) {
   try { sessionStorage.setItem("statistik:returnState", JSON.stringify({ tableId: "graph", rowName: null })); } catch {}
+  try { sessionStorage.setItem("statistik:graphReturnState", JSON.stringify(graphState)); } catch {}
   const params = new URLSearchParams();
   params.set("openFlightId", String(flightId));
   params.set("returnTo", "statistik.html");
@@ -1245,26 +1250,40 @@ function AxisOptionsPopup({ title, onClose, children }) {
 }
 
 function GraphSection({ flights }) {
+  // Beim Öffnen eines Flugs aus dem Modus "Frei" (Punkt antippen → Nummer
+  // antippen) legt graphFlightDetailUrl den kompletten Achsen-/Zoom-Zustand
+  // hier ab — beim Zurückkommen (Zurück-Pfeil im Flugdetail) direkt als
+  // Startwert übernommen, statt wieder bei den Standardwerten zu beginnen.
+  // Einmaliges Lesen per Lazy-Initializer (nicht per Effekt), damit es vor
+  // dem allerersten Render steht und nicht vom asynchronen loadSync()
+  // weiter unten überschrieben wird.
+  const [graphReturnState] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem("statistik:graphReturnState");
+      if (raw) { sessionStorage.removeItem("statistik:graphReturnState"); return JSON.parse(raw); }
+    } catch {}
+    return null;
+  });
   const [listSettings, setListSettings] = useState(null);
-  const [mode, setMode] = useState("grouped"); // "grouped" | "free"
+  const [mode, setMode] = useState(graphReturnState?.mode || "grouped"); // "grouped" | "free"
   const [xField, setXField] = useState("jahr");
   const [g2Field, setG2Field] = useState("");
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showTrend, setShowTrend] = useState(true);
-  const [xReversed, setXReversed] = useState(false);
+  const [xReversed, setXReversed] = useState(graphReturnState?.xReversed || false);
   const [xSortByValue, setXSortByValue] = useState(false); // nur bei kategorischem X: A-Z vs. nach Y-Wert
-  const [yReversed, setYReversed] = useState(false);
-  const [freeX, setFreeX] = useState("datum");
-  const [freeY, setFreeY] = useState("distanz");
+  const [yReversed, setYReversed] = useState(graphReturnState?.yReversed || false);
+  const [freeX, setFreeX] = useState(graphReturnState?.freeX || "datum");
+  const [freeY, setFreeY] = useState(graphReturnState?.freeY || "distanz");
   // Modus "Frei": statt am eigenen Feldwert kann eine Achse auch am Rang
   // innerhalb der jeweils anderen Achse aufgereiht werden (z.B. X = Nr.,
   // aber angeordnet nach dem Rang des Y-Werts) — ergibt eine sortierte
   // Verteilungskurve statt eines Streudiagramms. Richtung (auf-/absteigend)
   // läuft über den bereits vorhandenen ⇅-Umkehren-Button der Achse.
-  const [xRankByY, setXRankByY] = useState(false);
-  const [yRankByX, setYRankByX] = useState(false);
+  const [xRankByY, setXRankByY] = useState(graphReturnState?.xRankByY || false);
+  const [yRankByX, setYRankByX] = useState(graphReturnState?.yRankByX || false);
   // Vereinfachte Darstellung: die Achsen-Zeile zeigt nur noch das Dropdown.
   // Umkehren/Wert-Rang bzw. Wert-Zahl/⚙️ stecken in einem Popup, das durch
   // Antippen des Achsen-Titels ("X-Achse"/"Y-Achse") aufgeht.
@@ -1304,7 +1323,7 @@ function GraphSection({ flights }) {
     if (orderedFreeFields.length && !orderedFreeFields.some(f=>f.field===freeX)) setFreeX(orderedFreeFields[0].field);
     if (orderedFreeFields.length && !orderedFreeFields.some(f=>f.field===freeY)) setFreeY(orderedFreeFields[0].field);
   }, [freeFieldOrder]);
-  const [view, setView] = useState(null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
+  const [view, setView] = useState(graphReturnState?.view || null); // {x0,x1,y0,y1} im Domain der aktiven Achsen, null = volle Spanne
   // Modus "Frei", nur im Zoom: ein einzelner angetippter Punkt zeigt seine
   // Flugnummer, ein weiterer Tipp auf die Nummer öffnet das Flugdetail.
   const [tappedFreeKey, setTappedFreeKey] = useState(null);
@@ -1328,7 +1347,10 @@ function GraphSection({ flights }) {
         if (r && r.value) s = JSON.parse(r.value);
       } catch (e) { /* noch keine Flugliste-Einstellungen gespeichert */ }
       setListSettings(s);
-      setMode(s.group1Id ? "grouped" : "free");
+      // Beim Zurückkommen aus dem Flugdetail (graphReturnState) den
+      // wiederhergestellten Modus/State nicht durch die normalen
+      // Flugliste-Einstellungen überschreiben.
+      if (!graphReturnState) setMode(s.group1Id ? "grouped" : "free");
       setXField(s.group1Id || "jahr");
       setG2Field(s.group2Id || "");
       setDrillValue("Alle");
@@ -1336,7 +1358,14 @@ function GraphSection({ flights }) {
   };
   useEffect(loadSync, []);
   const resetZoom = () => { setView(null); setTappedFreeKey(null); };
-  useEffect(resetZoom, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX]);
+  // Der erste Durchlauf dieses Effekts (beim allerersten Mount) würde einen
+  // per graphReturnState wiederhergestellten Zoom sofort wieder verwerfen —
+  // genau einmal übersprungen, danach verhält er sich normal.
+  const skipInitialResetRef = useRef(!!graphReturnState);
+  useEffect(() => {
+    if (skipInitialResetRef.current) { skipInitialResetRef.current = false; return; }
+    resetZoom();
+  }, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1692,7 +1721,7 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("gx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
               X
             </button>
             <select value={xField} onChange={e=>setXField(e.target.value)}
@@ -1702,7 +1731,7 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("gy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
               Y
             </button>
             <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
@@ -1716,7 +1745,7 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("fx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
               X
             </button>
             <select value={freeX} onChange={e=>setFreeX(e.target.value)}
@@ -1726,7 +1755,7 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("fy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
               Y
             </button>
             <select value={freeY} onChange={e=>setFreeY(e.target.value)}
@@ -1865,7 +1894,7 @@ function GraphSection({ flights }) {
                   const cx = scaleX2(p.x), cy = scaleY2(p.y);
                   return (
                     <text x={cx} y={cy-9} textAnchor="middle" fontSize="10" fontWeight="800" fill="#fbbf24" style={{cursor:"pointer"}}
-                      onClick={e=>{ e.stopPropagation(); window.location.href = graphFlightDetailUrl(fl.id); }}>
+                      onClick={e=>{ e.stopPropagation(); window.location.href = graphFlightDetailUrl(fl.id, { mode, freeX, freeY, view, xRankByY, yRankByX, xReversed, yReversed }); }}>
                       {fl.name}
                     </text>
                   );
