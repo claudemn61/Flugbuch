@@ -1271,7 +1271,7 @@ function GraphSection({ flights }) {
   const [drillValue, setDrillValue] = useState("Alle");
   const [yMetric, setYMetric] = useState("count");
   const [hideEmpty, setHideEmpty] = useState(false);
-  const [showTrend, setShowTrend] = useState(true);
+  const [showTrend, setShowTrend] = useState(false);
   const [xReversed, setXReversed] = useState(graphReturnState?.xReversed || false);
   const [xSortByValue, setXSortByValue] = useState(false); // nur bei kategorischem X: A-Z vs. nach Y-Wert
   const [yReversed, setYReversed] = useState(graphReturnState?.yReversed || false);
