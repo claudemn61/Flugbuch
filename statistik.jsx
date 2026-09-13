@@ -1669,6 +1669,28 @@ function GraphSection({ flights }) {
   }
   const freeFullView = { x0: fXMinFull, x1: fXMaxFull, y0: fYMinFull, y1: fYMaxFull };
   const freeView = (mode==="free" && view) ? view : freeFullView;
+  // Eingegebene Flugnummer gefunden: auf eine mittlere Zoomstufe (ein
+  // Viertel der vollen Spanne je Achse) springen, zentriert auf den
+  // (rot markierten) Punkt — statt die Nummer nur einzufärben, ohne sie
+  // im Diagramm erst suchen zu müssen.
+  useEffect(() => {
+    if (mode !== "free") return;
+    const nr = highlightFreeNr.trim();
+    if (!nr) return;
+    const fl = flights.find(f => String((f.name||"").match(/\d+/)?.[0] || "") === nr);
+    const p = fl && freePointsRaw.find(pt => pt.key === fl.id);
+    if (!p) return;
+    const frac = 0.25; // "mittlere" Zoomstufe
+    const fullWX = freeFullView.x1-freeFullView.x0, fullWY = freeFullView.y1-freeFullView.y0;
+    let widthX = fullWX*frac, widthY = fullWY*frac;
+    let x0 = p.x-widthX/2, x1 = p.x+widthX/2;
+    let y0 = p.y-widthY/2, y1 = p.y+widthY/2;
+    if (x0 < freeFullView.x0) { x1 += freeFullView.x0-x0; x0 = freeFullView.x0; }
+    if (x1 > freeFullView.x1) { x0 -= x1-freeFullView.x1; x1 = freeFullView.x1; }
+    if (y0 < freeFullView.y0) { y1 += freeFullView.y0-y0; y0 = freeFullView.y0; }
+    if (y1 > freeFullView.y1) { y0 -= y1-freeFullView.y1; y1 = freeFullView.y1; }
+    setView({ x0, x1, y0, y1 });
+  }, [highlightFreeNr]);
   const zoomFactorFree = (fXMaxFull-fXMinFull) / Math.max(0.0001, freeView.x1-freeView.x0);
   const markScale = Math.min(2.2, 1 + Math.max(0, zoomFactorFree-1)*0.3);
   const scaleX2 = x => {
