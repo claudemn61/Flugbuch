@@ -1443,11 +1443,12 @@ function GraphSection({ flights }) {
   // (Reise, Schirm, …) standardmässig alphabetisch — neutral und
   // vorhersehbar statt automatisch nach Flugzahl —, wahlweise aber auch
   // nach dem angezeigten Y-Wert (xSortByValue, per eigenem Umschalter
-  // wählbar, nur wenn X kategorisch ist). ⇅ kehrt die jeweils aktive
-  // Sortierung um.
+  // wählbar — auch bei numerischem X, z.B. um die Jahre mit den
+  // längsten Flügen statt chronologisch zu ordnen). ⇅ kehrt die jeweils
+  // aktive Sortierung um.
   const xIsCategorical = !GRAPH_X_SORT_NUMERIC_FIELDS.has(xField);
-  if (!xIsCategorical) rows.sort((a,b) => a.key - b.key);
-  else if (xSortByValue) rows.sort((a,b) => a.value - b.value);
+  if (xSortByValue) rows.sort((a,b) => a.value - b.value);
+  else if (!xIsCategorical) rows.sort((a,b) => a.key - b.key);
   else rows.sort((a,b) => String(a.label).localeCompare(String(b.label), "de", {numeric:true, sensitivity:"base"}));
   if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
@@ -1650,12 +1651,10 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
-              {xIsCategorical && (
-                <button onClick={()=>setXSortByValue(v=>!v)} title="X-Achse: A–Z oder nach Y-Wert sortieren"
-                  style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xSortByValue?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xSortByValue?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xSortByValue?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                  {xSortByValue ? "Wert" : "A–Z"}
-                </button>
-              )}
+              <button onClick={()=>setXSortByValue(v=>!v)} title={`X-Achse: ${xIsCategorical?"A–Z":"eigener Wert"} oder nach Y-Wert sortieren`}
+                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xSortByValue?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xSortByValue?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xSortByValue?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                {xSortByValue ? "Wert" : xIsCategorical ? "A–Z" : "Zahl"}
+              </button>
               <button onClick={()=>setFieldOrderModal("x")} title="Auswahlliste bearbeiten"
                 style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
                 ⚙️
