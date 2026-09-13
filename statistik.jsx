@@ -1672,23 +1672,23 @@ function GraphSection({ flights }) {
 
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <div style={{flex:1,minWidth:0}}>
-            <button onClick={()=>setAxisOptionsOpen("gx")}
-              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
-              X-Achse ⋯
+          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
+            <button onClick={()=>setAxisOptionsOpen("gx")} title="Achsen-Optionen"
+              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              X
             </button>
             <select value={xField} onChange={e=>setXField(e.target.value)}
-              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
               {orderedXFields.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
             </select>
           </div>
-          <div style={{flex:1,minWidth:0}}>
-            <button onClick={()=>setAxisOptionsOpen("gy")}
-              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
-              Y-Achse ⋯
+          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
+            <button onClick={()=>setAxisOptionsOpen("gy")} title="Achsen-Optionen"
+              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              Y
             </button>
             <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
-              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
               {orderedYMetrics.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
             </select>
           </div>
@@ -1696,23 +1696,23 @@ function GraphSection({ flights }) {
       ) : null}
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <div style={{flex:1,minWidth:0}}>
-            <button onClick={()=>setAxisOptionsOpen("fx")}
-              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
-              X-Achse ⋯
+          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
+            <button onClick={()=>setAxisOptionsOpen("fx")} title="Achsen-Optionen"
+              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              X
             </button>
             <select value={freeX} onChange={e=>setFreeX(e.target.value)}
-              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
               {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
             </select>
           </div>
-          <div style={{flex:1,minWidth:0}}>
-            <button onClick={()=>setAxisOptionsOpen("fy")}
-              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
-              Y-Achse ⋯
+          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
+            <button onClick={()=>setAxisOptionsOpen("fy")} title="Achsen-Optionen"
+              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              Y
             </button>
             <select value={freeY} onChange={e=>setFreeY(e.target.value)}
-              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
               {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
             </select>
           </div>
