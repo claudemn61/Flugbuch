@@ -1618,13 +1618,7 @@ function GraphSection({ flights }) {
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
-              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>X-Achse</p>
-              <button onClick={()=>setFieldOrderModal("x")} title="Auswahlliste bearbeiten"
-                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
-                ⚙️
-              </button>
-            </div>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
             <div style={{display:"flex",gap:6}}>
               <select value={xField} onChange={e=>setXField(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1640,16 +1634,14 @@ function GraphSection({ flights }) {
                   {xSortByValue ? "Wert" : "A–Z"}
                 </button>
               )}
-            </div>
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
-              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>Y-Achse</p>
-              <button onClick={()=>setFieldOrderModal("y")} title="Auswahlliste bearbeiten"
-                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+              <button onClick={()=>setFieldOrderModal("x")} title="Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
                 ⚙️
               </button>
             </div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
             <div style={{display:"flex",gap:6}}>
               <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1659,6 +1651,10 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
+              <button onClick={()=>setFieldOrderModal("y")} title="Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
+                ⚙️
+              </button>
             </div>
           </div>
         </div>
@@ -1666,13 +1662,7 @@ function GraphSection({ flights }) {
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
-              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>X-Achse</p>
-              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
-                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
-                ⚙️
-              </button>
-            </div>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
             <div style={{display:"flex",gap:6}}>
               <select value={freeX} onChange={e=>setFreeX(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1682,16 +1672,14 @@ function GraphSection({ flights }) {
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
               </button>
-            </div>
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 0 4px 2px"}}>
-              <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:0}}>Y-Achse</p>
               <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
-                style={{background:"none",border:"none",padding:0,color:"rgba(232,244,253,0.5)",fontSize:12,cursor:"pointer",lineHeight:1}}>
+                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
                 ⚙️
               </button>
             </div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
             <div style={{display:"flex",gap:6}}>
               <select value={freeY} onChange={e=>setFreeY(e.target.value)}
                 style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
@@ -1700,6 +1688,10 @@ function GraphSection({ flights }) {
               <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
                 style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 ⇅
+              </button>
+              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
+                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
+                ⚙️
               </button>
             </div>
           </div>
