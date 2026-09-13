@@ -1674,7 +1674,7 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("gx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
               X
             </button>
             <select value={xField} onChange={e=>setXField(e.target.value)}
@@ -1684,7 +1684,7 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("gy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
               Y
             </button>
             <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
@@ -1698,7 +1698,7 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("fx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
               X
             </button>
             <select value={freeX} onChange={e=>setFreeX(e.target.value)}
@@ -1708,7 +1708,7 @@ function GraphSection({ flights }) {
           </div>
           <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
             <button onClick={()=>setAxisOptionsOpen("fy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:34,boxSizing:"border-box",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:900,color:"#e8f4fd"}}>
+              style={{flexShrink:0,width:28,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:17,fontWeight:900,color:"rgba(232,244,253,0.55)"}}>
               Y
             </button>
             <select value={freeY} onChange={e=>setFreeY(e.target.value)}
