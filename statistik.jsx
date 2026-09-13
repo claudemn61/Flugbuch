@@ -1327,6 +1327,10 @@ function GraphSection({ flights }) {
   // Modus "Frei", nur im Zoom: ein einzelner angetippter Punkt zeigt seine
   // Flugnummer, ein weiterer Tipp auf die Nummer öffnet das Flugdetail.
   const [tappedFreeKey, setTappedFreeKey] = useState(null);
+  // Modus "Frei": eine eingetippte Flugnummer färbt den passenden Punkt
+  // rot statt blau — unabhängig vom Zoom, damit man ihn im Streudiagramm
+  // gezielt wiederfindet.
+  const [highlightFreeNr, setHighlightFreeNr] = useState("");
   // Tatsächlich verfügbare Breite UND Höhe der Zeichenfläche (CSS-Pixel) —
   // ersetzt vorher feste Werte (300 / 122), damit der Graph im Vollbild auf
   // Desktop/iPad (und beim Drehen ins Querformat) wirklich die ganze
@@ -1528,6 +1532,13 @@ function GraphSection({ flights }) {
   if (xReversed) rows.reverse();
   const emptyCount = rows.filter(r => !r.value).length;
   if (hideEmpty) rows = rows.filter(r => r.value);
+  // Aktuelles Jahr/Monat rot hervorheben, wenn X eines der beiden ist —
+  // unabhängig vom sonstigen Feld-Typ (jahr/monat sind hier immer
+  // numerisch: r.key ist die Jahreszahl bzw. 1-12, siehe sortFieldValue).
+  const now = new Date();
+  const currentYear = now.getFullYear(), currentMonth = now.getMonth()+1;
+  const isCurrentBar = (key) =>
+    (xField === "jahr" && +key === currentYear) || (xField === "monat" && +key === currentMonth);
 
   const W = Math.max(240, Math.round(chartW)), padLeft = 34, padRight = 10, plotW = W-padLeft-padRight;
   // Y-Spanne wie im Frei-Modus: additive Grössen (Anzahl/Gesamt/Ø) bei 0
@@ -1790,6 +1801,11 @@ function GraphSection({ flights }) {
             <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Trendlinie anzeigen</span>
           </div>
         )}
+        {mode==="free" && (
+          <input value={highlightFreeNr} onChange={e=>setHighlightFreeNr(e.target.value)}
+            placeholder="Nr." inputMode="numeric" title="Flugnummer eingeben, um den Punkt rot zu markieren"
+            style={{flexShrink:0,width:56,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12,fontWeight:700}} />
+        )}
       </div>
       {drillPopupOpen && (
         <AxisOptionsPopup title={`Aufschlüsseln nach ${g2Label}`} onClose={()=>setDrillPopupOpen(false)}>
@@ -1833,7 +1849,7 @@ function GraphSection({ flights }) {
                   const aboveFits = r.valueVertical && (y-4) >= r.valueText.length*VALUE_CHAR_W;
                   return (
                     <g key={r.key}>
-                      <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill="#22d3ee" opacity="0.85"/>
+                      <rect x={cx-barW/2} y={y} width={barW} height={Math.max(0,h)} rx="2.5" fill={isCurrentBar(r.key)?"#f87171":"#22d3ee"} opacity="0.85"/>
                       {!r.valueVertical ? (
                         <text x={cx} y={y-4} textAnchor="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
                       ) : aboveFits ? (
@@ -1877,13 +1893,18 @@ function GraphSection({ flights }) {
                 )}
                 {freePoints.map((p,i)=>{
                   const cx = scaleX2(p.x), cy = scaleY2(p.y);
+                  const nr = highlightFreeNr.trim();
+                  const isHighlighted = nr && (() => {
+                    const fl = flights.find(f => f.id === p.key);
+                    return fl && String((fl.name||"").match(/\d+/)?.[0] || "") === nr;
+                  })();
                   return (
                     <g key={p.key||i}>
                       {zoomed && (
                         <circle cx={cx} cy={cy} r={10} fill="transparent" style={{cursor:"pointer"}}
                           onClick={e=>{ e.stopPropagation(); setTappedFreeKey(k => k===p.key ? null : p.key); }} />
                       )}
-                      <circle cx={cx} cy={cy} r={2.6*markScale} fill="#22d3ee" style={zoomed?{pointerEvents:"none"}:undefined}/>
+                      <circle cx={cx} cy={cy} r={2.6*markScale} fill={isHighlighted?"#f87171":"#22d3ee"} style={zoomed?{pointerEvents:"none"}:undefined}/>
                     </g>
                   );
                 })}
