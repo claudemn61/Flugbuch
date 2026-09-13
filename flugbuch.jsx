@@ -595,7 +595,7 @@ function removeStrayMapTilerWarnings() {
 // 30–150 m Radius) auf wenige Eckpunkte zusammenschrumpft.
 // toleranceM: erlaubte Abweichung in Metern — ein Punkt bleibt nur dann
 // erhalten, wenn er weiter als das vom geraden Verbindungsstück abweicht.
-function simplifyTrackForMap(track, toleranceM = 40) {
+function simplifyTrackForMap(track, toleranceM = 10) {
   const pts = track.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
   if (pts.length < 3) return pts.map(p => [p.lon, p.lat]);
   // Grobe, lokal ebene Projektion (Meter) reicht für diesen Zweck völlig —
