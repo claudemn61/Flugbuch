@@ -588,6 +588,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
   const mapRef = useRef(null);
   const [showSP, setShowSP] = useState(true);
   const [showLP, setShowLP] = useState(true);
+  const [showIGC, setShowIGC] = useState(false);
   const [search, setSearch] = useState("");
 
   const relevantFlights = (selectedIds && selectedIds.size > 0)
@@ -616,14 +617,29 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     return [...seen.values()];
   }, [relevantFlights, showSP, showLP, search]);
 
+  // IGC-Tracks der ausgewählten (bzw. gesuchten) Flüge — eigene, von
+  // Start-/Landeplätzen unabhängige Ebene, da hier ganze Linien statt
+  // einzelner Punkte gezeichnet werden. Gleicher Such-/Auswahlfilter wie
+  // bei "points" oben, deshalb standardmässig aus (viele Tracks auf
+  // einmal sind spürbar teurer zu rendern als ein paar Marker).
+  const tracks = useMemo(() => {
+    if (!showIGC) return [];
+    const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
+    return searched
+      .filter(f => f.track?.length > 1)
+      .map(f => ({ id: f.id, coords: f.track.map(p => [p.lon, p.lat]) }));
+  }, [relevantFlights, showIGC, search]);
+
   // MapTiler SDK map, same approach as meintauchbuch's MiniMap: OUTDOOR
   // style (terrain/relief/hillshading — unlike Leaflet+OpenTopoMap, this
   // is a more reliable CDN with German-language labels built in) with a
-  // German locale. Rebuilt whenever the filtered point set actually
-  // changes (compared via a stable JSON key), same as Tauchbuch does.
+  // German locale. Rebuilt whenever der gefilterte Punkt- ODER Track-Satz
+  // sich ändert (Track-Koordinaten selbst sind über die Flug-IDs erfasst,
+  // aufwändiges JSON.stringify der ggf. langen Koordinatenlisten unnötig).
   const pointsKey = JSON.stringify(points);
+  const tracksKey = tracks.map(t => t.id).join(",");
   useEffect(() => {
-    if (!mapDivRef.current || !window.maptilersdk || !points.length) return;
+    if (!mapDivRef.current || !window.maptilersdk || (!points.length && !tracks.length)) return;
     const sdk = window.maptilersdk;
 
     const initMap = () => {
@@ -631,12 +647,13 @@ function WorldMapView({ flights, selectedIds, onBack }) {
       // Clears any leftover DOM MapTiler injected but didn't clean up on
       // its own (e.g. its "WebGL context was lost" warning banner).
       if (mapDivRef.current) mapDivRef.current.innerHTML = "";
+      const firstCoord = points[0] ? [points[0].lon, points[0].lat] : tracks[0].coords[0];
       const map = new sdk.Map({
         container: mapDivRef.current,
         apiKey: MAPTILER_API_KEY,
         style: sdk.MapStyle.OUTDOOR,
         language: "de",
-        center: [points[0].lon, points[0].lat],
+        center: firstCoord,
         zoom: 8,
       });
       mapRef.current = map;
@@ -661,15 +678,36 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         marker.addTo(map);
       });
 
-      if (points.length > 1) {
-        const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
-        map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
+      const allLons = [...points.map(p => p.lon), ...tracks.flatMap(t => t.coords.map(c => c[0]))];
+      const allLats = [...points.map(p => p.lat), ...tracks.flatMap(t => t.coords.map(c => c[1]))];
+      if (allLons.length > 1) {
+        map.fitBounds([[Math.min(...allLons), Math.min(...allLats)], [Math.max(...allLons), Math.max(...allLats)]], { padding: 40 });
       }
-      map.on("load", () => removeStrayMapTilerWarnings());
+      map.on("load", () => {
+        removeStrayMapTilerWarnings();
+        // Königsblau, wie vom Nutzer gewünscht — bewusst eine einzige
+        // Farbe für alle Tracks (kein Track-pro-Flug-Farbcode): auf der
+        // Weltkarte geht es um die Streckenmuster insgesamt, nicht darum,
+        // einzelne Flüge auseinanderzuhalten.
+        if (tracks.length) {
+          map.addSource("igc-tracks", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: tracks.map(t => ({
+              type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: t.coords },
+            })) },
+          });
+          map.addLayer({ id: "igc-tracks-casing", type: "line", source: "igc-tracks",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "rgba(255,255,255,0.5)", "line-width": 3.5 } });
+          map.addLayer({ id: "igc-tracks-line", type: "line", source: "igc-tracks",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "#4169e1", "line-width": 2, "line-opacity": 0.85 } });
+        }
+      });
     };
     initMap();
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
-  }, [pointsKey]);
+  }, [pointsKey, tracksKey]);
 
   return (
     <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>
@@ -695,6 +733,10 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         <button onClick={()=>setShowLP(s=>!s)}
           style={{background:showLP?"rgba(248,113,113,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${showLP?"rgba(248,113,113,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showLP?"#f87171":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
           🛬 Landeplätze
+        </button>
+        <button onClick={()=>setShowIGC(s=>!s)}
+          style={{background:showIGC?"rgba(65,105,225,0.22)":"rgba(255,255,255,0.05)",border:`1px solid ${showIGC?"rgba(65,105,225,0.5)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"7px 14px",color:showIGC?"#7290ff":"rgba(232,244,253,0.5)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          〰️ IGC
         </button>
       </div>
       <div style={{padding:"0 16px 12px"}}>

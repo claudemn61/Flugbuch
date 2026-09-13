@@ -103,7 +103,7 @@ const SECTIONS = [
         <li>Gestrichelte Linie im Profil markiert diese Mitte — zeigt zusätzlich Höhe (Y-Achse) und Flugdauer/Distanz (unter der X-Achse) an genau diesem Punkt, in Rot. Beim Wählen eines Zoom-Levels springt die Markierung auf Flugstart (0:00)</li>
       </ul>
       <h3>3.7 Weltkarte</h3>
-      <p>Start-/Landeplätze (grün/rot) auf einer MapTiler-Geländekarte (deutsche Beschriftung), einzeln ein-/ausblendbar, mit echtem Pinch-/Doppeltipp-Zoom. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche nutzt denselben erweiterbaren Zeilen-Baukasten wie die Flugliste (siehe 3.2) — mehrere Bedingungen, UND/ODER.</p>
+      <p>Start-/Landeplätze (grün/rot) auf einer MapTiler-Geländekarte (deutsche Beschriftung), einzeln ein-/ausblendbar, mit echtem Pinch-/Doppeltipp-Zoom. Zusätzliche "IGC"-Kachel (standardmässig aus) zeichnet die IGC-Tracks der angezeigten Flüge als königsblaue Linien ein. Bei aktiver Auswahl (☑-Modus) zeigt sie nur diese Flüge. Suche nutzt denselben erweiterbaren Zeilen-Baukasten wie die Flugliste (siehe 3.2) — mehrere Bedingungen, UND/ODER.</p>
     </>),
   },
   {
@@ -183,7 +183,7 @@ function KurzContent() {
       <h3>Ausrüstung, Brevet</h3>
       <p>Drei Tabs: <b>⚖️ Gewichte</b> — 8 farblich unterschiedene Kategorien (Schirm/Sitz/Reserve/Packhilfen/Geräte/Kleidung/Zubehör/Körpergewicht), Positionen frei hinzufügbar (Name+kg, manuell erfasst), mehrere Setups (z.B. Tandem/Solo) je mit eigener Positions-Auswahl, nur eins gleichzeitig sichtbar, Gesamtgewicht/Limite/Reserve. <b>🛠️ Wartung</b> — 3 Kapitel: Reserve (3) · Schirm (4) · Sitz (5) — Titel direkt editierbar (nochmal auf aktiven Titel tippen), Check-Intervall, nächstes fälliges Datum automatisch angezeigt. <b>🎓 Brevet</b> — Ausweise mit Name und Foto, Perspektiv-Korrektur beim Zuschneiden, im Backup enthalten</p>
       <h3>Weltkarte</h3>
-      <p>MapTiler-Geländekarte, deutsche Beschriftung, echtes Pinch-Zoom. Suche wie Flugliste (Zeilen-Baukasten, UND/ODER)</p>
+      <p>MapTiler-Geländekarte, deutsche Beschriftung, echtes Pinch-Zoom. Start-/Landeplätze sowie IGC-Tracks (königsblau) einzeln ein-/ausblendbar. Suche wie Flugliste (Zeilen-Baukasten, UND/ODER)</p>
       <h3>Offline</h3>
       <p>Ab dem zweiten Online-Start funktioniert die App komplett offline (Service Worker). Gelbes Banner zeigt an, wenn offline. Nur neue Kartenkacheln/Höhenprofil-Bodendaten/Zeitzonen-Bestimmung brauchen weiterhin Verbindung.</p>
       <h3>iPad/Desktop</h3>
