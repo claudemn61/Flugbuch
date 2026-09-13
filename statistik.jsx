@@ -1348,6 +1348,14 @@ function GraphSection({ flights }) {
   // gelesen statt direkt aus dem Closure.
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  // Bei umgekehrter Achse (xReversed/yReversed) zeigt der grössere Datenwert
+  // auf die andere Bildschirmseite — die Verschieberichtung beim Wischen muss
+  // dann ebenfalls umgekehrt werden, sonst bewegt sich der Inhalt entgegen
+  // dem Finger. Ebenfalls per Ref, aus demselben Grund wie modeRef oben.
+  const xReversedRef = useRef(xReversed);
+  xReversedRef.current = xReversed;
+  const yReversedRef = useRef(yReversed);
+  yReversedRef.current = yReversed;
 
   const loadSync = () => {
     (async () => {
@@ -1443,9 +1451,19 @@ function GraphSection({ flights }) {
         // folgt dem Finger". Scrollrichtung X: in "Gruppiert" ebenfalls
         // "Inhalt folgt dem Finger", in "Frei" bewusst umgekehrt (Wunsch
         // des Nutzers, mehrfach bestätigt).
-        const xSign = modeRef.current === "free" ? 1 : -1;
+        // "Reihenfolge umkehren" (xReversed/yReversed) dreht bei Y (beide
+        // Modi) UND bei X in "Frei" die Pixel-Achse selbst um (scaleX2/
+        // scaleY/scaleY2 spiegeln dort t=1-t) — die Verschieberichtung muss
+        // dann ebenfalls gedreht werden. Bei X in "Gruppiert" ordnet
+        // xReversed dagegen nur die Kategorien innerhalb desselben
+        // Index-Rasters um (rows.reverse()), die Pixel-Achse bleibt
+        // unverändert — dort bleibt die Verschieberichtung deshalb gleich.
+        const xBaseSign = modeRef.current === "free" ? 1 : -1;
+        const xSign = (modeRef.current === "free" && xReversedRef.current) ? -xBaseSign : xBaseSign;
+        const yBaseSign = -1;
+        const ySign = yReversedRef.current ? -yBaseSign : yBaseSign;
         let x0 = sv.x0+xSign*dxData, x1 = sv.x1+xSign*dxData;
-        let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
+        let y0 = sv.y0+ySign*dyData, y1 = sv.y1+ySign*dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
         if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
