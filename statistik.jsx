@@ -1342,6 +1342,12 @@ function GraphSection({ flights }) {
   const viewRef = useRef(null);
   const pinchRef = useRef(null);
   const panRef = useRef(null);
+  // attachChartTouch hat ein leeres Dependency-Array (siehe Kommentar dort)
+  // und läuft daher immer mit dem Stand von "mode" beim allerersten Mount —
+  // deshalb hier bei jedem Render aktuell gehalten und in onMove per Ref
+  // gelesen statt direkt aus dem Closure.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const loadSync = () => {
     (async () => {
@@ -1433,9 +1439,12 @@ function GraphSection({ flights }) {
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
         const dxData = (dxPx/g.plotW) * widthX;
         const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
-        // Scrollrichtung X UND Y, in "Gruppiert" UND "Frei" einheitlich:
-        // der INHALT bewegt sich mit dem Finger, nicht die Ansicht.
-        let x0 = sv.x0-dxData, x1 = sv.x1-dxData;
+        // Scrollrichtung Y: in "Gruppiert" UND "Frei" einheitlich "Inhalt
+        // folgt dem Finger". Scrollrichtung X: in "Gruppiert" ebenfalls
+        // "Inhalt folgt dem Finger", in "Frei" bewusst umgekehrt (Wunsch
+        // des Nutzers, mehrfach bestätigt).
+        const xSign = modeRef.current === "free" ? 1 : -1;
+        let x0 = sv.x0+xSign*dxData, x1 = sv.x1+xSign*dxData;
         let y0 = sv.y0-dyData, y1 = sv.y1-dyData;
         const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
         if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
