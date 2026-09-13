@@ -1206,6 +1206,32 @@ function FieldOrderModal({ title, defs, keyProp, order, onSave, onClose }) {
     </div>
   );
 }
+// Kleines Popup für die pro Achse ausgelagerten Buttons (Umkehren,
+// Wert/Rang bzw. Wert/Zahl, ⚙️ Auswahlliste) — hält selbst keinen
+// State, jeder Button darin wirkt direkt auf den globalen State, daher
+// schliesst ein Klick daneben einfach ohne "Speichern".
+function AxisOptionRow({ label, icon, active, onClick }) {
+  return (
+    <button onClick={onClick}
+      style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",boxSizing:"border-box",background:active?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${active?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"10px 12px",color:active?"#22d3ee":"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+      <span>{label}</span>
+      <span style={{fontSize:15}}>{icon}</span>
+    </button>
+  );
+}
+function AxisOptionsPopup({ title, onClose, children }) {
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>{title}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GraphSection({ flights }) {
   const [listSettings, setListSettings] = useState(null);
@@ -1228,6 +1254,12 @@ function GraphSection({ flights }) {
   // läuft über den bereits vorhandenen ⇅-Umkehren-Button der Achse.
   const [xRankByY, setXRankByY] = useState(false);
   const [yRankByX, setYRankByX] = useState(false);
+  // Vereinfachte Darstellung: die Achsen-Zeile zeigt nur noch das Dropdown.
+  // Umkehren/Wert-Rang bzw. Wert-Zahl/⚙️ stecken in einem Popup, das durch
+  // Antippen des Achsen-Titels ("X-Achse"/"Y-Achse") aufgeht.
+  // "gx"/"gy"/"fx"/"fy" = Gruppiert/Frei × X/Y, oder null.
+  const [axisOptionsOpen, setAxisOptionsOpen] = useState(null);
+  const [drillPopupOpen, setDrillPopupOpen] = useState(false);
   // Reihenfolge der Achsen-Auswahllisten — null = Standard-Reihenfolge
   // (wie im Code definiert). Persistiert, damit sie über einen Neustart
   // hinweg erhalten bleibt.
@@ -1641,101 +1673,51 @@ function GraphSection({ flights }) {
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
-            <div style={{display:"flex",gap:6}}>
-              <select value={xField} onChange={e=>setXField(e.target.value)}
-                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {orderedXFields.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
-              </select>
-              <button onClick={()=>setXReversed(r=>!r)} title="Reihenfolge umkehren"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ⇅
-              </button>
-              <button onClick={()=>setXSortByValue(v=>!v)} title={`X-Achse: ${xIsCategorical?"A–Z":"eigener Wert"} oder nach Y-Wert sortieren`}
-                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xSortByValue?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xSortByValue?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xSortByValue?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                {xSortByValue ? "Wert" : xIsCategorical ? "A–Z" : "Zahl"}
-              </button>
-              <button onClick={()=>setFieldOrderModal("x")} title="Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
-                ⚙️
-              </button>
-            </div>
+            <button onClick={()=>setAxisOptionsOpen("gx")}
+              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
+              X-Achse ⋯
+            </button>
+            <select value={xField} onChange={e=>setXField(e.target.value)}
+              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {orderedXFields.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
+            </select>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
-            <div style={{display:"flex",gap:6}}>
-              <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
-                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {orderedYMetrics.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
-              </select>
-              <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ⇅
-              </button>
-              <button onClick={()=>setFieldOrderModal("y")} title="Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
-                ⚙️
-              </button>
-            </div>
+            <button onClick={()=>setAxisOptionsOpen("gy")}
+              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
+              Y-Achse ⋯
+            </button>
+            <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
+              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {orderedYMetrics.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
+            </select>
           </div>
         </div>
       ) : null}
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>X-Achse</p>
-            <div style={{display:"flex",gap:6}}>
-              <select value={freeX} onChange={e=>setFreeX(e.target.value)}
-                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-              </select>
-              <button onClick={()=>setXReversed(r=>!r)} title="X-Achse umkehren"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ⇅
-              </button>
-              <button onClick={()=>setXRankByY(v=>!v)} title="X-Achse: Feldwert oder Rang nach Y-Wert (ergibt eine sortierte Verteilungskurve)"
-                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:xRankByY?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${xRankByY?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:xRankByY?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                {xRankByY ? "Rang" : "Wert"}
-              </button>
-              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
-                ⚙️
-              </button>
-            </div>
+            <button onClick={()=>setAxisOptionsOpen("fx")}
+              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
+              X-Achse ⋯
+            </button>
+            <select value={freeX} onChange={e=>setFreeX(e.target.value)}
+              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+            </select>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Y-Achse</p>
-            <div style={{display:"flex",gap:6}}>
-              <select value={freeY} onChange={e=>setFreeY(e.target.value)}
-                style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-              </select>
-              <button onClick={()=>setYReversed(r=>!r)} title="Y-Achse umkehren"
-                style={{flexShrink:0,width:32,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yReversed?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yReversed?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yReversed?"#22d3ee":"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                ⇅
-              </button>
-              <button onClick={()=>setYRankByX(v=>!v)} title="Y-Achse: Feldwert oder Rang nach X-Wert (ergibt eine sortierte Verteilungskurve)"
-                style={{flexShrink:0,width:40,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:yRankByX?"rgba(34,211,238,0.15)":"rgba(255,255,255,0.06)",border:`1px solid ${yRankByX?"rgba(34,211,238,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,color:yRankByX?"#22d3ee":"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>
-                {yRankByX ? "Rang" : "Wert"}
-              </button>
-              <button onClick={()=>setFieldOrderModal("free")} title="Auswahlliste bearbeiten"
-                style={{flexShrink:0,width:28,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",padding:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontSize:13,cursor:"pointer"}}>
-                ⚙️
-              </button>
-            </div>
+            <button onClick={()=>setAxisOptionsOpen("fy")}
+              style={{background:"none",border:"none",padding:0,margin:"0 0 4px 2px",cursor:"pointer",fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)"}}>
+              Y-Achse ⋯
+            </button>
+            <select value={freeY} onChange={e=>setFreeY(e.target.value)}
+              style={{width:"100%",boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+            </select>
           </div>
         </div>
       </>)}
-
-      {drillOptions && (
-        <div style={{marginBottom:10}}>
-          <p style={{fontSize:9.5,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(232,244,253,0.32)",margin:"0 0 4px 2px"}}>Aufschlüsseln nach {g2Label}</p>
-          <select value={drillValue} onChange={e=>setDrillValue(e.target.value)}
-            style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-            {drillOptions.map(v=><option key={v} value={v} style={{background:"#0a1628"}}>{v}</option>)}
-          </select>
-        </div>
-      )}
 
       {curEmptyCount > 0 && (
         <div onClick={()=>setHideEmpty(h=>!h)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
@@ -1746,13 +1728,29 @@ function GraphSection({ flights }) {
         </div>
       )}
 
-      {(mode==="grouped" ? trendGrouped : trendFree) && (
-        <div onClick={()=>setShowTrend(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}}>
-          <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${showTrend?"#fbbf24":"rgba(232,244,253,0.3)"}`,background:showTrend?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            {showTrend && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,flexWrap:"wrap"}}>
+        {drillOptions && (
+          <button onClick={()=>setDrillPopupOpen(true)}
+            style={{flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            {g2Label}{drillValue!=="Alle" ? `: ${drillValue}` : ""}
+          </button>
+        )}
+        {(mode==="grouped" ? trendGrouped : trendFree) && (
+          <div onClick={()=>setShowTrend(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+            <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${showTrend?"#fbbf24":"rgba(232,244,253,0.3)"}`,background:showTrend?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {showTrend && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
+            </div>
+            <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Trendlinie anzeigen</span>
           </div>
-          <span style={{fontSize:12,color:"rgba(232,244,253,0.6)"}}>Trendlinie anzeigen</span>
-        </div>
+        )}
+      </div>
+      {drillPopupOpen && (
+        <AxisOptionsPopup title={`Aufschlüsseln nach ${g2Label}`} onClose={()=>setDrillPopupOpen(false)}>
+          {drillOptions.map(v => (
+            <AxisOptionRow key={v} label={v} icon={drillValue===v?"✓":""} active={drillValue===v}
+              onClick={()=>{setDrillValue(v); setDrillPopupOpen(false);}} />
+          ))}
+        </AxisOptionsPopup>
       )}
 
       {isEmptyChart ? (
@@ -1861,6 +1859,33 @@ function GraphSection({ flights }) {
       {fieldOrderModal==="free" && (
         <FieldOrderModal title="Frei: Reihenfolge der Felder" defs={GRAPH_FREE_FIELDS} keyProp="field" order={freeFieldOrder}
           onSave={saveFreeFieldOrder} onClose={()=>setFieldOrderModal(null)} />
+      )}
+      {axisOptionsOpen==="gx" && (
+        <AxisOptionsPopup title="X-Achse" onClose={()=>setAxisOptionsOpen(null)}>
+          <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
+          <AxisOptionRow label={`Sortierung: ${xSortByValue?"nach Y-Wert":xIsCategorical?"A–Z":"eigener Wert"}`} icon="⇄" active={xSortByValue} onClick={()=>setXSortByValue(v=>!v)} />
+          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("x");}} />
+        </AxisOptionsPopup>
+      )}
+      {axisOptionsOpen==="gy" && (
+        <AxisOptionsPopup title="Y-Achse" onClose={()=>setAxisOptionsOpen(null)}>
+          <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
+          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("y");}} />
+        </AxisOptionsPopup>
+      )}
+      {axisOptionsOpen==="fx" && (
+        <AxisOptionsPopup title="X-Achse" onClose={()=>setAxisOptionsOpen(null)}>
+          <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
+          <AxisOptionRow label={xRankByY?"Rang nach Y-Wert":"Eigener Feldwert"} icon="⇄" active={xRankByY} onClick={()=>setXRankByY(v=>!v)} />
+          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
+        </AxisOptionsPopup>
+      )}
+      {axisOptionsOpen==="fy" && (
+        <AxisOptionsPopup title="Y-Achse" onClose={()=>setAxisOptionsOpen(null)}>
+          <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
+          <AxisOptionRow label={yRankByX?"Rang nach X-Wert":"Eigener Feldwert"} icon="⇄" active={yRankByX} onClick={()=>setYRankByX(v=>!v)} />
+          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
+        </AxisOptionsPopup>
       )}
     </div>
   );
