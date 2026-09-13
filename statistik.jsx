@@ -1275,6 +1275,12 @@ function GraphSection({ flights }) {
   const [xReversed, setXReversed] = useState(graphReturnState?.xReversed || false);
   const [xSortByValue, setXSortByValue] = useState(false); // nur bei kategorischem X: A-Z vs. nach Y-Wert
   const [yReversed, setYReversed] = useState(graphReturnState?.yReversed || false);
+  // Modus "Gruppiert": X (Kategorie) und Y (Kennzahl) vertauscht dargestellt
+  // — Balken dann waagrecht, Kategorie auf der senkrechten, Kennzahl auf
+  // der waagrechten Achse. Reine Darstellungsoption, xField/yMetric bleiben
+  // inhaltlich unverändert (Kategorie bzw. Kennzahl), nur Achsen-Zuordnung
+  // und Balkenrichtung drehen sich.
+  const [groupedSwapped, setGroupedSwapped] = useState(false);
   const [freeX, setFreeX] = useState(graphReturnState?.freeX || "datum");
   const [freeY, setFreeY] = useState(graphReturnState?.freeY || "distanz");
   // Modus "Frei": statt am eigenen Feldwert kann eine Achse auch am Rang
@@ -1356,6 +1362,8 @@ function GraphSection({ flights }) {
   xReversedRef.current = xReversed;
   const yReversedRef = useRef(yReversed);
   yReversedRef.current = yReversed;
+  const groupedSwappedRef = useRef(groupedSwapped);
+  groupedSwappedRef.current = groupedSwapped;
 
   const loadSync = () => {
     (async () => {
@@ -1383,7 +1391,7 @@ function GraphSection({ flights }) {
   useEffect(() => {
     if (skipInitialResetRef.current) { skipInitialResetRef.current = false; return; }
     resetZoom();
-  }, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX]);
+  }, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX, groupedSwapped]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1445,8 +1453,17 @@ function GraphSection({ flights }) {
         const { x: startX, y: startY, view: sv } = panRef.current;
         const dxPx = e.touches[0].clientX - startX, dyPx = e.touches[0].clientY - startY;
         const widthX = sv.x1-sv.x0, widthY = sv.y1-sv.y0;
-        const dxData = (dxPx/g.plotW) * widthX;
-        const dyData = -(dyPx/g.plotH) * widthY; // Bildschirm-Y wächst nach unten, Werte-Y nach oben
+        // In "Gruppiert" vertauscht (groupedSwapped) steht die Kategorie
+        // (x0/x1) senkrecht und die Kennzahl (y0/y1) waagrecht — dort also
+        // dyPx für die Kategorie und dxPx für die Kennzahl heranziehen,
+        // jeweils OHNE das für die normale, senkrechte Kennzahl-Achse
+        // eingebaute Minus (Bildschirm-Y wächst nach unten — das gilt nur,
+        // wenn die Kennzahl tatsächlich senkrecht gezeichnet wird; waagrecht
+        // (vertauscht) folgt sie stattdessen der "natürlichen", steigenden
+        // Formel wie eine normale X-Achse, siehe scaleValueH oben).
+        const isSwappedGrouped = modeRef.current === "grouped" && groupedSwappedRef.current;
+        const dxData = isSwappedGrouped ? (dyPx/g.plotH) * widthX : (dxPx/g.plotW) * widthX;
+        const dyData = isSwappedGrouped ? (dxPx/g.plotW) * widthY : -(dyPx/g.plotH) * widthY;
         // Scrollrichtung Y: in "Gruppiert" UND "Frei" einheitlich "Inhalt
         // folgt dem Finger". Scrollrichtung X: in "Gruppiert" ebenfalls
         // "Inhalt folgt dem Finger", in "Frei" bewusst umgekehrt (Wunsch
@@ -1457,7 +1474,8 @@ function GraphSection({ flights }) {
         // dann ebenfalls gedreht werden. Bei X in "Gruppiert" ordnet
         // xReversed dagegen nur die Kategorien innerhalb desselben
         // Index-Rasters um (rows.reverse()), die Pixel-Achse bleibt
-        // unverändert — dort bleibt die Verschieberichtung deshalb gleich.
+        // unverändert (in beiden Ausrichtungen) — dort bleibt die
+        // Verschieberichtung deshalb immer gleich.
         const xBaseSign = modeRef.current === "free" ? 1 : -1;
         const xSign = (modeRef.current === "free" && xReversedRef.current) ? -xBaseSign : xBaseSign;
         const yBaseSign = -1;
@@ -1651,6 +1669,33 @@ function GraphSection({ flights }) {
   const trendGrouped = (GRAPH_X_SORT_NUMERIC_FIELDS.has(xField) && !xSortByValue)
     ? fitTrend(rows.map(r => ({ x: +r.key, y: r.value }))) : null;
 
+  // ── Modus "Gruppiert" vertauscht (groupedSwapped): Balken waagrecht,
+  // Kategorie auf der senkrechten, Kennzahl auf der waagrechten Achse.
+  // xField/yMetric und "rows" (inkl. xReversed-Umsortierung) bleiben exakt
+  // dieselben wie oben — nur die Pixel-Zuordnung dreht sich. Eigene, davon
+  // unabhängige Layout-Grössen (Suffix "H"), da die Label-Rotationslogik
+  // der senkrechten Balken (dispRows) hier nicht passt: waagrechte Balken
+  // haben immer genug Platz für ein normal liegendes Kategorie-Label links.
+  const dispRowsH = visibleRows.map(r => {
+    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
+    return { ...r, dispLabel: label, valueText: r.value ? formatGraphYMetric(r.value, yMetric) : "" };
+  });
+  const maxCatLen = dispRowsH.length ? Math.max(...dispRowsH.map(r=>r.dispLabel.length)) : 0;
+  const maxValLenH = dispRowsH.length ? Math.max(...dispRowsH.map(r=>r.valueText.length)) : 0;
+  const padLeftH = Math.min(140, Math.max(40, maxCatLen*CHAR_W + 10));
+  const padRightH = Math.min(70, Math.max(28, maxValLenH*VALUE_CHAR_W + 10));
+  const padTopH = 8, padBottomH = 20;
+  const plotWH = W - padLeftH - padRightH;
+  const plotHH = Math.max(80, Math.round(chartH) - padTopH - padBottomH);
+  const HH = padTopH + plotHH + padBottomH;
+  const slotH = plotHH / visW;
+  const barThickH = slotH * 0.6;
+  const scaleValueH = v => {
+    let t = (v-barView.y0)/((barView.y1-barView.y0)||1);
+    if (yReversed) t = 1-t;
+    return padLeftH + t*plotWH;
+  };
+
   // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
   const freeXDef = GRAPH_FREE_FIELDS.find(f => f.field === freeX);
   const freeYDef = GRAPH_FREE_FIELDS.find(f => f.field === freeY);
@@ -1745,7 +1790,9 @@ function GraphSection({ flights }) {
   // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
   // die stabile Callback-Ref-Funktion immer die frischesten Werte sieht.
   chartGeomRef.current = mode === "grouped"
-    ? { padLeft, padTop, plotW, plotH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 }
+    ? (groupedSwapped
+        ? { padLeft: padLeftH, padTop: padTopH, plotW: plotWH, plotH: plotHH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 }
+        : { padLeft, padTop, plotW, plotH, fullX0: barFullView.x0, fullX1: barFullView.x1, fullY0: barFullView.y0, fullY1: barFullView.y1 })
     : { padLeft: padLeft2, padTop: padTop2, plotW: plotW2, plotH: plotH2, fullX0: freeFullView.x0, fullX1: freeFullView.x1, fullY0: freeFullView.y0, fullY1: freeFullView.y1 };
   viewRef.current = mode === "grouped" ? barView : freeView;
 
@@ -1786,26 +1833,24 @@ function GraphSection({ flights }) {
 
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
-            <button onClick={()=>setAxisOptionsOpen("gx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
-              X
-            </button>
-            <select value={xField} onChange={e=>setXField(e.target.value)}
-              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {orderedXFields.map(g=><option key={g.id} value={g.id} style={{background:"#0a1628"}}>{g.label}</option>)}
-            </select>
-          </div>
-          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
-            <button onClick={()=>setAxisOptionsOpen("gy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
-              Y
-            </button>
-            <select value={yMetric} onChange={e=>setYMetric(e.target.value)}
-              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {orderedYMetrics.map(m=><option key={m.id} value={m.id} style={{background:"#0a1628"}}>{m.label}</option>)}
-            </select>
-          </div>
+          {(groupedSwapped ? [
+            { key:"y", letter:"X", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
+            { key:"x", letter:"Y", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
+          ] : [
+            { key:"x", letter:"X", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
+            { key:"y", letter:"Y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
+          ]).map(b => (
+            <div key={b.key} style={{flex:1,minWidth:0,display:"flex",gap:6}}>
+              <button onClick={()=>setAxisOptionsOpen(b.popup)} title="Achsen-Optionen"
+                style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
+                {b.letter}
+              </button>
+              <select value={b.value} onChange={e=>b.onChange(e.target.value)}
+                style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+                {b.options.map(o=><option key={o[b.optKey]} value={o[b.optKey]} style={{background:"#0a1628"}}>{o.label}</option>)}
+              </select>
+            </div>
+          ))}
         </div>
       ) : null}
       {mode==="free" && (<>
@@ -1873,6 +1918,13 @@ function GraphSection({ flights }) {
             ↔ X/Y
           </button>
         )}
+        {mode==="grouped" && (
+          <button onClick={()=>setGroupedSwapped(s=>!s)}
+            title="X und Y vertauschen (waagrechte Balken)"
+            style={{marginLeft:"auto",flexShrink:0,background:groupedSwapped?"rgba(251,191,36,0.18)":"rgba(255,255,255,0.06)",border:`1px solid ${groupedSwapped?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            ↔ X/Y
+          </button>
+        )}
       </div>
       {drillPopupOpen && (
         <AxisOptionsPopup title={`Aufschlüsseln nach ${g2Label}`} onClose={()=>setDrillPopupOpen(false)}>
@@ -1891,7 +1943,41 @@ function GraphSection({ flights }) {
             ref={attachChartTouch}
             onDoubleClick={resetZoom}
             style={{overflow:"hidden",touchAction:"none",borderRadius:8,flex:1,minHeight:0}}>
-            {mode==="grouped" ? (
+            {mode==="grouped" && groupedSwapped ? (
+              <svg viewBox={`0 0 ${W} ${HH}`} width={W} height={HH} style={{display:"block"}}>
+                {ticks.map((t,i)=>{
+                  const x = scaleValueH(t);
+                  return (
+                    <g key={i}>
+                      <line x1={x} y1={padTopH} x2={x} y2={padTopH+plotHH} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
+                      <text x={x} y={padTopH+plotHH+12} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
+                    </g>
+                  );
+                })}
+                {dispRowsH.map(r=>{
+                  const cy = padTopH + (r.idx+0.5-barView.x0)*slotH;
+                  const xStart = scaleValueH(barView.y0);
+                  const xEnd = scaleValueH(r.value);
+                  const barX = Math.min(xStart, xEnd);
+                  const barLen = Math.abs(xEnd-xStart);
+                  const labelSide = xEnd >= xStart;
+                  return (
+                    <g key={r.key}>
+                      <rect x={barX} y={cy-barThickH/2} width={Math.max(0,barLen)} height={barThickH} rx="2.5" fill={isCurrentBar(r.key)?"#f87171":"#22d3ee"} opacity="0.85"/>
+                      <text x={xEnd + (labelSide?4:-4)} y={cy} textAnchor={labelSide?"start":"end"} dominantBaseline="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
+                      <text x={padLeftH-6} y={cy} textAnchor="end" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                    </g>
+                  );
+                })}
+                {showTrend && trendGrouped && (
+                  <polyline points={dispRowsH.map(r => {
+                    const cy = padTopH + (r.idx+0.5-barView.x0)*slotH;
+                    const tx = scaleValueH(trendGrouped.predict(+r.key));
+                    return `${tx},${cy}`;
+                  }).join(" ")} fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
+                )}
+              </svg>
+            ) : mode==="grouped" ? (
               <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
                 {ticks.map((t,i)=>{
                   const y = scaleY(t);
