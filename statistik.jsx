@@ -1556,11 +1556,13 @@ function GraphSection({ flights }) {
   const labelY = padTop + plotH + 10;
   // Trendlinie nur bei numerisch/geordnetem X (Jahr, Distanz, Höhe, …) —
   // bei kategorischen Feldern (Schirm, Startplatz, …) gibt es keine
-  // sinnvolle Reihenfolge, gegen die man regressieren könnte.
+  // sinnvolle Reihenfolge, gegen die man regressieren könnte. Auch bei
+  // xSortByValue sinnlos: X ist dann per Definition nach Y sortiert, eine
+  // Regression gegen den (dadurch verzerrten) X-Wert wäre irreführend.
   // +r.key erzwingt eine Zahl: sortFieldValue liefert bei "jahr" je nach
   // Datenherkunft eine Zahl oder einen String (f.year), siehe derselbe
   // Stolperstein bereits in graphYMetricValue.
-  const trendGrouped = GRAPH_X_SORT_NUMERIC_FIELDS.has(xField)
+  const trendGrouped = (GRAPH_X_SORT_NUMERIC_FIELDS.has(xField) && !xSortByValue)
     ? fitTrend(rows.map(r => ({ x: +r.key, y: r.value }))) : null;
 
   // ── Modus "Frei": ein Punkt pro Flug, X/Y teilen sich dieselbe Feldliste ──
@@ -1627,7 +1629,9 @@ function GraphSection({ flights }) {
   };
   const freeTicksY = graphAxisTicks(yRankByX ? "nummer" : freeY, freeView.y0, freeView.y1);
   const freeTicksX = graphAxisTicks(xRankByY ? "nummer" : freeX, freeView.x0, freeView.x1);
-  const trendFree = fitTrend(freePoints.map(p => ({ x: p.x, y: p.y })));
+  // Bei "Rang" ist die betroffene Achse per Definition nach der anderen
+  // sortiert — eine Regression wäre dann tautologisch/irreführend.
+  const trendFree = (xRankByY || yRankByX) ? null : fitTrend(freePoints.map(p => ({ x: p.x, y: p.y })));
 
   // Aktuelle Geometrie/volle Spanne für die Touch-Handler bereitstellen —
   // direkt bei jedem Render aktualisiert (kein useEffect nötig), damit
