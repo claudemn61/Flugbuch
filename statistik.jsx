@@ -1487,9 +1487,14 @@ function GraphSection({ flights }) {
     };
   }, []);
 
-  if (!listSettings) return null;
-
-  const filterText = listSettings.filterText || "";
+  // Kein frühes "return null", solange listSettings noch nicht geladen ist:
+  // das würde einen Teil der weiter unten stehenden Hooks (z.B. den
+  // Sprung-zu-Punkt-Effekt) beim ersten Render übergehen, beim zweiten
+  // (sobald loadSync() fertig ist) aber ausführen — unterschiedliche
+  // Hook-Anzahl zwischen zwei Renders wirft in React einen Fehler, der
+  // wegen des React/Babel-CDN-Codes als "Script error." ohne Details
+  // erscheint. Deshalb erst ganz am Ende (nur ums Rendern) prüfen.
+  const filterText = listSettings?.filterText || "";
   const baseFiltered = matchFlights(flights, filterText);
   const filtered = (g2Field && drillValue !== "Alle")
     ? baseFiltered.filter(f => formatSortValue(f, g2Field) === drillValue)
@@ -1730,6 +1735,8 @@ function GraphSection({ flights }) {
   const curYLabel = mode === "grouped" ? (GRAPH_Y_METRICS.find(m=>m.id===yMetric)?.label||"") : (freeYDef?.label||"");
   const isEmptyChart = mode === "grouped" ? rows.length === 0 : freePoints.length === 0;
   const zoomed = !!view;
+
+  if (!listSettings) return null;
 
   return (
     <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:12,boxSizing:"border-box",height:"100%",display:"flex",flexDirection:"column"}}>
