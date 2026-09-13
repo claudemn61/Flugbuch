@@ -583,6 +583,59 @@ function removeStrayMapTilerWarnings() {
 }
 
 
+// Für die Weltkarte (viele Tracks gleichzeitig, WebGL-Speicher begrenzt —
+// vor allem auf iOS, siehe Kommentar bei den
+// window.addEventListener("error", …)-Handlern in den *.html-Dateien):
+// Douglas-Peucker-Liniensimplifizierung statt stumpfem "jeden n-ten Punkt
+// behalten" — entfernt gezielt Punkte, die kaum vom direkten Weg zwischen
+// ihren Nachbarn abweichen (genau das sind die vielen Punkte in engen
+// Thermikkreisen), behält aber jeden Punkt, an dem die Spur tatsächlich
+// die Richtung ändert. Gleitstrecken (spannen oft mehrere km) bleiben
+// dadurch praktisch unverändert, während ein Thermikkreis (meist
+// 30–150 m Radius) auf wenige Eckpunkte zusammenschrumpft.
+// toleranceM: erlaubte Abweichung in Metern — ein Punkt bleibt nur dann
+// erhalten, wenn er weiter als das vom geraden Verbindungsstück abweicht.
+function simplifyTrackForMap(track, toleranceM = 40) {
+  const pts = track.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+  if (pts.length < 3) return pts.map(p => [p.lon, p.lat]);
+  // Grobe, lokal ebene Projektion (Meter) reicht für diesen Zweck völlig —
+  // Längengrad mit cos(Breite) skaliert, damit das Seitenverhältnis stimmt.
+  const mPerDegLat = 111320, mPerDegLon = 111320 * Math.cos(pts[0].lat * Math.PI/180);
+  const xy = pts.map(p => [p.lon*mPerDegLon, p.lat*mPerDegLat]);
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1; keep[pts.length-1] = 1;
+  const tol2 = toleranceM*toleranceM;
+  const stack = [[0, pts.length-1]];
+  while (stack.length) {
+    const [start, end] = stack.pop();
+    if (end <= start+1) continue;
+    const [x1,y1] = xy[start], [x2,y2] = xy[end];
+    const dx = x2-x1, dy = y2-y1;
+    const segLen2 = dx*dx+dy*dy;
+    let maxDist2 = -1, maxIdx = -1;
+    for (let i=start+1; i<end; i++) {
+      const [x,y] = xy[i];
+      let d2;
+      if (segLen2 === 0) {
+        d2 = (x-x1)**2+(y-y1)**2;
+      } else {
+        const t = Math.max(0, Math.min(1, ((x-x1)*dx+(y-y1)*dy)/segLen2));
+        const px = x1+t*dx, py = y1+t*dy;
+        d2 = (x-px)**2+(y-py)**2;
+      }
+      if (d2 > maxDist2) { maxDist2 = d2; maxIdx = i; }
+    }
+    if (maxDist2 > tol2) {
+      keep[maxIdx] = 1;
+      stack.push([start, maxIdx]);
+      stack.push([maxIdx, end]);
+    }
+  }
+  const out = [];
+  for (let i=0; i<pts.length; i++) if (keep[i]) out.push([pts[i].lon, pts[i].lat]);
+  return out;
+}
+
 function WorldMapView({ flights, selectedIds, onBack }) {
   const mapDivRef = useRef(null);
   const mapRef = useRef(null);
@@ -627,7 +680,8 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
     return searched
       .filter(f => f.track?.length > 1)
-      .map(f => ({ id: f.id, coords: f.track.map(p => [p.lon, p.lat]) }));
+      .map(f => ({ id: f.id, coords: simplifyTrackForMap(f.track) }))
+      .filter(t => t.coords.length > 1);
   }, [relevantFlights, showIGC, search]);
 
   // MapTiler SDK map, same approach as meintauchbuch's MiniMap: OUTDOOR
