@@ -1887,15 +1887,15 @@ function GraphSection({ flights }) {
         </div>
       )}
 
-      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,flexWrap:"nowrap",overflowX:"auto"}}>
         {drillOptions && (
           <button onClick={()=>setDrillPopupOpen(true)}
-            style={{flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            style={{flexShrink:0,whiteSpace:"nowrap",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
             {g2Label}{drillValue!=="Alle" ? `: ${drillValue}` : ""}
           </button>
         )}
         {(mode==="grouped" ? trendGrouped : trendFree) && (
-          <div onClick={()=>setShowTrend(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <div onClick={()=>setShowTrend(s=>!s)} style={{flexShrink:0,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
             <div style={{flexShrink:0,width:18,height:18,borderRadius:5,border:`2px solid ${showTrend?"#fbbf24":"rgba(232,244,253,0.3)"}`,background:showTrend?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
               {showTrend && <span style={{color:"#0a1628",fontSize:12,fontWeight:900}}>✓</span>}
             </div>
@@ -1914,15 +1914,15 @@ function GraphSection({ flights }) {
               setXRankByY(yRankByX); setYRankByX(xRankByY);
             }}
             title="X und Y vertauschen"
-            style={{marginLeft:"auto",flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-            ↔ X/Y
+            style={{marginLeft:"auto",flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 8px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            ↔
           </button>
         )}
         {mode==="grouped" && (
           <button onClick={()=>setGroupedSwapped(s=>!s)}
             title="X und Y vertauschen (waagrechte Balken)"
-            style={{marginLeft:"auto",flexShrink:0,background:groupedSwapped?"rgba(251,191,36,0.18)":"rgba(255,255,255,0.06)",border:`1px solid ${groupedSwapped?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 10px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-            ↔ X/Y
+            style={{marginLeft:"auto",flexShrink:0,background:groupedSwapped?"rgba(251,191,36,0.18)":"rgba(255,255,255,0.06)",border:`1px solid ${groupedSwapped?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:8,padding:"6px 8px",color:"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            ↔
           </button>
         )}
       </div>
