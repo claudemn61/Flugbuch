@@ -58,6 +58,25 @@ function applyOrder(trips, order) {
   return ordered;
 }
 
+// Eigene lokale Entwurfs-Eingabe statt direkt an den Namen gebunden: ein
+// Umbenennen läuft über renameManagedTrip, das ALLE zugehörigen Flüge
+// durchläuft und je einen Storage-Write auslöst — das bei jedem
+// Tastendruck (onChange) auszulösen bedeutete unnötig viele Schreib-
+// zugriffe und (da nicht abgewartet) potenziell überlappende, sich
+// überschreibende Schreibvorgänge bei schnellem Tippen. Committet jetzt
+// erst bei Verlassen des Felds bzw. Enter.
+function TripNameInput({ name, onRename }) {
+  const [draft, setDraft] = useState(name);
+  useEffect(() => { setDraft(name); }, [name]);
+  const commit = () => { if (draft.trim() && draft !== name) onRename(draft); };
+  return (
+    <input value={draft} onChange={e=>setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+      style={{flex:1,background:"transparent",border:"none",color:"#e8f4fd",fontSize:14,padding:"4px 6px",minWidth:0}} />
+  );
+}
+
 function ReisenApp() {
   const [flights, setFlights] = useState([]);
   const [names, setNames] = useState([]);
@@ -147,8 +166,7 @@ function ReisenApp() {
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {names.map((n, idx) => (
             <div key={n} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"6px 8px"}}>
-              <input value={n} onChange={e=>renameManagedTrip(n, e.target.value)}
-                style={{flex:1,background:"transparent",border:"none",color:"#e8f4fd",fontSize:14,padding:"4px 6px",minWidth:0}} />
+              <TripNameInput name={n} onRename={newName=>renameManagedTrip(n, newName)} />
               <button onClick={()=>moveName(n, -1)} disabled={idx===0}
                 style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
               <button onClick={()=>moveName(n, 1)} disabled={idx===names.length-1}

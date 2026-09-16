@@ -1647,6 +1647,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       const iso = new Date(p.timeSec*1000).toISOString();
       rows.push(`T,${p.lat},${p.lon},${p.gpsAlt},${iso}`);
     }
+    // Der letzte Punkt (Landung) fehlt sonst, sobald track.length kein
+    // Vielfaches von step ist (der Normalfall) — die Schleife oben trifft
+    // ihn dann nie genau.
+    const lastIdx = track.length - 1;
+    if (lastIdx >= 0 && lastIdx % step !== 0) {
+      const p = track[lastIdx];
+      const iso = new Date(p.timeSec*1000).toISOString();
+      rows.push(`T,${p.lat},${p.lon},${p.gpsAlt},${iso}`);
+    }
     const csv = rows.join("\n");
     const form = document.createElement("form");
     form.action = "https://www.gpsvisualizer.com/map";
@@ -4346,6 +4355,13 @@ function HikeStartFields({ startpunkt, starthoehe, ort, hikeTrack, onSavePunkt, 
   // an unchanged Startpunkt and an existing Starthöhe skips the fetch
   // entirely, and a failed fetch leaves a previously stored value intact
   // instead of clearing it.
+  // Wichtig: der Aufrufer setzt key={fl.id} auf diese Komponente, damit sie
+  // bei jedem Flugwechsel (Wischen im Flugdetail) komplett neu gemountet
+  // wird und fetchedForRef hier wirklich frisch startet — sonst würde der
+  // Ref beim Wischen den Startpunkt des VORHERIGEN Flugs behalten und die
+  // Starthöhe des neuen Flugs fälschlich als "Fetch fehlgeschlagen" leeren
+  // (Bug: passierte bei jedem Wisch-Wechsel zu einem Hike-Flug mit
+  // Klartext-Startpunkt statt Koordinaten).
   const fetchedForRef = useRef(startpunkt);
   useEffect(() => {
     if (startpunkt === fetchedForRef.current && starthoehe) return;
@@ -5345,6 +5361,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{background:"rgba(22,163,74,0.06)",borderRadius:14,padding:"13px 15px",marginBottom:11,border:"1px solid rgba(22,163,74,0.15)"}}>
               <div style={{fontSize:10,fontWeight:700,color:"#4ade80",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>🥾 Hike-Daten</div>
               <HikeStartFields
+                key={fl.id}
                 startpunkt={fl.customFields?.hikeStartpunkt}
                 starthoehe={fl.customFields?.hikeStarthoehe}
                 ort={fl.customFields?.hikeOrt}
@@ -6479,7 +6496,7 @@ function FlugbuchApp() {
     // Include everything stored under "service:*" (Reserve, Schirm) and any
     // future "reisen:*" data automatically, so a single backup restores the
     // whole app, not just the flight list.
-    let serviceData = {}, reisenData = {}, notesData = "";
+    let serviceData = {}, reisenData = {}, notesData = "", tileConfigData = null;
     try {
       const keys = await window.storage.list("");
       for (const k of (keys?.keys || [])) {
@@ -6492,6 +6509,13 @@ function FlugbuchApp() {
         } else if (k === "settings:notes") {
           const r = await window.storage.get(k);
           if (r) notesData = r.value || "";
+        } else if (k === "settings:tileConfig") {
+          // Fehlt bewusst nicht mehr im Backup: anders als der Name
+          // vermuten lässt, beginnt dieser Key nicht mit "service:" und
+          // wurde deshalb vom obigen Filter nie erfasst — die gewählte
+          // Kachel-Reihenfolge im Flugdetail ging bei jedem Restore verloren.
+          const r = await window.storage.get(k);
+          if (r) { try { tileConfigData = JSON.parse(r.value); } catch {} }
         }
       }
     } catch (e) { console.error("Backup: error collecting service/reisen data:", e); }
@@ -6506,6 +6530,7 @@ function FlugbuchApp() {
       service: serviceData,
       reisen: reisenData,
       notes: notesData,
+      tileConfig: tileConfigData,
       savedViews,
     };
     const json = JSON.stringify(payload, null, 0);
@@ -6607,6 +6632,10 @@ function FlugbuchApp() {
       }
       if (typeof data.notes === "string" && data.notes) {
         await window.storage.set("settings:notes", data.notes);
+        restoredExtras++;
+      }
+      if (Array.isArray(data.tileConfig) && data.tileConfig.length === 9) {
+        await window.storage.set("settings:tileConfig", JSON.stringify(data.tileConfig));
         restoredExtras++;
       }
       if (Array.isArray(data.savedViews) && data.savedViews.length) {
