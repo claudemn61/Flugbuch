@@ -244,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.6.2";
+const APP_VERSION = "6.6.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.3", note: "Statistik: Code-Bereinigung nach vollständigem Durchgang durch statistik.jsx — Bugfix (Zoom-Wiederherstellung nach Flugdetail-Rücksprung ging verloren, wenn Gr. 1° nicht \"Jahr\" war), ~330 Zeilen nie verwendeter Code entfernt (ungenutzte Suchleisten-Komponente, verwaistes Sortier-Feature), doppelte Y-Achsen- und Label-Logik zusammengeführt." },
   { v: "6.6.2", note: "Weltkarte: IGC-Tracks antippbar — färbt den Track gelb und zeigt die Flugnummer, nochmaliges Antippen öffnet das Flugdetail." },
   { v: "6.6.1", note: "Flugliste: bei aktiver Suche zeigt die Treffer-Zeile den Suchfilter-Text neben der Trefferzahl an, beide in Rot." },
   { v: "6.6", note: "Flugliste/Weltkarte: neue \"IGC\"-Kachel neben Startplätze/Landeplätze, zeigt die IGC-Tracks der ausgewählten (bzw. gesuchten) Flüge als königsblaue Linien auf der Karte an." },
