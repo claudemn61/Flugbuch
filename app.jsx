@@ -1,9 +1,8 @@
 const { useState, useEffect } = React;
 
 // ── Home Screen ──────────────────────────────────────────────────────────
-// Landing page shown before the Flugbuch app. Three of the four tiles link
-// to pages that don't exist yet (Statistik, Service, Reisen) — they're
-// visually present but marked "Bald" until those pages are built.
+// Landing page shown before the Flugbuch app. Each tile links to its own
+// page (Flugbuch, Statistik, Ausrüstung, Reisen) — all fully built now.
 
 function useIsWide() {
   const [isWide, setIsWide] = useState(typeof window !== "undefined" ? window.innerWidth >= 768 : false);
@@ -119,7 +118,7 @@ const RESERVE_LABELS = { solo_int: "Solo integriert", solo_ext: "Solo extern", b
 
 // Reads Reserve + Schirm data from the same IndexedDB the Service page uses,
 // and returns the single most urgent entry (soonest due date, overdue takes
-// priority) so the Home tile can show a live "Nächstes Packen: <name>"
+// priority) so the Home tile can show a live "Nächster Check: <name>"
 // preview instead of a generic placeholder.
 async function readServiceUrgency() {
   const PREFIX = "flugbuch:";
@@ -202,14 +201,6 @@ async function readServiceUrgency() {
   return { overdue, nextReserve };
 }
 
-const GERMAN_MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-function fmtMonthYear(date) {
-  if (!date) return "";
-  const d = new Date(date);
-  return `${GERMAN_MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-// Single source of truth for the version number shown next to the title.
 // Selectable glider marker variants — colour/pattern options the person
 // photographed and cropped themselves (see Settings > Schirme). Background
 // removal: erode the white mask slightly first (border_value=1, treating
@@ -244,12 +235,14 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.6.5";
+// Single source of truth for the version number shown next to the title.
+const APP_VERSION = "6.6.6";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.6", note: "Weitere Code-Bereinigung nach dem Gesamt-Durchgang: toter Code entfernt (u.a. ungenutzte Hilfsfunktionen/Variablen in app.jsx und flugbuch.jsx), doppelte Logik zusammengeführt (Distanzberechnung, Dauer-Parser, ResizeObserver-Aufbau in flugbuch.jsx), veraltete Kommentare korrigiert. Ausrüstung, Reserve (iPhone-Ansicht): Beschriftung \"Packen\" vereinheitlicht zu \"Check\", passend zur iPad-Ansicht und zu Schirm/Sitz." },
   { v: "6.6.5", note: "wartung.jsx entfernt (verwaist seit dem Umzug der Wartung in den Ausrüstung-Tab, v5.0 — wartung.html bleibt als Weiterleitung bestehen). Dabei aufgefallen und mitbehoben: ausruestung.html/.jsx fehlten in der Service-Worker-Precache-Liste — die Seite war ohne vorherigen Online-Besuch nicht offline nutzbar." },
   { v: "6.6.4", note: "Bugfixes aus dem Code-Audit: Wartungs-Checks wurden nach Datums-Korrektur nicht neu sortiert (falsches Fälligkeitsdatum); addMonths berücksichtigte Monatslänge nicht (31.01. + 1 Monat sprang in den März statt Ende Februar); Starthöhe eines Hike-Flugs konnte beim Durchwischen der Flüge fälschlich gelöscht werden; Kachel-Layout im Flugdetail (settings:tileConfig) fehlte im Backup; Reise umbenennen löste bei jedem Tastendruck unnötig viele Schreibzugriffe aus statt erst beim Verlassen des Felds." },
   { v: "6.6.3", note: "Statistik: Code-Bereinigung nach vollständigem Durchgang durch statistik.jsx — Bugfix (Zoom-Wiederherstellung nach Flugdetail-Rücksprung ging verloren, wenn Gr. 1° nicht \"Jahr\" war), ~330 Zeilen nie verwendeter Code entfernt (ungenutzte Suchleisten-Komponente, verwaistes Sortier-Feature), doppelte Y-Achsen- und Label-Logik zusammengeführt." },
