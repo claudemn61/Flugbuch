@@ -3824,6 +3824,62 @@ function parseQueryToRows(query) {
   return rows.length ? rows : [newSearchRow()];
 }
 
+// Menschenlesbare Kurzfassung des rohen Such-Codes (z.B. "site:Fiesch &&
+// jahr>=2023" -> "Startplatz enthält "Fiesch" und Jahr ab 2023") — für die
+// Anzeige in der Treffer-Zeile, statt dort den rohen Abfrage-Code zu
+// zeigen. Baut auf demselben Parser wie die Auswertung selbst
+// (tokenizeQuery/parseQueryTokens), damit die Anzeige nie von dem
+// abweicht, was tatsächlich gefiltert wird.
+const SEARCH_FIELD_ALIASES = {
+  duration: "dauer", dist: "distanz", km: "distanz",
+  hoehe: "hoehe", "höhe": "hoehe", maxhoehe: "hoehe", "maxhöhe": "hoehe", alt: "hoehe",
+  year: "jahr", date: "datum", starttime: "startzeit", endtime: "landezeit",
+  kmh: "speed", bewertung: "rating", titel: "name", pax: "passagier",
+};
+const FILTER_OP_WORDS = { ":": "enthält", "=": "ist", "!=": "ist nicht", ">": "größer als", "<": "kleiner als", ">=": "ab", "<=": "bis" };
+function formatFilterTerm(tok) {
+  const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
+  if (!m) return `"${tok}"`; // plain word (freie Textsuche)
+  const rawField = m[1].toLowerCase();
+  const op = m[2] === "≠" ? "!=" : m[2];
+  const value = m[3].trim().replace(/^"(.*)"$/, "$1");
+  const fieldDef = SEARCH_FIELDS.find(f => f.id === (SEARCH_FIELD_ALIASES[rawField] || rawField));
+  const label = fieldDef?.label || rawField;
+  if ((rawField === "passagier" || rawField === "pax") && value === "*") {
+    return op === "!=" ? "kein Passagier" : "Passagier vorhanden";
+  }
+  if (fieldDef?.type === "bool") {
+    const optLabel = BOOL_OPTIONS.find(o => o.value === value.toLowerCase())?.label || value;
+    return op === "!=" ? `${label}: nicht ${optLabel.toLowerCase()}` : `${label}: ${optLabel}`;
+  }
+  if (fieldDef?.id === "monat" && /^\d+$/.test(value)) {
+    const idx = parseInt(value, 10) - 1;
+    if (idx >= 0 && idx < 12) return `${label} ${FILTER_OP_WORDS[op] || op} ${MONTH_NAMES_DE[idx]}`;
+  }
+  const opWord = FILTER_OP_WORDS[op] || op;
+  const quoted = !fieldDef || fieldDef.type === "text";
+  return `${label} ${opWord} ${quoted ? `"${value}"` : value}`;
+}
+function formatFilterHuman(query) {
+  if (!query || !query.trim()) return "";
+  const tokens = tokenizeQuery(query);
+  if (!tokens.length) return query;
+  const ast = parseQueryTokens(tokens);
+  const render = (node, parentType) => {
+    if (node.type === "and") return `${render(node.left, "and")} und ${render(node.right, "and")}`;
+    if (node.type === "or") {
+      const text = `${render(node.left, "or")} oder ${render(node.right, "or")}`;
+      return parentType === "and" ? `(${text})` : text;
+    }
+    if (node.type === "leaf") {
+      const text = formatFilterTerm(node.term);
+      return node.negate ? `NICHT ${text}` : text;
+    }
+    return "";
+  };
+  return render(ast, null);
+}
+
 // Collapsed: a single search line (existing behaviour). Expanding it reveals
 // a macOS-Finder-like row builder — add any number of Feld/Operator/Wert
 // rows, combined either all-UND or all-ODER — which is translated live into
@@ -7962,7 +8018,7 @@ function FlugbuchApp() {
         <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>
-            <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}<span style={filterText.trim()?{color:"#f87171"}:undefined}>{filteredFlights.length} Flüge</span>{filterText.trim() && <span style={{color:"#f87171"}}> · {filterText.trim()}</span>}</span>
+            <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}<span style={filterText.trim()?{color:"#f87171"}:undefined}>{filteredFlights.length} Flüge</span>{filterText.trim() && <span style={{color:"#f87171"}}> · {formatFilterHuman(filterText)}</span>}</span>
             {filteredFlights.length>0 && <span style={{fontSize:13}}>{showSearchStats?"▾":"▸"}</span>}
           </div>
           {showSearchStats && filteredFlights.length>0 && (() => {
