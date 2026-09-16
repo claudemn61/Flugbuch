@@ -837,6 +837,13 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
     const filter = (isolateOthers && highlightedFlightId != null)
       ? ["==", ["get", "flightId"], highlightedFlightId] : null;
     ["igc-tracks-casing", "igc-tracks-line", "igc-tracks-hit"].forEach(id => map.setFilter(id, filter));
+    // Isoliert (nur dieser Track sichtbar): Königsblau statt Gelb — die
+    // Unterscheidungsfarbe ist unnötig, wenn ohnehin nur dieser eine Track
+    // zu sehen ist, und Blau ist auf dem Kartenhintergrund besser sichtbar.
+    // Wieder alle sichtbar: wie bisher gelb (markiert) / blau (übrige).
+    map.setPaintProperty("igc-tracks-line", "line-color", isolateOthers
+      ? "#4169e1"
+      : ["case", ["boolean", ["get", "highlighted"], false], "#facc15", "#4169e1"]);
   }, [isolateOthers, highlightedFlightId, tracksKey]);
 
   return (
