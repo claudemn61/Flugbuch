@@ -3836,29 +3836,32 @@ const SEARCH_FIELD_ALIASES = {
   year: "jahr", date: "datum", starttime: "startzeit", endtime: "landezeit",
   kmh: "speed", bewertung: "rating", titel: "name", pax: "passagier",
 };
-const FILTER_OP_WORDS = { ":": "enthält", "=": "ist", "!=": "ist nicht", ">": "größer als", "<": "kleiner als", ">=": "ab", "<=": "bis" };
+// Symbole statt Verben ("enthält"/"ist") — kürzer und auf einen Blick
+// erfassbar, ohne dass ein Satz gelesen werden muss.
+const FILTER_OP_SYMBOLS = { ":": ":", "=": "=", "!=": "≠", ">": ">", "<": "<", ">=": "≥", "<=": "≤" };
 function formatFilterTerm(tok) {
   const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
-  if (!m) return `"${tok}"`; // plain word (freie Textsuche)
+  if (!m) return /\s/.test(tok) ? `"${tok}"` : tok; // plain word (freie Textsuche)
   const rawField = m[1].toLowerCase();
   const op = m[2] === "≠" ? "!=" : m[2];
   const value = m[3].trim().replace(/^"(.*)"$/, "$1");
   const fieldDef = SEARCH_FIELDS.find(f => f.id === (SEARCH_FIELD_ALIASES[rawField] || rawField));
   const label = fieldDef?.label || rawField;
   if ((rawField === "passagier" || rawField === "pax") && value === "*") {
-    return op === "!=" ? "kein Passagier" : "Passagier vorhanden";
+    return op === "!=" ? "kein Passagier" : "Passagier: vorhanden";
   }
   if (fieldDef?.type === "bool") {
-    const optLabel = BOOL_OPTIONS.find(o => o.value === value.toLowerCase())?.label || value;
-    return op === "!=" ? `${label}: nicht ${optLabel.toLowerCase()}` : `${label}: ${optLabel}`;
+    const want = ["ja","vorhanden","true","1"].includes(value.toLowerCase());
+    return `${label}: ${(op === "!=" ? !want : want) ? "vorhanden" : "nicht vorhanden"}`;
   }
+  let valStr = value;
   if (fieldDef?.id === "monat" && /^\d+$/.test(value)) {
     const idx = parseInt(value, 10) - 1;
-    if (idx >= 0 && idx < 12) return `${label} ${FILTER_OP_WORDS[op] || op} ${MONTH_NAMES_DE[idx]}`;
+    if (idx >= 0 && idx < 12) valStr = MONTH_NAMES_DE[idx];
+  } else if (/\s/.test(value)) {
+    valStr = `"${value}"`;
   }
-  const opWord = FILTER_OP_WORDS[op] || op;
-  const quoted = !fieldDef || fieldDef.type === "text";
-  return `${label} ${opWord} ${quoted ? `"${value}"` : value}`;
+  return op === ":" ? `${label}: ${valStr}` : `${label} ${FILTER_OP_SYMBOLS[op] || op} ${valStr}`;
 }
 function formatFilterHuman(query) {
   if (!query || !query.trim()) return "";
