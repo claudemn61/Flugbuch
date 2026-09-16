@@ -303,282 +303,6 @@ function formatSortValue(f, sortId) {
   }
 }
 
-const SEARCH_FIELDS = [
-  { id: "name",      label: "Name/Titel",     type: "text" },
-  { id: "site",      label: "Startplatz",     type: "text" },
-  { id: "landung",   label: "Landeplatz",     type: "text" },
-  { id: "glider",    label: "Schirm",         type: "text" },
-  { id: "typ",       label: "Typ",            type: "text" },
-  { id: "pilot",     label: "Pilot",          type: "text" },
-  { id: "passagier", label: "Passagier",      type: "text", anyOption: true },
-  { id: "reise",     label: "Reise",          type: "text" },
-  { id: "datum",     label: "Datum",          type: "date" },
-  { id: "startzeit", label: "Startzeit",      type: "time" },
-  { id: "landezeit", label: "Landezeit",      type: "time" },
-  { id: "jahr",      label: "Jahr",           type: "number" },
-  { id: "monat",     label: "Monat",          type: "number" },
-  { id: "bemerkung", label: "Bemerkung",      type: "text" },
-  { id: "dauer",     label: "Dauer (h)",      type: "number" },
-  { id: "distanz",   label: "Distanz (km)",   type: "number" },
-  { id: "routenart", label: "Routenart",      type: "text" },
-  { id: "hoehe",     label: "Max. Höhe (m)",  type: "number" },
-  { id: "startalt",  label: "Start müM",      type: "number" },
-  { id: "endalt",    label: "Landung müM",    type: "number" },
-  { id: "hdiff",     label: "H.Diff. (m)",    type: "number" },
-  { id: "speed",     label: "Ø Speed (km/h)", type: "number" },
-  { id: "maxsteigen", label: "Max.Steigen (m/s)", type: "number" },
-  { id: "maxsinken", label: "Max.Sinken (m/s)", type: "number" },
-  { id: "hgew",      label: "H.Gew. (m)",     type: "number" },
-  { id: "entfernungsl", label: "Entf. S-L (km)", type: "number" },
-  { id: "startlat",  label: "Start Lat",      type: "number" },
-  { id: "startlon",  label: "Start Lon",      type: "number" },
-  { id: "endlat",    label: "Landung Lat",    type: "number" },
-  { id: "endlon",    label: "Landung Lon",    type: "number" },
-  { id: "rangdauer", label: "Rang Dauer",     type: "number" },
-  { id: "pctdauer",  label: "% Dauer",        type: "number" },
-  { id: "rangstrecke", label: "Rang Strecke", type: "number" },
-  { id: "pctstrecke", label: "% Strecke",     type: "number" },
-  { id: "rating",    label: "Bewertung",      type: "number" },
-  { id: "igc",       label: "IGC-Track",      type: "bool" },
-  { id: "gpx",       label: "Hike-GPX",       type: "bool" },
-  { id: "hikeort",        label: "Hike-Ort",         type: "text" },
-  { id: "hikestartpunkt", label: "Hike-Startpunkt",  type: "text" },
-  { id: "hikestarthoehe", label: "Hike-Starthöhe (m)", type: "number" },
-  { id: "hikehoehenmeter", label: "Hike-Höhenmeter (m)", type: "number" },
-  { id: "hikedauer",      label: "Hike-Dauer",       type: "text" },
-];
-const BOOL_OPTIONS = [
-  { value: "ja",   label: "Vorhanden" },
-  { value: "nein", label: "Nicht vorhanden" },
-];
-const ADV_OPS_NUM = [">=", "<=", "!=", ">", "<", "=", "between"];
-const ADV_OPS_TEXT = [":", "=", "!=", ">", "<", ">=", "<="];
-function computeGroupRuns(rows) {
-  const startSet = new Set(), endSet = new Set(), inSet = new Set();
-  let runStart = null;
-  const closeRun = (end) => {
-    if (runStart !== null && end - runStart >= 1) {
-      startSet.add(runStart); endSet.add(end);
-      for (let k = runStart; k <= end; k++) inSet.add(k);
-    }
-    runStart = null;
-  };
-  rows.forEach((r, i) => {
-    if (r.grouped) { if (runStart === null) runStart = i; }
-    else { closeRun(i-1); }
-  });
-  closeRun(rows.length - 1);
-  return { startSet, endSet, inSet };
-}
-
-function buildAdvancedQuery(rows) {
-  // Values containing whitespace must be quoted — the query tokenizer
-  // (matchFlights/evalToken) splits on spaces outside quotes, so an
-  // unquoted "field:Advance Pi 23" silently became three unrelated terms
-  // ("field:Advance", "Pi", "23") that essentially never all matched.
-  const quoteIfNeeded = v => /\s/.test(v) ? `"${v}"` : v;
-  const rowToStr = (r) => {
-    const fieldDef = SEARCH_FIELDS.find(f => f.id === r.field);
-    const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
-    const op = r.op || (isNumeric ? "=" : ":");
-    if (op === "between") {
-      if (r.value2 === "" || r.value2 == null) return `${r.field}>=${String(r.value).trim()}`;
-      return `${r.field}>=${String(r.value).trim()} && ${r.field}<=${String(r.value2).trim()}`;
-    }
-    return `${r.field}${op}${quoteIfNeeded(String(r.value).trim())}`;
-  };
-  const validRows = rows.filter(r => r.value !== "" && r.value != null);
-  if (!validRows.length) return "";
-  // Each row (after the first) carries its OWN combinator relative to the
-  // previous row, and rows checked "gruppiert" (2+ in a row) get wrapped
-  // in real parentheses — the query engine now has a proper parser
-  // (tokenizeQuery/parseQueryTokens) that understands "(", ")", so
-  // "A UND (B ODER C)" can be built and evaluated exactly as written,
-  // rather than relying only on UND-binds-tighter-als-ODER precedence.
-  const { startSet, endSet } = computeGroupRuns(validRows);
-  let out = "";
-  validRows.forEach((r, i) => {
-    if (i > 0) out += r.combinator === "OR" ? " || " : " && ";
-    if (startSet.has(i)) out += "( ";
-    out += rowToStr(r);
-    if (endSet.has(i)) out += " )";
-  });
-  return out;
-}
-
-function newSearchRow() { return { field: "site", op: ":", value: "", combinator: "AND", grouped: false }; }
-
-function parseTermToken(tok) {
-  const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
-  if (!m) return null;
-  const field = m[1].toLowerCase();
-  if (!SEARCH_FIELDS.find(f => f.id === field)) return null;
-  const op = m[2] === "≠" ? "!=" : m[2];
-  const value = m[3].trim().replace(/^"(.*)"$/, "$1");
-  return { field, op, value };
-}
-
-function parseQueryToRows(query) {
-  if (!query || !query.trim()) return [newSearchRow()];
-  const tokens = tokenizeQuery(query);
-  if (!tokens.length) return [newSearchRow()];
-  const rows = [];
-  let pendingCombinator = "AND";
-  let depth = 0;
-  let i = 0;
-  while (i < tokens.length) {
-    const tok = tokens[i];
-    if (tok === "&&") { pendingCombinator = "AND"; i++; continue; }
-    if (tok === "||") { pendingCombinator = "OR"; i++; continue; }
-    if (tok === "(") { depth++; i++; continue; }
-    if (tok === ")") { depth = Math.max(0, depth-1); i++; continue; }
-    const parsed = parseTermToken(tok);
-    if (!parsed) return [newSearchRow()];
-    const combinator = rows.length ? pendingCombinator : "AND";
-    const grouped = depth > 0;
-    // Merge a "between" pair back into one row — buildAdvancedQuery always
-    // emits these as two consecutive same-field >=/<= entries joined by &&.
-    if (parsed.op === ">=" && tokens[i+1] === "&&") {
-      const next2 = parseTermToken(tokens[i+2]);
-      if (next2 && next2.field === parsed.field && next2.op === "<=") {
-        rows.push({ field: parsed.field, op: "between", value: parsed.value, value2: next2.value, combinator, grouped });
-        i += 3;
-        continue;
-      }
-    }
-    rows.push({ ...parsed, combinator, grouped });
-    i++;
-  }
-  return rows.length ? rows : [newSearchRow()];
-}
-
-function SearchBar({ filterText, setFilterText, knownGliders }) {
-  // Opens on focus/tap into the search field itself (no separate button
-  // needed) and stays independent state from then on — it does NOT close
-  // again just because the field's text changes, since that caused the
-  // panel to flicker open/closed on every keystroke. Closing only happens
-  // via the explicit ✓ button below.
-  const [advOpen, setAdvOpen] = useState(false);
-  const [rows, setRows] = useState(() => parseQueryToRows(filterText));
-
-  const applyRows = (nextRows) => {
-    setRows(nextRows);
-    setFilterText(buildAdvancedQuery(nextRows));
-  };
-  const updateRow = (idx, patch) => applyRows(rows.map((r,i)=> i===idx ? {...r, ...patch} : r));
-  const addRow = () => applyRows([...rows, newSearchRow()]);
-  const removeRow = (idx) => {
-    const next = rows.filter((_,i)=>i!==idx);
-    applyRows(next.length ? next : [newSearchRow()]);
-  };
-
-  return (
-    <div style={{position:"relative"}}>
-      <div style={{position:"relative"}}>
-        <input value={filterText} onChange={e=>setFilterText(e.target.value)} onFocus={()=>setAdvOpen(true)} placeholder="🔍 Suchen…"
-          style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"8px 34px 8px 12px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-        {filterText && (
-          <button onClick={()=>setFilterText("")}
-            style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"rgba(232,244,253,0.4)",cursor:"pointer",fontSize:14}}>✕</button>
-        )}
-      </div>
-
-      {advOpen && (
-        <div style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:"min(92vw, 420px)",zIndex:2000,background:"#0f1f36",boxShadow:"0 12px 32px rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:10}}>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {(() => {
-              const { startSet, endSet, inSet } = computeGroupRuns(rows);
-              return rows.map((row, idx) => {
-              const fieldDef = SEARCH_FIELDS.find(f=>f.id===row.field);
-              const grouped = inSet.has(idx);
-              return (
-                <div key={idx} style={{
-                  display:"flex",gap:6,alignItems:"center",
-                  borderLeft: grouped ? "2px solid rgba(167,139,250,0.6)" : "2px solid transparent",
-                  borderTopLeftRadius: startSet.has(idx) ? 6 : 0,
-                  borderBottomLeftRadius: endSet.has(idx) ? 6 : 0,
-                  paddingLeft: 4, marginLeft: -2,
-                }}>
-                  {idx===0 ? (
-                    <span style={{minWidth:34,flexShrink:0}} />
-                  ) : (
-                    <button onClick={()=>updateRow(idx,{combinator: row.combinator==="OR"?"AND":"OR"})}
-                      title="Verknüpfung zur vorherigen Zeile umschalten"
-                      style={{fontSize:10,fontWeight:700,minWidth:34,textAlign:"center",flexShrink:0,background:row.combinator==="OR"?"rgba(251,191,36,0.18)":"rgba(125,211,252,0.15)",border:`1px solid ${row.combinator==="OR"?"rgba(251,191,36,0.4)":"rgba(125,211,252,0.35)"}`,borderRadius:6,padding:"3px 2px",color:row.combinator==="OR"?"#fbbf24":"#7dd3fc",cursor:"pointer"}}>
-                      {row.combinator==="OR"?"ODER":"UND"}
-                    </button>
-                  )}
-                  <button onClick={()=>updateRow(idx,{grouped: !row.grouped})}
-                    title="Mit Nachbar-Zeile(n) klammern — ab 2 benachbart markierten Zeilen entsteht eine Klammer-Gruppe"
-                    style={{fontSize:12,fontWeight:900,width:20,flexShrink:0,background:row.grouped?"rgba(167,139,250,0.22)":"rgba(255,255,255,0.05)",border:`1px solid ${row.grouped?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.12)"}`,borderRadius:6,padding:"3px 0",color:row.grouped?"#a78bfa":"rgba(232,244,253,0.35)",cursor:"pointer"}}>
-                    ( )
-                  </button>
-                  <select value={row.field}
-                    onChange={e=>{
-                      const nf = SEARCH_FIELDS.find(f=>f.id===e.target.value);
-                      const isNum = nf?.type==="number"||nf?.type==="date"||nf?.type==="time";
-                      const isBool = nf?.type==="bool";
-                      updateRow(idx, { field: e.target.value, op: isNum ? "=" : ":", value2: undefined, value: isBool ? "ja" : "" });
-                    }}
-                    style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 2px",color:"#e8f4fd",fontSize:12,width:84,flexShrink:0}}>
-                    {SEARCH_FIELDS.map(f=><option key={f.id} value={f.id} style={{background:"#0a1628"}}>{f.label}</option>)}
-                  </select>
-                  {(() => {
-                    if (fieldDef?.type === "bool") return null;
-                    const isNumeric = fieldDef?.type === "number" || fieldDef?.type === "date" || fieldDef?.type === "time";
-                    const ops = isNumeric ? ADV_OPS_NUM : ADV_OPS_TEXT;
-                    return (
-                      <select value={row.op || (isNumeric ? "=" : ":")} onChange={e=>updateRow(idx,{op:e.target.value})}
-                        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 2px",color:"#e8f4fd",fontSize:12,width:isNumeric?68:44,flexShrink:0}}>
-                        {ops.map(o=><option key={o} value={o} style={{background:"#0a1628"}}>{o==="between"?"zw.":o}</option>)}
-                      </select>
-                    );
-                  })()}
-                  {fieldDef?.type === "bool" ? (
-                    <select value={row.value||"ja"} onChange={e=>updateRow(idx,{value:e.target.value})}
-                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}}>
-                      {BOOL_OPTIONS.map(o=><option key={o.value} value={o.value} style={{background:"#0a1628"}}>{o.label}</option>)}
-                    </select>
-                  ) : (
-                  <input value={row.value==="*"?"":row.value} onChange={e=>updateRow(idx,{value:e.target.value})}
-                    placeholder={fieldDef?.anyOption ? "Name, oder \"beliebig\" →" : (row.op==="between" ? "von…" : "Wert…")}
-                    disabled={row.value==="*"}
-                    list={row.field==="glider" && knownGliders?.length ? "glider-datalist" : undefined}
-                    style={{flex:1,minWidth:0,background:row.value==="*"?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
-                  )}
-                  {row.op==="between" && (
-                    <input value={row.value2||""} onChange={e=>updateRow(idx,{value2:e.target.value})} placeholder="bis…"
-                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 8px",color:"#e8f4fd",fontSize:12}} />
-                  )}
-                  {fieldDef?.anyOption && (
-                    <button onClick={()=>updateRow(idx,{value: row.value==="*" ? "" : "*"})}
-                      title="Beliebiger Passagier (Biplace-Flüge)"
-                      style={{background:row.value==="*"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 5px",color:row.value==="*"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
-                      beliebig
-                    </button>
-                  )}
-                  <button onClick={()=>removeRow(idx)} style={{background:"none",border:"none",color:"rgba(232,244,253,0.35)",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0}}>✕</button>
-                </div>
-              );
-              });
-            })()}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
-            <button onClick={addRow} style={{background:"rgba(125,211,252,0.12)",border:"1px solid rgba(125,211,252,0.3)",borderRadius:8,padding:"5px 10px",color:"#7dd3fc",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Zeile</button>
-            <button onClick={()=>setAdvOpen(false)} title="Schliessen"
-              style={{background:"rgba(34,197,94,0.18)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:8,width:30,height:30,color:"#4ade80",fontSize:14,fontWeight:900,cursor:"pointer",flexShrink:0}}>✓</button>
-          </div>
-        </div>
-      )}
-      {knownGliders?.length > 0 && (
-        <datalist id="glider-datalist">
-          {knownGliders.map(g => <option key={g} value={g} />)}
-        </datalist>
-      )}
-    </div>
-  );
-}
-
 
 // ── Statistik Page ───────────────────────────────────────────────────────
 // Four aggregated views built from the same flight data the Flugbuch app
@@ -904,6 +628,11 @@ function formatGraphYMetric(v, metricId) {
 // Rundet einen Diagramm-Höchstwert auf eine "schöne" Zahl (1/2/5 × 10^n)
 // auf, damit die volle (ungezoomte) Y-Spanne bei additiven Grössen nicht
 // krumm endet.
+// Kürzt ein Balken-Label auf maxChars (mit "…") — gemeinsam für die
+// senkrechten (dispRows) und waagrechten (dispRowsH) Balken.
+function truncateLabel(label, maxChars) {
+  return label.length > maxChars ? label.slice(0, maxChars-1)+"…" : label;
+}
 function graphNiceMax(v) {
   if (v <= 0) return 1;
   const exp = Math.floor(Math.log10(v));
@@ -911,6 +640,23 @@ function graphNiceMax(v) {
   const norm = v / base;
   const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
   return nice * base;
+}
+// Y-Achsen-Spanne aus den tatsächlichen Werten — bei zeroBased-Feldern
+// (Anzahl, Summen, …) immer bei 0 startend bis zum nächsten "schönen"
+// Höchstwert, sonst knapp um Min/Max herum gerundet (Schrittweite aus
+// der Spanne abgeleitet). Gemeinsam für Gruppiert (barY0/barY1) und
+// Frei (fYMinFull/fYMaxFull) — identische Formel, vorher zweimal
+// dupliziert.
+function graphYAxisRange(valMin, valMax, zeroBased) {
+  if (zeroBased !== false) {
+    return { y0: 0, y1: graphNiceMax(Math.max(1, valMax)) };
+  }
+  const range = Math.max(1, valMax - valMin);
+  const step = Math.pow(10, Math.floor(Math.log10(range/4)));
+  let y0 = Math.floor(valMin/step)*step;
+  let y1 = Math.ceil(valMax/step)*step;
+  if (y1 === y0) y1 = y0 + step;
+  return { y0, y1 };
 }
 // Schrittweite für "schöne" Achsen-Ticks (1/2/5 × 10^n), Ziel ~targetCount
 // Ticks über die angegebene Spanne — Standardverfahren jeder Chart-
@@ -1375,9 +1121,13 @@ function GraphSection({ flights }) {
       setListSettings(s);
       // Beim Zurückkommen aus dem Flugdetail (graphReturnState) den
       // wiederhergestellten Modus/State nicht durch die normalen
-      // Flugliste-Einstellungen überschreiben.
-      if (!graphReturnState) setMode(s.group1Id ? "grouped" : "free");
-      setXField(s.group1Id || "jahr");
+      // Flugliste-Einstellungen überschreiben. xField ebenfalls schützen:
+      // ändert sich s.group1Id hier vom xField-Default ("jahr") ab, löst
+      // das sonst den Zoom-Reset-Effekt aus (xField steht in dessen
+      // Dependency-Array) und verwirft den gerade erst wiederhergestellten
+      // Zoom wieder — auch wenn graphReturnState (nur für "Frei" gedacht)
+      // xField gar nicht selbst mitführt.
+      if (!graphReturnState) { setMode(s.group1Id ? "grouped" : "free"); setXField(s.group1Id || "jahr"); }
       setG2Field(s.group2Id || "");
       setDrillValue("Alle");
     })();
@@ -1481,8 +1231,7 @@ function GraphSection({ flights }) {
         const ySign = yReversedRef.current ? -yBaseSign : yBaseSign;
         let x0 = sv.x0+xSign*dxData, x1 = sv.x1+xSign*dxData;
         let y0 = sv.y0+ySign*dyData, y1 = sv.y1+ySign*dyData;
-        const fullWX = g.fullX1-g.fullX0, fullWY = g.fullY1-g.fullY0;
-        if (x0 < g.fullX0) { x1 = g.fullX0+fullWX*((x1-x0)/fullWX); x0 = g.fullX0; }
+        if (x0 < g.fullX0) { x1 = g.fullX0+(x1-x0); x0 = g.fullX0; }
         if (x1 > g.fullX1) { x0 = g.fullX1-(x1-x0); x1 = g.fullX1; }
         if (y0 < g.fullY0) { y1 = g.fullY0+(y1-y0); y0 = g.fullY0; }
         if (y1 > g.fullY1) { y0 = g.fullY1-(y1-y0); y1 = g.fullY1; }
@@ -1599,17 +1348,7 @@ function GraphSection({ flights }) {
   const barValues = rows.map(r => r.value);
   const barValMax = barValues.length ? Math.max(...barValues) : 0;
   const barValMin = barValues.length ? Math.min(...barValues) : 0;
-  let barY0, barY1;
-  if (yMetricDef?.zeroBased !== false) {
-    barY0 = 0;
-    barY1 = graphNiceMax(Math.max(1, barValMax));
-  } else {
-    const range = Math.max(1, barValMax - barValMin);
-    const step = Math.pow(10, Math.floor(Math.log10(range/4)));
-    barY0 = Math.floor(barValMin/step)*step;
-    barY1 = Math.ceil(barValMax/step)*step;
-    if (barY1 === barY0) barY1 = barY0 + step;
-  }
+  const { y0: barY0, y1: barY1 } = graphYAxisRange(barValMin, barValMax, yMetricDef?.zeroBased);
   const barFullView = { x0: 0, x1: Math.max(1, rows.length), y0: barY0, y1: barY1 };
   const barView = (mode==="grouped" && view) ? view : barFullView;
   const visW = Math.max(0.0001, barView.x1-barView.x0);
@@ -1627,7 +1366,7 @@ function GraphSection({ flights }) {
   const VALUE_CHAR_W = 5.0; // grobe Zeichenbreite bei 8px fett (Werte-Text)
   const MAX_LABEL_CHARS = 18;
   const dispRows = visibleRows.map(r => {
-    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
+    const label = truncateLabel(r.label, MAX_LABEL_CHARS);
     const valueText = r.value ? formatGraphYMetric(r.value, yMetric) : "";
     return { ...r, dispLabel: label, rotateLabel: label.length*CHAR_W > barW,
       valueText, valueVertical: valueText.length*VALUE_CHAR_W > barW };
@@ -1676,7 +1415,7 @@ function GraphSection({ flights }) {
   // der senkrechten Balken (dispRows) hier nicht passt: waagrechte Balken
   // haben immer genug Platz für ein normal liegendes Kategorie-Label links.
   const dispRowsH = visibleRows.map(r => {
-    const label = r.label.length > MAX_LABEL_CHARS ? r.label.slice(0, MAX_LABEL_CHARS-1)+"…" : r.label;
+    const label = truncateLabel(r.label, MAX_LABEL_CHARS);
     return { ...r, dispLabel: label, valueText: r.value ? formatGraphYMetric(r.value, yMetric) : "" };
   });
   const maxCatLen = dispRowsH.length ? Math.max(...dispRowsH.map(r=>r.dispLabel.length)) : 0;
@@ -1732,17 +1471,7 @@ function GraphSection({ flights }) {
   const fXMinFull = freeXs.length ? Math.min(...freeXs) : 0, fXMaxFullRaw = freeXs.length ? Math.max(...freeXs) : 1;
   const fXMaxFull = fXMaxFullRaw > fXMinFull ? fXMaxFullRaw : fXMinFull+1;
   const freeYMaxRaw = freeYs.length ? Math.max(...freeYs) : 0, freeYMinRaw = freeYs.length ? Math.min(...freeYs) : 0;
-  let fYMinFull, fYMaxFull;
-  if (freeYDef?.zeroBased !== false) {
-    fYMinFull = 0;
-    fYMaxFull = graphNiceMax(Math.max(1, freeYMaxRaw));
-  } else {
-    const range = Math.max(1, freeYMaxRaw - freeYMinRaw);
-    const step = Math.pow(10, Math.floor(Math.log10(range/4)));
-    fYMinFull = Math.floor(freeYMinRaw/step)*step;
-    fYMaxFull = Math.ceil(freeYMaxRaw/step)*step;
-    if (fYMaxFull === fYMinFull) fYMaxFull = fYMinFull + step;
-  }
+  const { y0: fYMinFull, y1: fYMaxFull } = graphYAxisRange(freeYMinRaw, freeYMaxRaw, freeYDef?.zeroBased);
   const freeFullView = { x0: fXMinFull, x1: fXMaxFull, y0: fYMinFull, y1: fYMaxFull };
   const freeView = (mode==="free" && view) ? view : freeFullView;
   // Eingegebene Flugnummer gefunden: auf eine mittlere Zoomstufe (ein
@@ -2924,27 +2653,3 @@ function StatTable({ table, sortOptions }) {
     </div>
   );
 }
-
-// Fullscreen overlay listing every flight behind a tapped Schirm/Passagier/
-// Start-/Landeplatz value, with the same core fields shown in the Flugbuch
-// list and its own independent sort control (mirrors the Flugbuch pattern:
-// a field dropdown + direction toggle).
-const FLIGHT_LIST_SORT_OPTIONS = [
-  { id: "date", label: "Datum" },
-  { id: "number", label: "Nummer" },
-  { id: "duration", label: "Dauer" },
-  { id: "dist", label: "Distanz" },
-  { id: "routenTyp", label: "Routenart" },
-];
-
-function flightListSortValue(f, sortId) {
-  switch (sortId) {
-    case "date": return parseDateToTs(f.date);
-    case "number": return parseInt((f.name||"").match(/\d+/)?.[0]||"0",10);
-    case "duration": return f.durationSec||0;
-    case "dist": return f.totalDist||0;
-    case "routenTyp": return (f.customFields?.routenTyp||"").toLowerCase();
-    default: return 0;
-  }
-}
-
