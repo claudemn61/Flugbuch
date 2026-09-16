@@ -643,6 +643,12 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
   const [showLP, setShowLP] = useState(true);
   const [showIGC, setShowIGC] = useState(false);
   const [search, setSearch] = useState("");
+  // Angetippter Track (siehe Klick-Handler im Karten-Effekt weiter unten) —
+  // lebt zusätzlich in echtem React-State, damit die "Nur dieser"-Kachel
+  // (Overlay oben links) darauf reagieren kann, ohne dass die Karte bei
+  // jedem Antippen komplett neu aufgebaut werden muss.
+  const [highlightedFlightId, setHighlightedFlightId] = useState(null);
+  const [isolateOthers, setIsolateOthers] = useState(false);
 
   const relevantFlights = (selectedIds && selectedIds.size > 0)
     ? flights.filter(f => selectedIds.has(f.id))
@@ -693,6 +699,11 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
   const pointsKey = JSON.stringify(points);
   const tracksKey = tracks.map(t => t.id).join(",");
   useEffect(() => {
+    // Die Karte wird gleich komplett neu aufgebaut — eine evtl. noch aktive
+    // Hervorhebung/Isolierung vom vorherigen Kartenstand bezieht sich auf
+    // Marker/Layer, die es gleich nicht mehr gibt.
+    setHighlightedFlightId(null);
+    setIsolateOthers(false);
     if (!mapDivRef.current || !window.maptilersdk || (!points.length && !tracks.length)) return;
     const sdk = window.maptilersdk;
 
@@ -777,10 +788,18 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
 
           let highlightedFlightId = null;
           let labelMarker = null;
+          // Spiegelt sich zusätzlich in echtem React-State (setHighlighted-
+          // FlightId/setIsolateOthers) — die lokale Variable hier bleibt für
+          // die "gleicher Track nochmal angetippt?"-Prüfung, der React-State
+          // ist nur für die Overlay-Kachel oben links (siehe JSX unten) da,
+          // welche die Sichtbarkeits-Filter in einem eigenen, leichten
+          // Effekt anwendet (kein kompletter Kartenneuaufbau nötig).
           const clearHighlight = () => {
             highlightedFlightId = null;
             map.getSource("igc-tracks")?.setData(buildTrackData(null));
             if (labelMarker) { labelMarker.remove(); labelMarker = null; }
+            setHighlightedFlightId(null);
+            setIsolateOthers(false);
           };
           map.on("click", (e) => {
             const feats = map.queryRenderedFeatures(e.point, { layers: ["igc-tracks-hit"] });
@@ -800,6 +819,7 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
             el.style.cssText = "background:rgba(4,14,32,0.9);color:#facc15;font-weight:800;font-size:13px;padding:3px 9px;border-radius:8px;border:1px solid rgba(250,204,21,0.5);white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.5);";
             el.onclick = (ev) => { ev.stopPropagation(); if (fl && onOpenFlight) onOpenFlight(fl); };
             labelMarker = new sdk.Marker({ element: el, anchor: "bottom" }).setLngLat(e.lngLat).addTo(map);
+            setHighlightedFlightId(flightId);
           });
         }
       });
@@ -807,6 +827,17 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
     initMap();
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
   }, [pointsKey, tracksKey]);
+
+  // "Nur dieser"-Kachel: blendet alle Tracks ausser dem angetippten aus —
+  // eigener, leichter Effekt statt Teil des grossen Karten-Aufbaus oben,
+  // damit das Umschalten keinen kompletten Kartenneuaufbau auslöst.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("igc-tracks-line")) return;
+    const filter = (isolateOthers && highlightedFlightId != null)
+      ? ["==", ["get", "flightId"], highlightedFlightId] : null;
+    ["igc-tracks-casing", "igc-tracks-line", "igc-tracks-hit"].forEach(id => map.setFilter(id, filter));
+  }, [isolateOthers, highlightedFlightId, tracksKey]);
 
   return (
     <div style={{minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:24}}>
@@ -844,6 +875,13 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
 
       <div style={{margin:"0 16px",position:"relative",borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)"}}>
         <div ref={mapDivRef} style={{width:"100%",height:"60vh",background:"#040e20"}} />
+        {highlightedFlightId != null && (
+          <button onClick={()=>setIsolateOthers(v=>!v)}
+            title={isolateOthers ? "Alle Tracks wieder anzeigen" : "Nur den markierten Flug zeigen"}
+            style={{position:"absolute",top:10,left:10,zIndex:5,background:isolateOthers?"rgba(250,204,21,0.85)":"rgba(4,14,32,0.85)",border:`1px solid ${isolateOthers?"rgba(250,204,21,0.9)":"rgba(255,255,255,0.2)"}`,borderRadius:8,padding:"6px 10px",color:isolateOthers?"#0a1628":"#e8f4fd",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.4)"}}>
+            {isolateOthers ? "Alle zeigen" : "Nur dieser"}
+          </button>
+        )}
         {points.length === 0 && (
           <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(4,14,32,0.85)",color:"rgba(232,244,253,0.5)",fontSize:14,pointerEvents:"none"}}>
             Keine Orte gefunden.
