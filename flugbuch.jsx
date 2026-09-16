@@ -4763,7 +4763,7 @@ function SchirmSelect({ value, onSave, extra, flights }) {
 
 
 
-function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, setSelected, setView, setInlinePassagier, setEditData, saveFlight, showFieldEditor, setShowFieldEditor, handleSaveFields, confirmDelete, setConfirmDelete, hideBackButton, isWide, returnTo }) {
+function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, setSelected, setView, setInlinePassagier, setEditData, saveFlight, showFieldEditor, setShowFieldEditor, handleSaveFields, confirmDelete, setConfirmDelete, hideBackButton, isWide, returnTo, detailReturnView }) {
 
     const autoFields = customFieldDefs.filter(d=>d.formula).map(d=>({...d, value:evalFormula(d.formula,fl,flights)}));
     const manualFields = customFieldDefs.filter(d=>!d.formula);
@@ -5095,8 +5095,8 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
         style={{maxWidth:isWide?1100:480,margin:"0 auto",padding:"0 0 32px",background:"#040e20",minHeight:"100vh",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(16px + env(safe-area-inset-top, 0px)) 16px 10px"}}>
-          {!hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer"}}>←</button>}
-          {hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView("list"); } }} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 14px",color:"rgba(232,244,253,0.6)",fontSize:13,cursor:"pointer"}}>✕ Liste</button>}
+          {!hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView(detailReturnView||"list"); } }} style={{background:"none",border:"none",color:"#7dd3fc",fontSize:22,cursor:"pointer"}}>←</button>}
+          {hideBackButton && <button onClick={()=>{ if (returnTo) { window.location.href = returnTo; } else { setView(detailReturnView||"list"); } }} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:20,padding:"6px 14px",color:"rgba(232,244,253,0.6)",fontSize:13,cursor:"pointer"}}>✕ Liste</button>}
           <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"flex-start"}}>
             {fl.track?.length > 1 && (
               <button onClick={()=>{
@@ -6222,6 +6222,12 @@ function FlugbuchApp() {
   // should return to that exact page instead of this app's own list.
   const [returnTo, setReturnTo] = useState(null);
   const [listReturnTo, setListReturnTo] = useState(null);
+  // Welche View der Zurück-Button im Flugdetail ansteuert, wenn returnTo
+  // nicht gesetzt ist (App-interne Navigation, kein Cross-Page-Link) —
+  // "list" ausser bei Öffnen aus der Weltkarte, dann "worldmap", damit man
+  // dorthin (mit denselben gefilterten Flügen) zurückkommt statt immer auf
+  // die Liste zu landen.
+  const [detailReturnView, setDetailReturnView] = useState("list");
   useEffect(() => {
     (async () => {
       try {
@@ -6699,6 +6705,7 @@ function FlugbuchApp() {
       (parseInt((b.name||"").match(/\d+/)?.[0]||"0",10)) - (parseInt((a.name||"").match(/\d+/)?.[0]||"0",10))));
     setSelected(newFlight);
     setInlinePassagier("");
+    setDetailReturnView("list");
     setView("detail");
   }, [flights, saveFlight]);
 
@@ -7169,7 +7176,7 @@ function FlugbuchApp() {
   const enrichedSelected = selected ? (flightsWithRanks.find(f=>f.id===selected.id) || selected) : null;
 
   if (view==="worldmap") return <WorldMapView flights={filteredFlights} selectedIds={selectedIds} onBack={()=>setView("list")}
-    onOpenFlight={f=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />;
+    onOpenFlight={f=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setDetailReturnView("worldmap");setView("detail");}} />;
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (view==="detail" && selected && isWide) {
@@ -7183,7 +7190,7 @@ function FlugbuchApp() {
             setInlinePassagier={setInlinePassagier} setEditData={setEditData}
             saveFlight={saveFlight} showFieldEditor={showFieldEditor} setShowFieldEditor={setShowFieldEditor}
             handleSaveFields={handleSaveFields} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete}
-            returnTo={returnTo}
+            returnTo={returnTo} detailReturnView={detailReturnView}
             hideBackButton={true} isWide={true} />
         </div>
       </div>
@@ -7195,7 +7202,7 @@ function FlugbuchApp() {
       setInlinePassagier={setInlinePassagier} setEditData={setEditData}
       saveFlight={saveFlight} showFieldEditor={showFieldEditor} setShowFieldEditor={setShowFieldEditor}
       handleSaveFields={handleSaveFields} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete}
-      returnTo={returnTo}
+      returnTo={returnTo} detailReturnView={detailReturnView}
       isWide={isWide} />;
   }
 
@@ -8135,7 +8142,7 @@ function FlugbuchApp() {
                   });
                   setRowImportText(""); setRowImportError(""); setShowRowImport(false);
                   if (newFlights.length === 1) {
-                    setSelected(newFlights[0]); setInlinePassagier(newFlights[0].customFields?.passagier||""); setView("detail");
+                    setSelected(newFlights[0]); setInlinePassagier(newFlights[0].customFields?.passagier||""); setDetailReturnView("list"); setView("detail");
                   }
                 } catch(e) { setRowImportError("Fehler beim Verarbeiten: "+e.message); }
               }}
@@ -8190,7 +8197,7 @@ function FlugbuchApp() {
             <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
               selectMode={selectMode} isSelected={selectedIds.has(f.id)}
               onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-              onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
+              onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setDetailReturnView("list");setView("detail");}} />
           ));
           // levels: array of remaining group descriptors to apply, outer first.
           const renderLevel = (list, levels, prefix, depth) => {
