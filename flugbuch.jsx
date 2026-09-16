@@ -786,16 +786,18 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
             layout: { "line-join": "round", "line-cap": "round" },
             paint: { "line-color": "#000", "line-width": 18, "line-opacity": 0.001 } });
 
-          let highlightedFlightId = null;
+          // Eigener Name (nicht highlightedFlightId) bewusst gewählt, damit
+          // er den gleichnamigen React-State oben (Zeile 650) nicht
+          // überschattet — dieser lokale Wert dient nur der "gleicher Track
+          // nochmal angetippt?"-Prüfung hier im Klick-Handler, während der
+          // React-State separat die Overlay-Kachel oben links (siehe JSX
+          // unten) speist, die die Sichtbarkeits-Filter in einem eigenen,
+          // leichten Effekt anwendet (kein kompletter Kartenneuaufbau
+          // nötig). Beide werden bei jedem Klick synchron gehalten.
+          let activeFlightId = null;
           let labelMarker = null;
-          // Spiegelt sich zusätzlich in echtem React-State (setHighlighted-
-          // FlightId/setIsolateOthers) — die lokale Variable hier bleibt für
-          // die "gleicher Track nochmal angetippt?"-Prüfung, der React-State
-          // ist nur für die Overlay-Kachel oben links (siehe JSX unten) da,
-          // welche die Sichtbarkeits-Filter in einem eigenen, leichten
-          // Effekt anwendet (kein kompletter Kartenneuaufbau nötig).
           const clearHighlight = () => {
-            highlightedFlightId = null;
+            activeFlightId = null;
             map.getSource("igc-tracks")?.setData(buildTrackData(null));
             if (labelMarker) { labelMarker.remove(); labelMarker = null; }
             setHighlightedFlightId(null);
@@ -807,11 +809,11 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
             if (!feat) { clearHighlight(); return; }
             const flightId = feat.properties.flightId;
             const fl = flights.find(f => f.id === flightId);
-            if (highlightedFlightId === flightId) {
+            if (activeFlightId === flightId) {
               if (fl && onOpenFlight) onOpenFlight(fl);
               return;
             }
-            highlightedFlightId = flightId;
+            activeFlightId = flightId;
             map.getSource("igc-tracks")?.setData(buildTrackData(flightId));
             if (labelMarker) { labelMarker.remove(); labelMarker = null; }
             const el = document.createElement("div");
@@ -2493,7 +2495,6 @@ const FORMULA_DEFS = [
 ];
 
 function evalFormula(id, flight, allFlights) {
-  const sorted = (key) => [...allFlights].sort((a,b)=>b[key]-a[k]);
   const yf = allFlights.filter(f=>f.year===flight.year);
   switch(id) {
     case "rank_dur":  return "#"+([...allFlights].sort((a,b)=>b.durationSec-a.durationSec).findIndex(f=>f.id===flight.id)+1);
@@ -2890,11 +2891,13 @@ function getDisplayDistance(fl) {
   if (fl?.totalDist) return String(fl.totalDist);
   return fl?.customFields?.distKm || fl?.customFields?.dk || "";
 }
+// Punkt-Objekt-Variante von haversineKm oben — gleiche Formel, nur mit
+// {lat,lon}-Objekten statt einzelnen Zahlen und eingebauter Null-Prüfung
+// für fehlende Koordinaten (vorher eine zweite, unabhängige Implementierung
+// derselben Formel).
 function haversineDistKm(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return null;
-  const R = 6371, dLat = (b.lat-a.lat)*Math.PI/180, dLon = (b.lon-a.lon)*Math.PI/180;
-  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  return haversineKm(a.lat, a.lon, b.lat, b.lon);
 }
 // For a freshly IGC-imported Start-/Landepunkt: looks at every existing
 // flight's named place of the same kind (Startplatz from startPt, Landung
@@ -4570,12 +4573,6 @@ function PlaceInlineField({label, value, onSave, suggestions, flights, kind, val
     }
     return [...seen.values()];
   };
-  const findPlaceExtras = (name) => {
-    const candidates = findPlaceCandidates(name);
-    if (!candidates.length) return null;
-    return candidates[0]; // single distinct match (or the most recent — see coordChoice for the ambiguous case)
-  };
-
   const commitValue = (name) => {
     const candidates = findPlaceCandidates(name);
     if (candidates.length > 1) {
@@ -5874,10 +5871,18 @@ function FlugbuchApp() {
   const [titleBarHeight, setTitleBarHeight] = useState(0);
   const [statsBlockHeight, setStatsBlockHeight] = useState(0);
   const [group1HeaderHeight, setGroup1HeaderHeight] = useState(0);
+  // Der ResizeObserver selbst wird nur EINMAL erstellt (nicht bei jedem
+  // Render neu) — vorher lief dieser Effekt ohne Dependency-Array, was ihn
+  // bei jedem Render (Suche/Sortierung/Gruppierung/Auswahl ändert sich hier
+  // ständig) komplett abbaute und neu aufbaute. Das zweite, ebenfalls bei
+  // jedem Render laufende .observe() unten bleibt bewusst ohne Bedingung:
+  // erneutes observe() desselben Elements ist ein No-Op, neu erschienene
+  // Elemente (z.B. die Wertetabelle blendet sich je nach Suche ein/aus)
+  // werden dadurch trotzdem zuverlässig erfasst.
+  const resizeObserverRef = useRef(null);
   useEffect(() => {
-    const els = [titleBarRef.current, statsBlockRef.current, group1HeaderRef.current].filter(Boolean);
-    if (!els.length || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(entries => {
+    if (typeof ResizeObserver === "undefined") return;
+    resizeObserverRef.current = new ResizeObserver(entries => {
       for (const entry of entries) {
         // getBoundingClientRect() immer nehmen statt entry.contentRect —
         // Letzteres liefert nur die Innenhöhe ohne Padding/Rahmen, was hier
@@ -5890,8 +5895,13 @@ function FlugbuchApp() {
         if (entry.target === group1HeaderRef.current) setGroup1HeaderHeight(h);
       }
     });
-    els.forEach(el => ro.observe(el));
-    return () => ro.disconnect();
+    return () => resizeObserverRef.current?.disconnect();
+  }, []);
+  useEffect(() => {
+    const ro = resizeObserverRef.current;
+    if (!ro) return;
+    [titleBarRef.current, statsBlockRef.current, group1HeaderRef.current].filter(Boolean)
+      .forEach(el => ro.observe(el));
   });
   const [view, setView] = useState("list"); // list|detail|edit|season
   // ── Zustand für ungewollte Neustarts merken (iOS/Safari kann die Seite
@@ -8182,7 +8192,6 @@ function FlugbuchApp() {
               onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
               onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />
           ));
-          const parseDStr = s => { if(!s)return 0; const a=s.match(/(\d+):(\d{2}):(\d{2})/); if(a)return+a[1]*3600+ +a[2]*60+ +a[3]; const b=s.match(/(\d+):(\d{2})/); if(b)return+b[1]*60+ +b[2]; const c=s.match(/(\d+)h\s*(\d+)m/); if(c)return+c[1]*3600+ +c[2]*60; return 0; };
           // levels: array of remaining group descriptors to apply, outer first.
           const renderLevel = (list, levels, prefix, depth) => {
             if (levels.length === 0) return renderFlightRows(list);
@@ -8213,7 +8222,7 @@ function FlugbuchApp() {
               const collapseKey = prefix + "|" + key;
               const isCollapsed = lvl.collapsed.has(collapseKey);
               const label = groupFlights.length ? formatSortValue(groupFlights[0], lvl.id) : key;
-              const sec = groupFlights.reduce((s,f)=>s+(f.durationSec||parseDStr(f.durationStr)),0);
+              const sec = groupFlights.reduce((s,f)=>s+(f.durationSec||parseDurForList(f.durationStr)),0);
               const h = Math.floor(sec/3600), m = String(Math.floor((sec%3600)/60)).padStart(2,"0");
               const biplace = depth===0 ? groupFlights.filter(f=>(f.customFields?.passagier||"").trim()).length : 0;
               return (

@@ -11,11 +11,11 @@ function useIsWide() {
 }
 
 // ── Wartung Page (ehem. "Service") ───────────────────────────────────────
-// Two top-level badges: Reserve (fully built) and Schirm (placeholder, comes
-// later). Reserve has exactly 3 fixed slots: Solo integriert, Solo extern,
-// Biplace. Each slot has: Name, Serien-Nr., Kaufdatum, a free-form list of
-// check dates+notes, and an editable check-interval (months) from which the
-// next-due date is computed.
+// Drei Kapitel: Reserve, Schirm, Sitz — je mit eigenen, frei benennbaren
+// Slots. Reserve hat 3 fixe Slots: Solo integriert, Solo extern, Biplace.
+// Jeder Slot hat: Name, Serien-Nr., Kaufdatum, eine frei erweiterbare Liste
+// von Check-Daten+Notizen, und ein editierbares Check-Intervall (Monate),
+// aus dem das nächste Fälligkeitsdatum berechnet wird.
 
 const RESERVE_SLOTS = [
   { id: "solo_int", label: "Solo integriert" },
@@ -385,7 +385,7 @@ function WartungApp() {
         </button>
       </div>
 
-      {/* Schirm section: 4 tab positions, each with an editable category dropdown */}
+      {/* Schirm section: 4 tab positions, each with a directly editable title */}
       {activeTab==="schirm" && (isWide ? (
         <SlotColumnsView slotIds={SCHIRM_SLOT_IDS} dataMap={schirme} updateSlot={updateSchirmSlot}
           addCheck={addSchirmCheck} updateCheck={updateSchirmCheck} deleteCheck={deleteSchirmCheck}
@@ -642,7 +642,7 @@ function WartungApp() {
         </div>
       ))}
 
-      {/* Reserve section: category selector (Auswahl) + fields for the active one */}
+      {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
       {activeTab==="reserve" && (isWide ? (
         <SlotColumnsView slotIds={RESERVE_SLOTS.map(s=>s.id)} dataMap={reserves} updateSlot={updateSlot}
           addCheck={addCheck} updateCheck={updateCheck} deleteCheck={deleteCheck}
@@ -711,9 +711,9 @@ function WartungApp() {
                 style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
             </div>
 
-            {/* Packen-Intervall */}
+            {/* Check-Intervall */}
             <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Packen-Intervall</div>
+              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input type="number" min="1" value={data.intervalMonths}
                   onChange={e=>{
@@ -733,18 +733,18 @@ function WartungApp() {
               </div>
             </div>
 
-            {/* Packen list */}
+            {/* Checks list */}
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Packen</div>
+                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
                 <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
                   background: overdue ? "rgba(239,68,68,0.18)" : soonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
                   color: overdue ? "#f87171" : soonDue ? "#fcd34d" : "#4ade80"}}>
-                  {overdue ? "Überfällig" : `Nächstes Packen ${fmtDate(nextDue)}`}
+                  {overdue ? "Überfällig" : `Nächster Check ${fmtDate(nextDue)}`}
                 </span>
                 <button onClick={()=>addCheck(activeReserveSlot, todayStr())}
                   style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  + Packen
+                  + Check
                 </button>
               </div>
               {(!data.checks || data.checks.length===0) && (
