@@ -14,7 +14,7 @@
 // erhöhen, damit alte, nicht mehr benötigte Cache-Einträge aufgeräumt
 // werden. Für normale Inhalts-Updates ist das NICHT nötig — die sind
 // dank "Network-first" ohnehin sofort aktuell, sobald wieder Netz da ist.
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = `flugbuch-cache-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -22,7 +22,8 @@ const PRECACHE_URLS = [
   "flugbuch.html", "flugbuch.jsx",
   "statistik.html", "statistik.jsx",
   "reisen.html", "reisen.jsx",
-  "wartung.html", "wartung.jsx",
+  "wartung.html",
+  "ausruestung.html", "ausruestung.jsx",
   "hilfe.html", "hilfe.jsx",
   "apple-touch-icon.png",
   "apple-touch-icon-120.png",

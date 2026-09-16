@@ -244,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.6.4";
+const APP_VERSION = "6.6.5";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.5", note: "wartung.jsx entfernt (verwaist seit dem Umzug der Wartung in den Ausrüstung-Tab, v5.0 — wartung.html bleibt als Weiterleitung bestehen). Dabei aufgefallen und mitbehoben: ausruestung.html/.jsx fehlten in der Service-Worker-Precache-Liste — die Seite war ohne vorherigen Online-Besuch nicht offline nutzbar." },
   { v: "6.6.4", note: "Bugfixes aus dem Code-Audit: Wartungs-Checks wurden nach Datums-Korrektur nicht neu sortiert (falsches Fälligkeitsdatum); addMonths berücksichtigte Monatslänge nicht (31.01. + 1 Monat sprang in den März statt Ende Februar); Starthöhe eines Hike-Flugs konnte beim Durchwischen der Flüge fälschlich gelöscht werden; Kachel-Layout im Flugdetail (settings:tileConfig) fehlte im Backup; Reise umbenennen löste bei jedem Tastendruck unnötig viele Schreibzugriffe aus statt erst beim Verlassen des Felds." },
   { v: "6.6.3", note: "Statistik: Code-Bereinigung nach vollständigem Durchgang durch statistik.jsx — Bugfix (Zoom-Wiederherstellung nach Flugdetail-Rücksprung ging verloren, wenn Gr. 1° nicht \"Jahr\" war), ~330 Zeilen nie verwendeter Code entfernt (ungenutzte Suchleisten-Komponente, verwaistes Sortier-Feature), doppelte Y-Achsen- und Label-Logik zusammengeführt." },
   { v: "6.6.2", note: "Weltkarte: IGC-Tracks antippbar — färbt den Track gelb und zeigt die Flugnummer, nochmaliges Antippen öffnet das Flugdetail." },
