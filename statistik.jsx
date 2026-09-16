@@ -1464,10 +1464,9 @@ function GraphSection({ flights }) {
         const isSwappedGrouped = modeRef.current === "grouped" && groupedSwappedRef.current;
         const dxData = isSwappedGrouped ? (dyPx/g.plotH) * widthX : (dxPx/g.plotW) * widthX;
         const dyData = isSwappedGrouped ? (dxPx/g.plotW) * widthY : -(dyPx/g.plotH) * widthY;
-        // Scrollrichtung Y: in "Gruppiert" UND "Frei" einheitlich "Inhalt
-        // folgt dem Finger". Scrollrichtung X: in "Gruppiert" ebenfalls
-        // "Inhalt folgt dem Finger", in "Frei" bewusst umgekehrt (Wunsch
-        // des Nutzers, mehrfach bestätigt).
+        // X UND Y, in ALLEN Graph-Varianten (Gruppiert, Gruppiert vertauscht,
+        // Frei) immer einheitlich "Inhalt folgt dem Finger" — keine
+        // Sonderfälle mehr nach Modus.
         // "Reihenfolge umkehren" (xReversed/yReversed) dreht bei Y (beide
         // Modi) UND bei X in "Frei" die Pixel-Achse selbst um (scaleX2/
         // scaleY/scaleY2 spiegeln dort t=1-t) — die Verschieberichtung muss
@@ -1476,7 +1475,7 @@ function GraphSection({ flights }) {
         // Index-Rasters um (rows.reverse()), die Pixel-Achse bleibt
         // unverändert (in beiden Ausrichtungen) — dort bleibt die
         // Verschieberichtung deshalb immer gleich.
-        const xBaseSign = modeRef.current === "free" ? 1 : -1;
+        const xBaseSign = -1;
         const xSign = (modeRef.current === "free" && xReversedRef.current) ? -xBaseSign : xBaseSign;
         const yBaseSign = -1;
         const ySign = yReversedRef.current ? -yBaseSign : yBaseSign;
