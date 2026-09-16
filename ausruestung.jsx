@@ -66,7 +66,16 @@ function parseDateStr(s) {
 
 function addMonths(date, months) {
   const d = new Date(date);
+  const day = d.getDate();
+  // Erst auf den 1. setzen, dann den Monat verschieben — sonst rollt
+  // JS bei einem Zieltag, den der Zielmonat gar nicht hat (z.B. 31.01.
+  // + 1 Monat), einfach in den übernächsten Monat statt auf dessen
+  // letzten Tag zu klemmen (31.01. + 1 Monat würde sonst zum 02.03.
+  // statt zum 28./29.02.).
+  d.setDate(1);
   d.setMonth(d.getMonth() + months);
+  const daysInTarget = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+  d.setDate(Math.min(day, daysInTarget));
   return d;
 }
 
@@ -181,7 +190,7 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
                       placeholder="Notiz"
                       style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 7px",color:"#e8f4fd",fontSize:11,boxSizing:"border-box"}} />
                     <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(slotId, idx, {date:e.target.value})}
-                      onBlur={e=>updateCheck(slotId, idx, {date:normalizeCheckDate(e.target.value)})}
+                      onBlur={e=>updateCheck(slotId, idx, {date:normalizeCheckDate(e.target.value)}, true)}
                       style={{width:78,flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:6,padding:"6px 7px",color:"#e8f4fd",fontSize:11,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteCheck(slotId, idx)}
                       style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:24,height:24,color:"#f87171",fontSize:11,cursor:"pointer",flexShrink:0}}>
@@ -490,7 +499,7 @@ function WartungApp() {
                       placeholder="Text (z.B. Leinencheck)"
                       style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <input value={normalizeCheckDate(c.date)} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:normalizeCheckDate(e.target.value)})}
+                      onBlur={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteSchirmCheck(activeSchirmSlot, idx)}
@@ -618,7 +627,7 @@ function WartungApp() {
                       placeholder="Text (z.B. Leinencheck)"
                       style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <input value={normalizeCheckDate(c.date)} onChange={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:normalizeCheckDate(e.target.value)})}
+                      onBlur={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteGurtzeugCheck(activeGurtzeugSlot, idx)}
@@ -748,7 +757,7 @@ function WartungApp() {
                       placeholder="Text (z.B. Leinencheck)"
                       style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(activeReserveSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateCheck(activeReserveSlot, idx, {date:normalizeCheckDate(e.target.value)})}
+                      onBlur={e=>updateCheck(activeReserveSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
                       placeholder="TT.MM.JJJJ"
                       style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
                     <button onClick={()=>deleteCheck(activeReserveSlot, idx)}
