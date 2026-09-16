@@ -102,6 +102,15 @@ function daysUntil(d) {
   return Math.round((target - now) / 86400000);
 }
 
+// Fälligkeits-Status eines Slots (Reserve/Schirm/Sitz) — Basis ist der neueste
+// (oberste) Check-Eintrag, ohne Check der Kauf-Datum als Fallback.
+function computeDueStatus(slotData) {
+  const lastCheck = (slotData.checks && slotData.checks.length ? parseDateStr(slotData.checks[0].date) : null) || parseDateStr(slotData.purchaseDate);
+  const nextDue = lastCheck ? addMonths(lastCheck, slotData.intervalMonths||12) : null;
+  const dueDays = daysUntil(nextDue);
+  return { nextDue, overdue: dueDays !== null && dueDays < 0, soonDue: dueDays !== null && dueDays >= 0 && dueDays <= 30 };
+}
+
 function emptyReserve() {
   return { title: "", category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
@@ -121,11 +130,7 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
         const data = dataMap[slotId] || emptySchirmSlot();
         const isEditing = editingTab===slotId;
         const displayTitle = data.title || (data.category && data.category!=="–" ? data.category : "");
-        const lastCheck = (data.checks && data.checks.length ? parseDateStr(data.checks[0].date) : null) || parseDateStr(data.purchaseDate);
-        const nextDue = lastCheck ? addMonths(lastCheck, data.intervalMonths||12) : null;
-        const dueDays = daysUntil(nextDue);
-        const overdue = dueDays !== null && dueDays < 0;
-        const soonDue = dueDays !== null && dueDays >= 0 && dueDays <= 30;
+        const { nextDue, overdue, soonDue } = computeDueStatus(data);
         return (
           <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
             {isEditing ? (
@@ -207,28 +212,189 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
   );
 }
 
+// Eine Konfiguration pro Kategorie statt drei parallelen Implementierungen —
+// alles, was sich zwischen Reserve/Schirm/Sitz unterscheidet (Slot-Liste,
+// Storage-Key, Farbe, Default-Titel, Zulassungsfeld ja/nein, Platzhalter-
+// Texte), steckt hier; die CRUD-Logik und beide Ansichten (breit/schmal)
+// sind für alle drei identisch.
+const WARTUNG_KINDS = {
+  reserve: {
+    slotIds: RESERVE_SLOTS.map(s => s.id), empty: emptyReserve, storageKey: "service:reserves",
+    accentColor: "#4ade80", accentBg: "rgba(34,197,94,0.15)", tabActiveBg: "rgba(34,197,94,0.22)",
+    defaultTitle: i => `Reserve ${i+1}`, hasZulassung: false,
+    namePlaceholder: "z.B. Companion Light 3", noChecksText: "Noch nichts erfasst.",
+    tabFontSize: 12.5, tabPadding: "9px 6px",
+  },
+  schirm: {
+    slotIds: SCHIRM_SLOT_IDS, empty: emptySchirmSlot, storageKey: "service:schirme",
+    accentColor: "#7dd3fc", accentBg: "rgba(56,189,248,0.15)", tabActiveBg: "rgba(56,189,248,0.22)",
+    defaultTitle: i => `Schirm ${i+1}`, hasZulassung: true,
+    namePlaceholder: "z.B. Ozone Wisp 2", noChecksText: "Noch keine Checks erfasst.",
+    tabFontSize: 11.5, tabPadding: "9px 4px",
+  },
+  gurtzeug: {
+    slotIds: GURTZEUG_SLOT_IDS, empty: emptySchirmSlot, storageKey: "service:gurtzeuge",
+    accentColor: "#f59e0b", accentBg: "rgba(245,158,11,0.15)", tabActiveBg: "rgba(245,158,11,0.22)",
+    defaultTitle: i => `Sitz ${i+1}`, hasZulassung: true,
+    namePlaceholder: "z.B. Woody Valley Wani Light", noChecksText: "Noch keine Checks erfasst.",
+    tabFontSize: 11.5, tabPadding: "9px 4px",
+  },
+};
+
+// Schmale (iPhone-)Ansicht: Tab-Auswahl (Titel direkt editierbar) + Felder
+// für den jeweils aktiven Slot. Pendant zu SlotColumnsView für die breite
+// Ansicht, mit derselben Parametrisierung über "config".
+function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot }) {
+  const { slotIds, accentColor, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
+  const data = dataMap[activeSlot] || emptySchirmSlot();
+  const { nextDue, overdue, soonDue } = computeDueStatus(data);
+  return (
+    <div style={{padding:"12px 16px 0"}}>
+      {/* Tabs: tap an inactive tab to switch to it; tap the already-
+          active tab again to rename it (the only tap that couldn't
+          mean "switch", since it's already selected). */}
+      <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
+        {slotIds.map((slotId, i) => {
+          const slot = dataMap[slotId] || emptySchirmSlot();
+          const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
+          const isActive = activeSlot===slotId;
+          const isEditing = editingSlot===slotId;
+          const tabStyle = {
+            flex:1,minWidth:0,padding:tabPadding,borderRadius:9,border:"none",
+            fontSize:tabFontSize,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+            background: isActive ? tabActiveBg : "transparent",
+            color: isActive ? accentColor : "rgba(232,244,253,0.5)",
+          };
+          if (isEditing) {
+            return (
+              <input key={slotId} autoFocus value={displayTitle}
+                onChange={e=>updateSlot(slotId,{title:e.target.value})}
+                onBlur={()=>setEditingSlot(null)}
+                onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                placeholder={defaultTitle(i)}
+                style={{...tabStyle, cursor:"text", outline:"none"}} />
+            );
+          }
+          return (
+            <button key={slotId}
+              onClick={()=> isActive ? setEditingSlot(slotId) : setActiveSlot(slotId)}
+              style={{...tabStyle, cursor:"pointer"}}>
+              {displayTitle || defaultTitle(i)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Fields for the currently selected tab */}
+      <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
+        {/* Name */}
+        <div>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
+          <input value={data.name} onChange={e=>updateSlot(activeSlot,{name:e.target.value})}
+            placeholder={namePlaceholder}
+            style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+        </div>
+
+        {/* Serien-Nr. */}
+        <div>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
+          <input value={data.serialNr} onChange={e=>updateSlot(activeSlot,{serialNr:e.target.value})}
+            placeholder="z.B. SN-123456"
+            style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+        </div>
+
+        {/* Zulassung */}
+        {hasZulassung && (
+          <div>
+            <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
+            <input value={data.zulassung||""} onChange={e=>updateSlot(activeSlot,{zulassung:e.target.value})}
+              placeholder="z.B. EN B"
+              style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+          </div>
+        )}
+
+        {/* Kauf */}
+        <div>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
+          <input value={data.purchaseDate} onChange={e=>updateSlot(activeSlot,{purchaseDate:e.target.value})}
+            placeholder="TT.MM.JJJJ"
+            style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+        </div>
+
+        {/* Check-Intervall */}
+        <div>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <input type="number" min="1" value={data.intervalMonths}
+              onChange={e=>{
+                // Rohen Tippwert übernehmen (auch leer), damit sich das Feld
+                // löschen und neu eintippen lässt — ein sofortiges Klemmen
+                // auf Minimum 1 bei jedem Tastendruck machte es unmöglich,
+                // über die führende "1" hinauszukommen.
+                updateSlot(activeSlot,{intervalMonths: e.target.value});
+              }}
+              onBlur={e=>updateSlot(activeSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
+              style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+            <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
+          </div>
+        </div>
+
+        {/* Checks list */}
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
+            <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
+              background: overdue ? "rgba(239,68,68,0.18)" : soonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
+              color: overdue ? "#f87171" : soonDue ? "#fcd34d" : "#4ade80"}}>
+              {overdue ? "Überfällig" : `Nächster Check ${fmtDate(nextDue)}`}
+            </span>
+            <button onClick={()=>addCheck(activeSlot, todayStr())}
+              style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              + Check
+            </button>
+          </div>
+          {(!data.checks || data.checks.length===0) && (
+            <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"8px 0"}}>{noChecksText}</div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {(data.checks||[]).map((c, idx) => (
+              <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
+                <input value={c.note} onChange={e=>updateCheck(activeSlot, idx, {note:e.target.value})}
+                  placeholder="Text (z.B. Leinencheck)"
+                  style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+                <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(activeSlot, idx, {date:e.target.value})}
+                  onBlur={e=>updateCheck(activeSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
+                  placeholder="TT.MM.JJJJ"
+                  style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+                <button onClick={()=>deleteCheck(activeSlot, idx)}
+                  style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WartungApp() {
   const isWide = useIsWide();
-  const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" — always exactly one, never both/neither
-  const [activeReserveSlot, setActiveReserveSlot] = useState(RESERVE_SLOTS[0].id);
-  const [editingReserveTab, setEditingReserveTab] = useState(null); // slot.id currently being renamed, or null
-  const [activeSchirmSlot, setActiveSchirmSlot] = useState(SCHIRM_SLOT_IDS[0]);
-  const [editingSchirmTab, setEditingSchirmTab] = useState(null); // slotId currently being renamed, or null
-  const [activeGurtzeugSlot, setActiveGurtzeugSlot] = useState(GURTZEUG_SLOT_IDS[0]);
-  const [editingGurtzeugTab, setEditingGurtzeugTab] = useState(null);
-  const [reserves, setReserves] = useState(() => {
+  const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" | "gurtzeug" — always exactly one
+  const [activeSlot, setActiveSlotState] = useState(() => {
     const obj = {};
-    RESERVE_SLOTS.forEach(s => obj[s.id] = emptyReserve());
+    for (const kind in WARTUNG_KINDS) obj[kind] = WARTUNG_KINDS[kind].slotIds[0];
     return obj;
   });
-  const [schirme, setSchirme] = useState(() => {
+  const [editingSlot, setEditingSlotState] = useState({ reserve: null, schirm: null, gurtzeug: null }); // slotId currently being renamed, or null, per Kategorie
+  const [data, setData] = useState(() => {
     const obj = {};
-    SCHIRM_SLOT_IDS.forEach(id => obj[id] = emptySchirmSlot());
-    return obj;
-  });
-  const [gurtzeuge, setGurtzeuge] = useState(() => {
-    const obj = {};
-    GURTZEUG_SLOT_IDS.forEach(id => obj[id] = emptySchirmSlot());
+    for (const kind in WARTUNG_KINDS) {
+      const kindObj = {};
+      WARTUNG_KINDS[kind].slotIds.forEach(id => kindObj[id] = WARTUNG_KINDS[kind].empty());
+      obj[kind] = kindObj;
+    }
     return obj;
   });
   const [loaded, setLoaded] = useState(false);
@@ -236,136 +402,65 @@ function WartungApp() {
   // Load from the same IndexedDB-backed storage the Flugbuch app uses.
   useEffect(() => {
     (async () => {
-      try {
-        const r = await window.storage.get("service:reserves");
-        if (r) setReserves(prev => ({ ...prev, ...JSON.parse(r.value) }));
-      } catch (e) { console.error("Load error (reserves):", e); }
-      try {
-        const r2 = await window.storage.get("service:schirme");
-        if (r2) setSchirme(prev => ({ ...prev, ...JSON.parse(r2.value) }));
-      } catch (e) { console.error("Load error (schirme):", e); }
-      try {
-        const r3 = await window.storage.get("service:gurtzeuge");
-        if (r3) setGurtzeuge(prev => ({ ...prev, ...JSON.parse(r3.value) }));
-      } catch (e) { console.error("Load error (gurtzeuge):", e); }
+      const loadedByKind = {};
+      for (const kind in WARTUNG_KINDS) {
+        try {
+          const r = await window.storage.get(WARTUNG_KINDS[kind].storageKey);
+          if (r) loadedByKind[kind] = JSON.parse(r.value);
+        } catch (e) { console.error(`Load error (${kind}):`, e); }
+      }
+      setData(prev => {
+        const next = { ...prev };
+        for (const kind in loadedByKind) next[kind] = { ...prev[kind], ...loadedByKind[kind] };
+        return next;
+      });
       setLoaded(true);
     })();
   }, []);
 
-  const saveReserves = useCallback(async (next) => {
-    setReserves(next);
-    try { await window.storage.set("service:reserves", JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
+  const saveKind = useCallback(async (kind, next) => {
+    setData(prev => ({ ...prev, [kind]: next }));
+    try { await window.storage.set(WARTUNG_KINDS[kind].storageKey, JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
   }, []);
 
-  const saveSchirme = useCallback(async (next) => {
-    setSchirme(next);
-    try { await window.storage.set("service:schirme", JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
-  }, []);
-
-  const saveGurtzeuge = useCallback(async (next) => {
-    setGurtzeuge(next);
-    try { await window.storage.set("service:gurtzeuge", JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
-  }, []);
-
-  const updateSlot = (slotId, patch) => {
-    const next = { ...reserves, [slotId]: { ...reserves[slotId], ...patch } };
-    saveReserves(next);
+  const updateSlot = (kind, slotId, patch) => {
+    const next = { ...data[kind], [slotId]: { ...data[kind][slotId], ...patch } };
+    saveKind(kind, next);
   };
 
-  const addCheck = (slotId, dateStr) => {
-    const slot = reserves[slotId];
+  const addCheck = (kind, slotId, dateStr) => {
+    const slot = data[kind][slotId];
     const checks = [...(slot.checks||[]), { date: dateStr, note: "" }]
       .sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateSlot(slotId, { checks });
+    updateSlot(kind, slotId, { checks });
   };
 
-  const updateCheck = (slotId, idx, patch, resort) => {
-    const slot = reserves[slotId];
+  const updateCheck = (kind, slotId, idx, patch, resort) => {
+    const slot = data[kind][slotId];
     let checks = slot.checks.map((c,i) => i===idx ? {...c, ...patch} : c);
     if (resort) checks = checks.sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateSlot(slotId, { checks });
+    updateSlot(kind, slotId, { checks });
   };
 
-  const updateSchirmSlot = (slotId, patch) => {
-    const next = { ...schirme, [slotId]: { ...schirme[slotId], ...patch } };
-    saveSchirme(next);
-  };
-
-  const addSchirmCheck = (slotId, dateStr) => {
-    const slot = schirme[slotId];
-    const checks = [...(slot.checks||[]), { date: dateStr, note: "" }]
-      .sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateSchirmSlot(slotId, { checks });
-  };
-
-  const updateSchirmCheck = (slotId, idx, patch, resort) => {
-    const slot = schirme[slotId];
-    let checks = slot.checks.map((c,i) => i===idx ? {...c, ...patch} : c);
-    if (resort) checks = checks.sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateSchirmSlot(slotId, { checks });
-  };
-
-  const deleteCheck = (slotId, idx) => {
-    const slot = reserves[slotId];
+  const deleteCheck = (kind, slotId, idx) => {
+    const slot = data[kind][slotId];
     const checks = slot.checks.filter((_,i) => i!==idx);
-    updateSlot(slotId, { checks });
+    updateSlot(kind, slotId, { checks });
   };
 
-  const deleteSchirmCheck = (slotId, idx) => {
-    const slot = schirme[slotId];
-    const checks = slot.checks.filter((_,i) => i!==idx);
-    updateSchirmSlot(slotId, { checks });
-  };
+  const setActiveSlot = (kind, slotId) => setActiveSlotState(prev => ({ ...prev, [kind]: slotId }));
+  const setEditingSlot = (kind, slotId) => setEditingSlotState(prev => ({ ...prev, [kind]: slotId }));
 
-  const updateGurtzeugSlot = (slotId, patch) => {
-    const next = { ...gurtzeuge, [slotId]: { ...gurtzeuge[slotId], ...patch } };
-    saveGurtzeuge(next);
-  };
-
-  const addGurtzeugCheck = (slotId, dateStr) => {
-    const slot = gurtzeuge[slotId];
-    const checks = [...(slot.checks||[]), { date: dateStr, note: "" }]
-      .sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateGurtzeugSlot(slotId, { checks });
-  };
-
-  const updateGurtzeugCheck = (slotId, idx, patch, resort) => {
-    const slot = gurtzeuge[slotId];
-    let checks = slot.checks.map((c,i) => i===idx ? {...c, ...patch} : c);
-    if (resort) checks = checks.sort((a,b) => (parseDateStr(b.date)||0) - (parseDateStr(a.date)||0));
-    updateGurtzeugSlot(slotId, { checks });
-  };
-
-  const deleteGurtzeugCheck = (slotId, idx) => {
-    const slot = gurtzeuge[slotId];
-    const checks = slot.checks.filter((_,i) => i!==idx);
-    updateGurtzeugSlot(slotId, { checks });
-  };
+  // Pro Kategorie an die konkreten Slot-IDs gebundene CRUD-Funktionen, damit
+  // die Aufrufe in SlotColumnsView/SlotTabsView unten schlank bleiben.
+  const opsFor = (kind) => ({
+    updateSlot: (slotId, patch) => updateSlot(kind, slotId, patch),
+    addCheck: (slotId, dateStr) => addCheck(kind, slotId, dateStr),
+    updateCheck: (slotId, idx, patch, resort) => updateCheck(kind, slotId, idx, patch, resort),
+    deleteCheck: (slotId, idx) => deleteCheck(kind, slotId, idx),
+  });
 
   if (!loaded) return null;
-
-  const data = reserves[activeReserveSlot] || emptyReserve();
-  // Base the next-due calculation on the newest (topmost) check entry; if
-  // there's no check yet, fall back to the purchase date instead.
-  const lastCheck = (data.checks && data.checks.length ? parseDateStr(data.checks[0].date) : null) || parseDateStr(data.purchaseDate);
-  const nextDue = lastCheck ? addMonths(lastCheck, data.intervalMonths||12) : null;
-  const dueDays = daysUntil(nextDue);
-  const overdue = dueDays !== null && dueDays < 0;
-  const soonDue = dueDays !== null && dueDays >= 0 && dueDays <= 30;
-
-  const schirmData = schirme[activeSchirmSlot] || emptySchirmSlot();
-  const schirmLastCheck = (schirmData.checks && schirmData.checks.length ? parseDateStr(schirmData.checks[0].date) : null) || parseDateStr(schirmData.purchaseDate);
-  const schirmNextDue = schirmLastCheck ? addMonths(schirmLastCheck, schirmData.intervalMonths||12) : null;
-  const schirmDueDays = daysUntil(schirmNextDue);
-  const schirmOverdue = schirmDueDays !== null && schirmDueDays < 0;
-  const schirmSoonDue = schirmDueDays !== null && schirmDueDays >= 0 && schirmDueDays <= 30;
-
-  const gurtzeugData = gurtzeuge[activeGurtzeugSlot] || emptySchirmSlot();
-  const gurtzeugLastCheck = (gurtzeugData.checks && gurtzeugData.checks.length ? parseDateStr(gurtzeugData.checks[0].date) : null) || parseDateStr(gurtzeugData.purchaseDate);
-  const gurtzeugNextDue = gurtzeugLastCheck ? addMonths(gurtzeugLastCheck, gurtzeugData.intervalMonths||12) : null;
-  const gurtzeugDueDays = daysUntil(gurtzeugNextDue);
-  const gurtzeugOverdue = gurtzeugDueDays !== null && gurtzeugDueDays < 0;
-  const gurtzeugSoonDue = gurtzeugDueDays !== null && gurtzeugDueDays >= 0 && gurtzeugDueDays <= 30;
 
   return (
     <div>
@@ -387,389 +482,38 @@ function WartungApp() {
 
       {/* Schirm section: 4 tab positions, each with a directly editable title */}
       {activeTab==="schirm" && (isWide ? (
-        <SlotColumnsView slotIds={SCHIRM_SLOT_IDS} dataMap={schirme} updateSlot={updateSchirmSlot}
-          addCheck={addSchirmCheck} updateCheck={updateSchirmCheck} deleteCheck={deleteSchirmCheck}
-          editingTab={editingSchirmTab} setEditingTab={setEditingSchirmTab}
-          accentColor="#7dd3fc" accentBg="rgba(56,189,248,0.15)" hasZulassung={true}
-          defaultTitle={i=>`Schirm ${i+1}`} />
+        <SlotColumnsView slotIds={WARTUNG_KINDS.schirm.slotIds} dataMap={data.schirm} {...opsFor("schirm")}
+          editingTab={editingSlot.schirm} setEditingTab={slotId=>setEditingSlot("schirm",slotId)}
+          accentColor={WARTUNG_KINDS.schirm.accentColor} accentBg={WARTUNG_KINDS.schirm.accentBg}
+          hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle} />
       ) : (
-        <div style={{padding:"12px 16px 0"}}>
-          {/* Tabs: tap an inactive tab to switch to it; tap the already-
-              active tab again to rename it (the only tap that couldn't
-              mean "switch", since it's already selected). */}
-          <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
-            {SCHIRM_SLOT_IDS.map(slotId => {
-              const slot = schirme[slotId] || emptySchirmSlot();
-              const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
-              const isActive = activeSchirmSlot===slotId;
-              const isEditing = editingSchirmTab===slotId;
-              const tabStyle = {
-                flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",
-                fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-                background: isActive ? "rgba(56,189,248,0.22)" : "transparent",
-                color: isActive ? "#7dd3fc" : "rgba(232,244,253,0.5)",
-              };
-              if (isEditing) {
-                return (
-                  <input key={slotId} autoFocus value={displayTitle}
-                    onChange={e=>updateSchirmSlot(slotId,{title:e.target.value})}
-                    onBlur={()=>setEditingSchirmTab(null)}
-                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                    placeholder={`Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
-                    style={{...tabStyle, cursor:"text", outline:"none"}} />
-                );
-              }
-              return (
-                <button key={slotId}
-                  onClick={()=> isActive ? setEditingSchirmTab(slotId) : setActiveSchirmSlot(slotId)}
-                  style={{...tabStyle, cursor:"pointer"}}>
-                  {displayTitle || `Schirm ${SCHIRM_SLOT_IDS.indexOf(slotId)+1}`}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Fields for the currently selected tab */}
-          <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-            {/* Name */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
-              <input value={schirmData.name} onChange={e=>updateSchirmSlot(activeSchirmSlot,{name:e.target.value})}
-                placeholder="z.B. Ozone Wisp 2"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Serien-Nr. */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
-              <input value={schirmData.serialNr} onChange={e=>updateSchirmSlot(activeSchirmSlot,{serialNr:e.target.value})}
-                placeholder="z.B. SN-123456"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Zulassung */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
-              <input value={schirmData.zulassung||""} onChange={e=>updateSchirmSlot(activeSchirmSlot,{zulassung:e.target.value})}
-                placeholder="z.B. EN B"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Kauf */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
-              <input value={schirmData.purchaseDate} onChange={e=>updateSchirmSlot(activeSchirmSlot,{purchaseDate:e.target.value})}
-                placeholder="TT.MM.JJJJ"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Check-Intervall */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="number" min="1" value={schirmData.intervalMonths}
-                  onChange={e=>updateSchirmSlot(activeSchirmSlot,{intervalMonths: e.target.value})}
-                  onBlur={e=>updateSchirmSlot(activeSchirmSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
-                  style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-                <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
-              </div>
-            </div>
-
-            {/* Checks list */}
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
-                <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
-                  background: schirmOverdue ? "rgba(239,68,68,0.18)" : schirmSoonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
-                  color: schirmOverdue ? "#f87171" : schirmSoonDue ? "#fcd34d" : "#4ade80"}}>
-                  {schirmOverdue ? "Überfällig" : `Nächster Check ${fmtDate(schirmNextDue)}`}
-                </span>
-                <button onClick={()=>addSchirmCheck(activeSchirmSlot, todayStr())}
-                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  + Check
-                </button>
-              </div>
-              {(!schirmData.checks || schirmData.checks.length===0) && (
-                <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"8px 0"}}>Noch keine Checks erfasst.</div>
-              )}
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {(schirmData.checks||[]).map((c, idx) => (
-                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <input value={c.note} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {note:e.target.value})}
-                      placeholder="Text (z.B. Leinencheck)"
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateSchirmCheck(activeSchirmSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
-                      placeholder="TT.MM.JJJJ"
-                      style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <button onClick={()=>deleteSchirmCheck(activeSchirmSlot, idx)}
-                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <SlotTabsView config={WARTUNG_KINDS.schirm} dataMap={data.schirm} {...opsFor("schirm")}
+          activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
+          editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)} />
       ))}
 
       {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
       {activeTab==="gurtzeug" && (isWide ? (
-        <SlotColumnsView slotIds={GURTZEUG_SLOT_IDS} dataMap={gurtzeuge} updateSlot={updateGurtzeugSlot}
-          addCheck={addGurtzeugCheck} updateCheck={updateGurtzeugCheck} deleteCheck={deleteGurtzeugCheck}
-          editingTab={editingGurtzeugTab} setEditingTab={setEditingGurtzeugTab}
-          accentColor="#f59e0b" accentBg="rgba(245,158,11,0.15)" hasZulassung={true}
-          defaultTitle={i=>`Sitz ${i+1}`} />
+        <SlotColumnsView slotIds={WARTUNG_KINDS.gurtzeug.slotIds} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
+          editingTab={editingSlot.gurtzeug} setEditingTab={slotId=>setEditingSlot("gurtzeug",slotId)}
+          accentColor={WARTUNG_KINDS.gurtzeug.accentColor} accentBg={WARTUNG_KINDS.gurtzeug.accentBg}
+          hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle} />
       ) : (
-        <div style={{padding:"12px 16px 0"}}>
-          {/* Tabs: tap an inactive tab to switch to it; tap the already-
-              active tab again to rename it. */}
-          <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
-            {GURTZEUG_SLOT_IDS.map(slotId => {
-              const slot = gurtzeuge[slotId] || emptySchirmSlot();
-              const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
-              const isActive = activeGurtzeugSlot===slotId;
-              const isEditing = editingGurtzeugTab===slotId;
-              const tabStyle = {
-                flex:1,minWidth:0,padding:"9px 4px",borderRadius:9,border:"none",
-                fontSize:11.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-                background: isActive ? "rgba(245,158,11,0.22)" : "transparent",
-                color: isActive ? "#f59e0b" : "rgba(232,244,253,0.5)",
-              };
-              if (isEditing) {
-                return (
-                  <input key={slotId} autoFocus value={displayTitle}
-                    onChange={e=>updateGurtzeugSlot(slotId,{title:e.target.value})}
-                    onBlur={()=>setEditingGurtzeugTab(null)}
-                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                    placeholder={`Sitz ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
-                    style={{...tabStyle, cursor:"text", outline:"none"}} />
-                );
-              }
-              return (
-                <button key={slotId}
-                  onClick={()=> isActive ? setEditingGurtzeugTab(slotId) : setActiveGurtzeugSlot(slotId)}
-                  style={{...tabStyle, cursor:"pointer"}}>
-                  {displayTitle || `Sitz ${GURTZEUG_SLOT_IDS.indexOf(slotId)+1}`}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Fields for the currently selected tab */}
-          <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-            {/* Name */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
-              <input value={gurtzeugData.name} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{name:e.target.value})}
-                placeholder="z.B. Woody Valley Wani Light"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Serien-Nr. */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
-              <input value={gurtzeugData.serialNr} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{serialNr:e.target.value})}
-                placeholder="z.B. SN-123456"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Zulassung */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
-              <input value={gurtzeugData.zulassung||""} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{zulassung:e.target.value})}
-                placeholder="z.B. EN B"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Kauf */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
-              <input value={gurtzeugData.purchaseDate} onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{purchaseDate:e.target.value})}
-                placeholder="TT.MM.JJJJ"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Check-Intervall */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="number" min="1" value={gurtzeugData.intervalMonths}
-                  onChange={e=>updateGurtzeugSlot(activeGurtzeugSlot,{intervalMonths: e.target.value})}
-                  onBlur={e=>updateGurtzeugSlot(activeGurtzeugSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
-                  style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-                <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
-              </div>
-            </div>
-
-            {/* Checks list */}
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
-                <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
-                  background: gurtzeugOverdue ? "rgba(239,68,68,0.18)" : gurtzeugSoonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
-                  color: gurtzeugOverdue ? "#f87171" : gurtzeugSoonDue ? "#fcd34d" : "#4ade80"}}>
-                  {gurtzeugOverdue ? "Überfällig" : `Nächster Check ${fmtDate(gurtzeugNextDue)}`}
-                </span>
-                <button onClick={()=>addGurtzeugCheck(activeGurtzeugSlot, todayStr())}
-                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  + Check
-                </button>
-              </div>
-              {(!gurtzeugData.checks || gurtzeugData.checks.length===0) && (
-                <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"8px 0"}}>Noch keine Checks erfasst.</div>
-              )}
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {(gurtzeugData.checks||[]).map((c, idx) => (
-                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <input value={c.note} onChange={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {note:e.target.value})}
-                      placeholder="Text (z.B. Leinencheck)"
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateGurtzeugCheck(activeGurtzeugSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
-                      placeholder="TT.MM.JJJJ"
-                      style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <button onClick={()=>deleteGurtzeugCheck(activeGurtzeugSlot, idx)}
-                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <SlotTabsView config={WARTUNG_KINDS.gurtzeug} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
+          activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
+          editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)} />
       ))}
 
       {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
       {activeTab==="reserve" && (isWide ? (
-        <SlotColumnsView slotIds={RESERVE_SLOTS.map(s=>s.id)} dataMap={reserves} updateSlot={updateSlot}
-          addCheck={addCheck} updateCheck={updateCheck} deleteCheck={deleteCheck}
-          editingTab={editingReserveTab} setEditingTab={setEditingReserveTab}
-          accentColor="#4ade80" accentBg="rgba(34,197,94,0.15)" hasZulassung={false}
-          defaultTitle={i=>`Reserve ${i+1}`} />
+        <SlotColumnsView slotIds={WARTUNG_KINDS.reserve.slotIds} dataMap={data.reserve} {...opsFor("reserve")}
+          editingTab={editingSlot.reserve} setEditingTab={slotId=>setEditingSlot("reserve",slotId)}
+          accentColor={WARTUNG_KINDS.reserve.accentColor} accentBg={WARTUNG_KINDS.reserve.accentBg}
+          hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle} />
       ) : (
-        <div style={{padding:"12px 16px 0"}}>
-          {/* Tabs: tap an inactive tab to switch to it; tap the already-
-              active tab again to rename it. */}
-          <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
-            {RESERVE_SLOTS.map(slot => {
-              const slotData = reserves[slot.id] || emptyReserve();
-              const displayTitle = slotData.title || (slotData.category && slotData.category!=="–" ? slotData.category : "");
-              const isActive = activeReserveSlot===slot.id;
-              const isEditing = editingReserveTab===slot.id;
-              const tabStyle = {
-                flex:1,minWidth:0,padding:"9px 6px",borderRadius:9,border:"none",
-                fontSize:12.5,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-                background: isActive ? "rgba(34,197,94,0.22)" : "transparent",
-                color: isActive ? "#4ade80" : "rgba(232,244,253,0.5)",
-              };
-              if (isEditing) {
-                return (
-                  <input key={slot.id} autoFocus value={displayTitle}
-                    onChange={e=>updateSlot(slot.id,{title:e.target.value})}
-                    onBlur={()=>setEditingReserveTab(null)}
-                    onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                    placeholder={`Reserve ${RESERVE_SLOTS.indexOf(slot)+1}`}
-                    style={{...tabStyle, cursor:"text", outline:"none"}} />
-                );
-              }
-              return (
-                <button key={slot.id}
-                  onClick={()=> isActive ? setEditingReserveTab(slot.id) : setActiveReserveSlot(slot.id)}
-                  style={{...tabStyle, cursor:"pointer"}}>
-                  {displayTitle || `Reserve ${RESERVE_SLOTS.indexOf(slot)+1}`}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Fields for the currently selected slot */}
-          <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-            {/* Name */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
-              <input value={data.name} onChange={e=>updateSlot(activeReserveSlot,{name:e.target.value})}
-                placeholder="z.B. Companion Light 3"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Serien-Nr. */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
-              <input value={data.serialNr} onChange={e=>updateSlot(activeReserveSlot,{serialNr:e.target.value})}
-                placeholder="z.B. SN-123456"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Kauf */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
-              <input value={data.purchaseDate} onChange={e=>updateSlot(activeReserveSlot,{purchaseDate:e.target.value})}
-                placeholder="TT.MM.JJJJ"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-            </div>
-
-            {/* Check-Intervall */}
-            <div>
-              <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Check-Intervall</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="number" min="1" value={data.intervalMonths}
-                  onChange={e=>{
-                    const v = e.target.value;
-                    // Store the raw typed value as-is (even empty) so the person
-                    // can clear the field and type a new number — coercing to a
-                    // minimum of 1 on every keystroke made it impossible to ever
-                    // get past the leading "1".
-                    updateSlot(activeReserveSlot,{intervalMonths: v});
-                  }}
-                  onBlur={e=>{
-                    const n = Math.max(1, parseInt(e.target.value)||1);
-                    updateSlot(activeReserveSlot,{intervalMonths: n});
-                  }}
-                  style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-                <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
-              </div>
-            </div>
-
-            {/* Checks list */}
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.5}}>Checks</div>
-                <span style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:20,
-                  background: overdue ? "rgba(239,68,68,0.18)" : soonDue ? "rgba(245,158,11,0.18)" : "rgba(34,197,94,0.12)",
-                  color: overdue ? "#f87171" : soonDue ? "#fcd34d" : "#4ade80"}}>
-                  {overdue ? "Überfällig" : `Nächster Check ${fmtDate(nextDue)}`}
-                </span>
-                <button onClick={()=>addCheck(activeReserveSlot, todayStr())}
-                  style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  + Check
-                </button>
-              </div>
-              {(!data.checks || data.checks.length===0) && (
-                <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"8px 0"}}>Noch nichts erfasst.</div>
-              )}
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {(data.checks||[]).map((c, idx) => (
-                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <input value={c.note} onChange={e=>updateCheck(activeReserveSlot, idx, {note:e.target.value})}
-                      placeholder="Text (z.B. Leinencheck)"
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(activeReserveSlot, idx, {date:e.target.value})}
-                      onBlur={e=>updateCheck(activeReserveSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
-                      placeholder="TT.MM.JJJJ"
-                      style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                    <button onClick={()=>deleteCheck(activeReserveSlot, idx)}
-                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <SlotTabsView config={WARTUNG_KINDS.reserve} dataMap={data.reserve} {...opsFor("reserve")}
+          activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
+          editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)} />
       ))}
     </div>
   );
