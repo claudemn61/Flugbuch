@@ -18,6 +18,11 @@ function useIsWide() {
 // storage shim uses (flugbuch-db / store "kv", keys prefixed "flugbuch:").
 // Falls back to localStorage if IndexedDB has nothing (e.g. very first load
 // before any migration has happened).
+// Bewusst ein eigener Massen-Scan statt window.storage.list()+get() pro
+// Flug: window.storage hat keine Bulk-Lesefunktion, ein Einzel-Get pro Flug
+// wäre bei vielen Flügen spürbar langsamer als der eine Bulk-Read hier
+// (getAllKeys+getAll in einer Transaktion). readServiceUrgency direkt
+// darunter liest dagegen nur 3 Einzelschlüssel und nutzt darum window.storage.
 async function readFlightStatsFromStorage() {
   const PREFIX = "flugbuch:";
   let total = 0, biplace = 0, hikeFlights = 0, found = false;
@@ -121,30 +126,15 @@ const RESERVE_LABELS = { solo_int: "Solo integriert", solo_ext: "Solo extern", b
 // priority) so the Home tile can show a live "Nächster Check: <name>"
 // preview instead of a generic placeholder.
 async function readServiceUrgency() {
-  const PREFIX = "flugbuch:";
   let reserves = null, schirme = null;
 
+  // Single-key reads (nicht der Massen-Scan, den readFlightStatsFromStorage
+  // braucht) — dafür reicht window.storage.get direkt, inkl. dessen
+  // eingebautem localStorage-Fallback.
   async function readKV(key) {
     try {
-      if (window.indexedDB) {
-        const db = await new Promise((resolve, reject) => {
-          const req = indexedDB.open("flugbuch-db", 1);
-          req.onupgradeneeded = () => { req.result.createObjectStore("kv"); };
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-        const val = await new Promise((resolve, reject) => {
-          const tx = db.transaction("kv", "readonly");
-          const req = tx.objectStore("kv").get(PREFIX + key);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-        if (val !== undefined) return JSON.parse(val);
-      }
-    } catch {}
-    try {
-      const raw = localStorage.getItem(PREFIX + key);
-      if (raw) return JSON.parse(raw);
+      const r = await window.storage.get(key);
+      if (r) return JSON.parse(r.value);
     } catch {}
     return null;
   }
@@ -236,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.6.7";
+const APP_VERSION = "6.6.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.8", note: "Home-Seite: readServiceUrgency (Reserve/Schirm/Sitz-Fälligkeit fürs Home-Tile) nutzt jetzt window.storage statt einem eigenen, doppelten rohen IndexedDB-Zugriff — spart die zweite indexedDB.open-Implementierung. readFlightStatsFromStorage bleibt bewusst beim eigenen Massen-Scan (window.storage hat keine Bulk-Lesefunktion, wäre bei vielen Flügen langsamer). Per Timing-Test verifiziert, dass window.storage schon vor dem ersten Mount der Home-Seite bereitsteht (keine Race Condition), und per Vergleichstest, dass die Fälligkeitsanzeige identisch bleibt." },
   { v: "6.6.7", note: "Ausrüstung, Wartung: die dreifach duplizierte CRUD-Logik und Fälligkeits-Berechnung für Reserve/Schirm/Sitz zu einer gemeinsamen, pro Kategorie parametrisierten Implementierung zusammengeführt (WARTUNG_KINDS-Konfiguration, computeDueStatus-Helfer, neue SlotTabsView-Komponente für die schmale Ansicht analog zur bestehenden SlotColumnsView). Rein intern — per Vergleichstest (identischer gerenderter DOM alt/neu, alle drei Kategorien, beide Layouts) und Persistenz-Test über einen Reload verifiziert, keine sichtbare Änderung." },
   { v: "6.6.6", note: "Weitere Code-Bereinigung nach dem Gesamt-Durchgang: toter Code entfernt (u.a. ungenutzte Hilfsfunktionen/Variablen in app.jsx und flugbuch.jsx), doppelte Logik zusammengeführt (Distanzberechnung, Dauer-Parser, ResizeObserver-Aufbau in flugbuch.jsx), veraltete Kommentare korrigiert. Ausrüstung, Reserve (iPhone-Ansicht): Beschriftung \"Packen\" vereinheitlicht zu \"Check\", passend zur iPad-Ansicht und zu Schirm/Sitz." },
   { v: "6.6.5", note: "wartung.jsx entfernt (verwaist seit dem Umzug der Wartung in den Ausrüstung-Tab, v5.0 — wartung.html bleibt als Weiterleitung bestehen). Dabei aufgefallen und mitbehoben: ausruestung.html/.jsx fehlten in der Service-Worker-Precache-Liste — die Seite war ohne vorherigen Online-Besuch nicht offline nutzbar." },
