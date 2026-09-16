@@ -636,7 +636,7 @@ function simplifyTrackForMap(track, toleranceM = 10) {
   return out;
 }
 
-function WorldMapView({ flights, selectedIds, onBack }) {
+function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
   const mapDivRef = useRef(null);
   const mapRef = useRef(null);
   const [showSP, setShowSP] = useState(true);
@@ -680,7 +680,7 @@ function WorldMapView({ flights, selectedIds, onBack }) {
     const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
     return searched
       .filter(f => f.track?.length > 1)
-      .map(f => ({ id: f.id, coords: simplifyTrackForMap(f.track) }))
+      .map(f => ({ id: f.id, name: f.name, coords: simplifyTrackForMap(f.track) }))
       .filter(t => t.coords.length > 1);
   }, [relevantFlights, showIGC, search]);
 
@@ -742,20 +742,65 @@ function WorldMapView({ flights, selectedIds, onBack }) {
         // Königsblau, wie vom Nutzer gewünscht — bewusst eine einzige
         // Farbe für alle Tracks (kein Track-pro-Flug-Farbcode): auf der
         // Weltkarte geht es um die Streckenmuster insgesamt, nicht darum,
-        // einzelne Flüge auseinanderzuhalten.
+        // einzelne Flüge auseinanderzuhalten. Antippen eines Tracks färbt
+        // ihn gelb ein und zeigt die Flugnummer; nochmaliges Antippen
+        // (Track oder Nummer) öffnet das Flugdetail — Zustand lebt rein
+        // lokal in diesem Closure statt in React-State, da er ohnehin bei
+        // jedem Neuaufbau der Karte (pointsKey/tracksKey ändert sich)
+        // zurückgesetzt werden soll.
         if (tracks.length) {
-          map.addSource("igc-tracks", {
-            type: "geojson",
-            data: { type: "FeatureCollection", features: tracks.map(t => ({
-              type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: t.coords },
-            })) },
+          const buildTrackData = (highlightId) => ({
+            type: "FeatureCollection",
+            features: tracks.map(t => ({
+              type: "Feature",
+              properties: { flightId: t.id, highlighted: t.id === highlightId },
+              geometry: { type: "LineString", coordinates: t.coords },
+            })),
           });
+          map.addSource("igc-tracks", { type: "geojson", data: buildTrackData(null) });
           map.addLayer({ id: "igc-tracks-casing", type: "line", source: "igc-tracks",
             layout: { "line-join": "round", "line-cap": "round" },
             paint: { "line-color": "rgba(255,255,255,0.5)", "line-width": 4.5 } });
           map.addLayer({ id: "igc-tracks-line", type: "line", source: "igc-tracks",
             layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#4169e1", "line-width": 3, "line-opacity": 0.85 } });
+            paint: {
+              "line-color": ["case", ["boolean", ["get", "highlighted"], false], "#facc15", "#4169e1"],
+              "line-width": ["case", ["boolean", ["get", "highlighted"], false], 4, 3],
+              "line-opacity": 0.9,
+            } });
+          // Unsichtbare, breitere Linie nur für den Tippbereich — 3px sind
+          // auf dem Finger schwer zu treffen, vgl. die transparenten
+          // r=10-Kreise beim Graph-Feature in statistik.jsx.
+          map.addLayer({ id: "igc-tracks-hit", type: "line", source: "igc-tracks",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "#000", "line-width": 18, "line-opacity": 0.001 } });
+
+          let highlightedFlightId = null;
+          let labelMarker = null;
+          const clearHighlight = () => {
+            highlightedFlightId = null;
+            map.getSource("igc-tracks")?.setData(buildTrackData(null));
+            if (labelMarker) { labelMarker.remove(); labelMarker = null; }
+          };
+          map.on("click", (e) => {
+            const feats = map.queryRenderedFeatures(e.point, { layers: ["igc-tracks-hit"] });
+            const feat = feats && feats[0];
+            if (!feat) { clearHighlight(); return; }
+            const flightId = feat.properties.flightId;
+            const fl = flights.find(f => f.id === flightId);
+            if (highlightedFlightId === flightId) {
+              if (fl && onOpenFlight) onOpenFlight(fl);
+              return;
+            }
+            highlightedFlightId = flightId;
+            map.getSource("igc-tracks")?.setData(buildTrackData(flightId));
+            if (labelMarker) { labelMarker.remove(); labelMarker = null; }
+            const el = document.createElement("div");
+            el.textContent = fl?.name || "";
+            el.style.cssText = "background:rgba(4,14,32,0.9);color:#facc15;font-weight:800;font-size:13px;padding:3px 9px;border-radius:8px;border:1px solid rgba(250,204,21,0.5);white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.5);";
+            el.onclick = (ev) => { ev.stopPropagation(); if (fl && onOpenFlight) onOpenFlight(fl); };
+            labelMarker = new sdk.Marker({ element: el, anchor: "bottom" }).setLngLat(e.lngLat).addTo(map);
+          });
         }
       });
     };
@@ -7039,7 +7084,8 @@ function FlugbuchApp() {
   const reiseLabels = useMemo(() => computeReiseLabels(flights, reisenNames), [flights, reisenNames]);
   const enrichedSelected = selected ? (flightsWithRanks.find(f=>f.id===selected.id) || selected) : null;
 
-  if (view==="worldmap") return <WorldMapView flights={filteredFlights} selectedIds={selectedIds} onBack={()=>setView("list")} />;
+  if (view==="worldmap") return <WorldMapView flights={filteredFlights} selectedIds={selectedIds} onBack={()=>setView("list")}
+    onOpenFlight={f=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setView("detail");}} />;
 
   // ── DETAIL VIEW ─────────────────────────────────────────────────────────
   if (view==="detail" && selected && isWide) {
