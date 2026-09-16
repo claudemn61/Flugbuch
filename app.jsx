@@ -244,12 +244,13 @@ const GLIDER_VARIANTS_RESERVE = [
 ];
 const DEFAULT_GLIDER_VARIANT = "v3";
 
-const APP_VERSION = "6.6";
+const APP_VERSION = "6.6.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.1", note: "Flugliste: bei aktiver Suche zeigt die Treffer-Zeile den Suchfilter-Text neben der Trefferzahl an, beide in Rot." },
   { v: "6.6", note: "Flugliste/Weltkarte: neue \"IGC\"-Kachel neben Startplätze/Landeplätze, zeigt die IGC-Tracks der ausgewählten (bzw. gesuchten) Flüge als königsblaue Linien auf der Karte an." },
   { v: "6.5", note: "Graph, Modus Frei: im Zoom lässt sich ein einzelner Punkt antippen, um seine Flugnummer einzublenden — ein weiterer Tipp darauf öffnet den Flug direkt im Flugdetail (mit Zurück-Pfeil wieder zum Graph). Verschieben per Finger wieder einheitlich \"Inhalt folgt dem Finger\" auf beiden Achsen und in beiden Modi." },
   { v: "6.4", note: "Graph: der Achsen-Auslöser (bisher klein \"X-Achse ⋯\" oberhalb) ist jetzt ein grosser, fetter \"X\"- bzw. \"Y\"-Button links neben dem Auswahl-Dropdown, in gleicher Zeile — deutlich leichter zu treffen. hilfe.jsx entsprechend nachgeführt." },
