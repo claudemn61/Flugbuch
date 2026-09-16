@@ -236,12 +236,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.6.6";
+const APP_VERSION = "6.6.7";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.6.7", note: "Ausrüstung, Wartung: die dreifach duplizierte CRUD-Logik und Fälligkeits-Berechnung für Reserve/Schirm/Sitz zu einer gemeinsamen, pro Kategorie parametrisierten Implementierung zusammengeführt (WARTUNG_KINDS-Konfiguration, computeDueStatus-Helfer, neue SlotTabsView-Komponente für die schmale Ansicht analog zur bestehenden SlotColumnsView). Rein intern — per Vergleichstest (identischer gerenderter DOM alt/neu, alle drei Kategorien, beide Layouts) und Persistenz-Test über einen Reload verifiziert, keine sichtbare Änderung." },
   { v: "6.6.6", note: "Weitere Code-Bereinigung nach dem Gesamt-Durchgang: toter Code entfernt (u.a. ungenutzte Hilfsfunktionen/Variablen in app.jsx und flugbuch.jsx), doppelte Logik zusammengeführt (Distanzberechnung, Dauer-Parser, ResizeObserver-Aufbau in flugbuch.jsx), veraltete Kommentare korrigiert. Ausrüstung, Reserve (iPhone-Ansicht): Beschriftung \"Packen\" vereinheitlicht zu \"Check\", passend zur iPad-Ansicht und zu Schirm/Sitz." },
   { v: "6.6.5", note: "wartung.jsx entfernt (verwaist seit dem Umzug der Wartung in den Ausrüstung-Tab, v5.0 — wartung.html bleibt als Weiterleitung bestehen). Dabei aufgefallen und mitbehoben: ausruestung.html/.jsx fehlten in der Service-Worker-Precache-Liste — die Seite war ohne vorherigen Online-Besuch nicht offline nutzbar." },
   { v: "6.6.4", note: "Bugfixes aus dem Code-Audit: Wartungs-Checks wurden nach Datums-Korrektur nicht neu sortiert (falsches Fälligkeitsdatum); addMonths berücksichtigte Monatslänge nicht (31.01. + 1 Monat sprang in den März statt Ende Februar); Starthöhe eines Hike-Flugs konnte beim Durchwischen der Flüge fälschlich gelöscht werden; Kachel-Layout im Flugdetail (settings:tileConfig) fehlte im Backup; Reise umbenennen löste bei jedem Tastendruck unnötig viele Schreibzugriffe aus statt erst beim Verlassen des Felds." },
