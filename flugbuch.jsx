@@ -949,8 +949,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const load = async () => {
       try {
         const name = (flight?.glider || "").toLowerCase();
+        // Namens-Überschreibungen aus Einstellungen ▸ Schirme (z.B. "Mentor"
+        // → "Ozone Mentor 7") dienen hier als Suchbegriff statt des fest
+        // einprogrammierten Labels — sonst würde eine Umbenennung dort das
+        // automatische Icon-Matching hier nicht mitverändern.
+        let names = {};
+        try {
+          const n = await window.storage.get("service:gliderVariantNames");
+          if (n) names = JSON.parse(n.value) || {};
+        } catch (e) {}
         const match = name
-          ? GLIDER_VARIANTS.find(v => v.type === "image" && name.includes(v.label.toLowerCase()))
+          ? GLIDER_VARIANTS.find(v => v.type === "image" && name.includes((names[v.id] || v.label).toLowerCase()))
           : null;
         if (match) {
           if (!cancelled) setGliderIcon({ type: "image", value: match.dataUrl });
