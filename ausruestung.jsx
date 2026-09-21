@@ -111,6 +111,47 @@ function computeDueStatus(slotData) {
   return { nextDue, overdue: dueDays !== null && dueDays < 0, soonDue: dueDays !== null && dueDays >= 0 && dueDays <= 30 };
 }
 
+// Einfache Levenshtein-Distanz für die Tippfehler-Warnung unten — erkennt
+// nahe Duplikate (einzelne falsche Ziffer, fehlendes/zusätzliches
+// Leerzeichen usw.), ohne exakte Gleichheit zu verlangen.
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = new Array(n+1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i-1] === b[j-1] ? prev : 1 + Math.min(prev, dp[j], dp[j-1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Findet einen bereits verwendeten Namen, der dem übergebenen sehr ähnlich,
+// aber nicht identisch ist (Gross-/Kleinschreibung ignoriert) — Schwelle
+// mit der Länge skaliert, damit z.B. eine falsche Ziffer oder ein
+// fehlendes Leerzeichen erkannt wird, ohne bei kurzen Namen schon zwei
+// abweichende Buchstaben als "ähnlich" zu werten.
+function findSimilarName(value, otherNames) {
+  const v = (value||"").trim();
+  if (!v) return null;
+  const vLower = v.toLowerCase();
+  let best = null, bestDist = Infinity;
+  for (const other of otherNames) {
+    const o = (other||"").trim();
+    if (!o || o.toLowerCase() === vLower) continue;
+    const dist = levenshtein(vLower, o.toLowerCase());
+    const threshold = Math.max(1, Math.min(3, Math.ceil(Math.max(v.length, o.length) * 0.25)));
+    if (dist <= threshold && dist < bestDist) { best = o; bestDist = dist; }
+  }
+  return best;
+}
+
 function emptyReserve() {
   return { title: "", category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
@@ -131,6 +172,10 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
         const isEditing = editingTab===slotId;
         const displayTitle = data.title || (data.category && data.category!=="–" ? data.category : "");
         const { nextDue, overdue, soonDue } = computeDueStatus(data);
+        // Tippfehler-Warnung: mit den Namen der anderen Slots derselben
+        // Kategorie vergleichen (nicht kategorieübergreifend, kein Bezug
+        // zum Flugbuch — bewusst einfach gehalten).
+        const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==slotId).map(id=>(dataMap[id]||emptySchirmSlot()).name));
         return (
           <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
             {isEditing ? (
@@ -149,6 +194,9 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
               <input value={data.name} onChange={e=>updateSlot(slotId,{name:e.target.value})}
                 style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+              {similarName && (
+                <div style={{fontSize:10,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+              )}
             </div>
             <div>
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
@@ -248,6 +296,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
   const { slotIds, accentColor, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
   const data = dataMap[activeSlot] || emptySchirmSlot();
   const { nextDue, overdue, soonDue } = computeDueStatus(data);
+  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==activeSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name));
   return (
     <div style={{padding:"12px 16px 0"}}>
       {/* Tabs: tap an inactive tab to switch to it; tap the already-
@@ -293,6 +342,9 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
           <input value={data.name} onChange={e=>updateSlot(activeSlot,{name:e.target.value})}
             placeholder={namePlaceholder}
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+          {similarName && (
+            <div style={{fontSize:11,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+          )}
         </div>
 
         {/* Serien-Nr. */}
