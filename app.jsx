@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.6.8";
+const APP_VERSION = "6.7";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.7", note: "Ausrüstung ▸ Wartung: nochmaliges Antippen des aktiven Titels (bzw. Titel-Klick im breiten Layout) öffnet jetzt eine Namens-Liste zum Umbenennen statt direkt eines leeren Eingabefelds — bei Schirm vorbefüllt mit allen im Flugbuch vorkommenden Schirm-Namen, bei Reserve/Sitz mit den bereits anderswo in der Kategorie vergebenen Namen. Freitext für einen neuen Namen bleibt weiterhin möglich, \"↺ Zurücksetzen\" leert auf den generischen Platzhalter." },
   { v: "6.6.8", note: "Home-Seite: readServiceUrgency (Reserve/Schirm/Sitz-Fälligkeit fürs Home-Tile) nutzt jetzt window.storage statt einem eigenen, doppelten rohen IndexedDB-Zugriff — spart die zweite indexedDB.open-Implementierung. readFlightStatsFromStorage bleibt bewusst beim eigenen Massen-Scan (window.storage hat keine Bulk-Lesefunktion, wäre bei vielen Flügen langsamer). Per Timing-Test verifiziert, dass window.storage schon vor dem ersten Mount der Home-Seite bereitsteht (keine Race Condition), und per Vergleichstest, dass die Fälligkeitsanzeige identisch bleibt." },
   { v: "6.6.7", note: "Ausrüstung, Wartung: die dreifach duplizierte CRUD-Logik und Fälligkeits-Berechnung für Reserve/Schirm/Sitz zu einer gemeinsamen, pro Kategorie parametrisierten Implementierung zusammengeführt (WARTUNG_KINDS-Konfiguration, computeDueStatus-Helfer, neue SlotTabsView-Komponente für die schmale Ansicht analog zur bestehenden SlotColumnsView). Rein intern — per Vergleichstest (identischer gerenderter DOM alt/neu, alle drei Kategorien, beide Layouts) und Persistenz-Test über einen Reload verifiziert, keine sichtbare Änderung." },
   { v: "6.6.6", note: "Weitere Code-Bereinigung nach dem Gesamt-Durchgang: toter Code entfernt (u.a. ungenutzte Hilfsfunktionen/Variablen in app.jsx und flugbuch.jsx), doppelte Logik zusammengeführt (Distanzberechnung, Dauer-Parser, ResizeObserver-Aufbau in flugbuch.jsx), veraltete Kommentare korrigiert. Ausrüstung, Reserve (iPhone-Ansicht): Beschriftung \"Packen\" vereinheitlicht zu \"Check\", passend zur iPad-Ansicht und zu Schirm/Sitz." },
