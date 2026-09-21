@@ -560,6 +560,23 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
   );
 }
 
+// Editierbarer Name unter einem Schirm-Icon (Einstellungen ▸ Schirme) —
+// eigener Draft-State, damit Tippen nicht bei jedem Tastendruck committet
+// (würde beim Leeren zwischenzeitlich auf den Default zurückspringen);
+// commitet erst bei Blur/Enter, analog TripNameInput in reisen.jsx.
+function GliderNameInput({ defaultLabel, value, onRename, color, fontWeight }) {
+  const shown = value || defaultLabel;
+  const [draft, setDraft] = useState(shown);
+  useEffect(() => { setDraft(shown); }, [shown]);
+  return (
+    <input value={draft} onChange={e=>setDraft(e.target.value)}
+      onClick={e=>e.stopPropagation()}
+      onBlur={()=>onRename(draft.trim())}
+      onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+      style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px dashed rgba(255,255,255,0.25)",color,fontSize:10,fontWeight,textAlign:"center",padding:"1px 0",fontFamily:"inherit"}} />
+  );
+}
+
 function SettingsOverlay({ onClose }) {
 
   const [openFolder, setOpenFolder] = useState(null); // "logfiles" | "notes" | "gliders" | null
@@ -575,6 +592,13 @@ function SettingsOverlay({ onClose }) {
   // oder Emoji, separat vom gewählten gliderVariant gespeichert, damit man
   // ihn bearbeiten kann ohne ihn zwangsläufig sofort auszuwählen.
   const [gliderCustomChar, setGliderCustomChar] = useState("");
+  // Überschreibt den fest einprogrammierten Namen einzelner Schirm-Icons
+  // (z.B. "Artik" → "Ozone Artik 2") — als {id: name}-Map, "service:"-
+  // Präfix damit sie im Backup landet. Wichtig: dieselbe Map wird auch in
+  // flugbuch.jsx gelesen, da der (Original- oder überschriebene) Name als
+  // Suchbegriff dient, um beim Öffnen eines Flugs automatisch das
+  // passende Icon anhand des Schirm-Namens im Flug zu wählen.
+  const [gliderVariantNames, setGliderVariantNames] = useState({});
   useEffect(() => {
     (async () => {
       try {
@@ -582,6 +606,8 @@ function SettingsOverlay({ onClose }) {
         if (r && r.value) setGliderVariant(r.value);
         const c = await window.storage.get("gliderCustomChar");
         if (c && c.value) setGliderCustomChar(c.value);
+        const n = await window.storage.get("service:gliderVariantNames");
+        if (n && n.value) { try { setGliderVariantNames(JSON.parse(n.value) || {}); } catch {} }
       } catch (e) { console.error("Schirm-Auswahl: Laden fehlgeschlagen:", e); }
     })();
   }, []);
@@ -592,6 +618,14 @@ function SettingsOverlay({ onClose }) {
   const setCustomChar = async (char) => {
     setGliderCustomChar(char);
     try { await window.storage.set("gliderCustomChar", char); } catch (e) { console.error("Eigenes Symbol: Speichern fehlgeschlagen:", e); }
+  };
+  const renameGliderVariant = async (id, name) => {
+    setGliderVariantNames(prev => {
+      const next = { ...prev };
+      if (name.trim()) next[id] = name.trim(); else delete next[id];
+      try { window.storage.set("service:gliderVariantNames", JSON.stringify(next)); } catch (e) { console.error("Schirm-Name: Speichern fehlgeschlagen:", e); }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -678,7 +712,13 @@ function SettingsOverlay({ onClose }) {
                       ) : (
                         <div style={{width:"100%",height:56,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>{v.char}</div>
                       )}
-                      <span style={{fontSize:10,fontWeight:isActive?800:500,color:isActive?"#4ade80":"rgba(232,244,253,0.7)",textAlign:"center"}}>{v.label}</span>
+                      {v.type === "image" ? (
+                        <GliderNameInput defaultLabel={v.label} value={gliderVariantNames[v.id]}
+                          onRename={name=>renameGliderVariant(v.id, name)}
+                          color={isActive?"#4ade80":"rgba(232,244,253,0.7)"} fontWeight={isActive?800:500} />
+                      ) : (
+                        <span style={{fontSize:10,fontWeight:isActive?800:500,color:isActive?"#4ade80":"rgba(232,244,253,0.7)",textAlign:"center"}}>{v.label}</span>
+                      )}
                     </Wrapper>
                   );
                 })}
@@ -695,7 +735,9 @@ function SettingsOverlay({ onClose }) {
                       <button key={v.id} onClick={()=>chooseGlider(v.id)}
                         style={{background:isActive?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)",border:`2px solid ${isActive?"#4ade80":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"8px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                         <img src={v.dataUrl} alt={v.label} style={{width:"100%",height:56,objectFit:"contain"}} />
-                        <span style={{fontSize:10,fontWeight:isActive?800:500,color:isActive?"#4ade80":"rgba(232,244,253,0.7)",textAlign:"center"}}>{v.label}</span>
+                        <GliderNameInput defaultLabel={v.label} value={gliderVariantNames[v.id]}
+                          onRename={name=>renameGliderVariant(v.id, name)}
+                          color={isActive?"#4ade80":"rgba(232,244,253,0.7)"} fontWeight={isActive?800:500} />
                       </button>
                     );
                   })}
