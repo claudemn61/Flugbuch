@@ -4714,6 +4714,47 @@ function ReiseSelect({ value, onSave }) {
   );
 }
 
+// Einfache Levenshtein-Distanz für die Tippfehler-Warnung unten — erkennt
+// nahe Duplikate (einzelne falsche Ziffer, fehlendes/zusätzliches
+// Leerzeichen usw.), ohne exakte Gleichheit zu verlangen.
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = new Array(n+1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i-1] === b[j-1] ? prev : 1 + Math.min(prev, dp[j], dp[j-1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Findet einen bereits verwendeten Namen, der dem übergebenen sehr ähnlich,
+// aber nicht identisch ist (Gross-/Kleinschreibung ignoriert) — Schwelle
+// mit der Länge skaliert, damit z.B. eine falsche Ziffer oder ein
+// fehlendes Leerzeichen erkannt wird, ohne bei kurzen Namen schon zwei
+// abweichende Buchstaben als "ähnlich" zu werten.
+function findSimilarName(value, otherNames) {
+  const v = (value||"").trim();
+  if (!v) return null;
+  const vLower = v.toLowerCase();
+  let best = null, bestDist = Infinity;
+  for (const other of otherNames) {
+    const o = (other||"").trim();
+    if (!o || o.toLowerCase() === vLower) continue;
+    const dist = levenshtein(vLower, o.toLowerCase());
+    const threshold = Math.max(1, Math.min(3, Math.ceil(Math.max(v.length, o.length) * 0.25)));
+    if (dist <= threshold && dist < bestDist) { best = o; bestDist = dist; }
+  }
+  return best;
+}
+
 // Dropdown for selecting the glider used on a flight, sourced from the
 // actual names entered on the Service/Schirm page's 4 category tabs — not
 // the category labels (Solo, Solo light, etc.) themselves, just whatever
@@ -4751,15 +4792,23 @@ function SchirmSelect({ value, onSave, extra, flights }) {
   const options = value && !names.includes(value) ? [value, ...names] : names;
 
   if (!editing) {
+    const similarName = findSimilarName(value, names);
     return (
-      <div data-inline-row onClick={()=>setEditing(true)}
-        style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
-        <span style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
-          {extra}
-        </span>
-        <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
-      </div>
+      <>
+        <div data-inline-row onClick={()=>setEditing(true)}
+          style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:similarName?"none":"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
+          <span style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
+            {extra}
+          </span>
+          <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
+        </div>
+        {similarName && (
+          <div style={{fontSize:11,color:"#fcd34d",textAlign:"right",padding:"0 0 6px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+            ⚠️ Ähnlich zu „{similarName}" — Tippfehler?
+          </div>
+        )}
+      </>
     );
   }
 

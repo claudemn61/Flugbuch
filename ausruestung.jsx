@@ -111,6 +111,47 @@ function computeDueStatus(slotData) {
   return { nextDue, overdue: dueDays !== null && dueDays < 0, soonDue: dueDays !== null && dueDays >= 0 && dueDays <= 30 };
 }
 
+// Einfache Levenshtein-Distanz für die Tippfehler-Warnung unten — erkennt
+// nahe Duplikate (einzelne falsche Ziffer, fehlendes/zusätzliches
+// Leerzeichen usw.), ohne exakte Gleichheit zu verlangen.
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = new Array(n+1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i-1] === b[j-1] ? prev : 1 + Math.min(prev, dp[j], dp[j-1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Findet einen bereits verwendeten Namen, der dem übergebenen sehr ähnlich,
+// aber nicht identisch ist (Gross-/Kleinschreibung ignoriert) — Schwelle
+// mit der Länge skaliert, damit z.B. eine falsche Ziffer oder ein
+// fehlendes Leerzeichen erkannt wird, ohne bei kurzen Namen schon zwei
+// abweichende Buchstaben als "ähnlich" zu werten.
+function findSimilarName(value, otherNames) {
+  const v = (value||"").trim();
+  if (!v) return null;
+  const vLower = v.toLowerCase();
+  let best = null, bestDist = Infinity;
+  for (const other of otherNames) {
+    const o = (other||"").trim();
+    if (!o || o.toLowerCase() === vLower) continue;
+    const dist = levenshtein(vLower, o.toLowerCase());
+    const threshold = Math.max(1, Math.min(3, Math.ceil(Math.max(v.length, o.length) * 0.25)));
+    if (dist <= threshold && dist < bestDist) { best = o; bestDist = dist; }
+  }
+  return best;
+}
+
 function emptyReserve() {
   return { title: "", category: "–", name: "", serialNr: "", purchaseDate: "", checks: [], intervalMonths: 12 };
 }
@@ -123,22 +164,39 @@ function emptySchirmSlot() {
 // open column instead of switching between them via tabs — "spaltenartig
 // fix offen". Used for all three chapters (Reserve/Schirm/Sitz); Reserve
 // has no Zulassung field, the others do.
-function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, onOpenPicker, accentColor, accentBg, defaultTitle, hasZulassung }) {
+function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung }) {
   return (
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 16px 20px"}}>
       {slotIds.map((slotId, i) => {
         const data = dataMap[slotId] || emptySchirmSlot();
+        const isEditing = editingTab===slotId;
         const displayTitle = data.title || (data.category && data.category!=="–" ? data.category : "");
         const { nextDue, overdue, soonDue } = computeDueStatus(data);
+        // Tippfehler-Warnung: mit den Namen der anderen Slots derselben
+        // Kategorie vergleichen (nicht kategorieübergreifend, kein Bezug
+        // zum Flugbuch — bewusst einfach gehalten).
+        const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==slotId).map(id=>(dataMap[id]||emptySchirmSlot()).name));
         return (
           <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
-            <div onClick={()=>onOpenPicker(slotId)} style={{cursor:"pointer",background:accentBg,border:`1px solid ${accentColor}40`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700}}>
-              {displayTitle || defaultTitle(i)}
-            </div>
+            {isEditing ? (
+              <input autoFocus value={displayTitle}
+                onChange={e=>updateSlot(slotId,{title:e.target.value})}
+                onBlur={()=>setEditingTab(null)}
+                onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                placeholder={defaultTitle(i)}
+                style={{background:accentBg,border:`1px solid ${accentColor}66`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
+            ) : (
+              <div onClick={()=>setEditingTab(slotId)} style={{cursor:"text",background:accentBg,border:`1px solid ${accentColor}40`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700}}>
+                {displayTitle || defaultTitle(i)}
+              </div>
+            )}
             <div>
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
               <input value={data.name} onChange={e=>updateSlot(slotId,{name:e.target.value})}
                 style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+              {similarName && (
+                <div style={{fontSize:10,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+              )}
             </div>
             <div>
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
@@ -234,29 +292,41 @@ const WARTUNG_KINDS = {
 // Schmale (iPhone-)Ansicht: Tab-Auswahl (Titel direkt editierbar) + Felder
 // für den jeweils aktiven Slot. Pendant zu SlotColumnsView für die breite
 // Ansicht, mit derselben Parametrisierung über "config".
-function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, onOpenPicker }) {
+function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot }) {
   const { slotIds, accentColor, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
   const data = dataMap[activeSlot] || emptySchirmSlot();
   const { nextDue, overdue, soonDue } = computeDueStatus(data);
+  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==activeSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name));
   return (
     <div style={{padding:"12px 16px 0"}}>
       {/* Tabs: tap an inactive tab to switch to it; tap the already-
-          active tab again to open die Namens-Referenzliste (die einzige
-          Bedeutung, die ein Tap auf den schon aktiven Tab sonst hätte). */}
+          active tab again to rename it (the only tap that couldn't
+          mean "switch", since it's already selected). */}
       <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
         {slotIds.map((slotId, i) => {
           const slot = dataMap[slotId] || emptySchirmSlot();
           const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
           const isActive = activeSlot===slotId;
+          const isEditing = editingSlot===slotId;
           const tabStyle = {
             flex:1,minWidth:0,padding:tabPadding,borderRadius:9,border:"none",
             fontSize:tabFontSize,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
             background: isActive ? tabActiveBg : "transparent",
             color: isActive ? accentColor : "rgba(232,244,253,0.5)",
           };
+          if (isEditing) {
+            return (
+              <input key={slotId} autoFocus value={displayTitle}
+                onChange={e=>updateSlot(slotId,{title:e.target.value})}
+                onBlur={()=>setEditingSlot(null)}
+                onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                placeholder={defaultTitle(i)}
+                style={{...tabStyle, cursor:"text", outline:"none"}} />
+            );
+          }
           return (
             <button key={slotId}
-              onClick={()=> isActive ? onOpenPicker(slotId) : setActiveSlot(slotId)}
+              onClick={()=> isActive ? setEditingSlot(slotId) : setActiveSlot(slotId)}
               style={{...tabStyle, cursor:"pointer"}}>
               {displayTitle || defaultTitle(i)}
             </button>
@@ -272,6 +342,9 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
           <input value={data.name} onChange={e=>updateSlot(activeSlot,{name:e.target.value})}
             placeholder={namePlaceholder}
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
+          {similarName && (
+            <div style={{fontSize:11,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+          )}
         </div>
 
         {/* Serien-Nr. */}
@@ -358,91 +431,6 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
   );
 }
 
-// Liest die Schirm-Namen (flight.glider), wie sie im Flugbuch vorkommen —
-// eigener Massen-Scan der IndexedDB statt window.storage.list()+get() pro
-// Flug, aus demselben Grund wie readFlightStatsFromStorage in app.jsx:
-// window.storage hat keine Bulk-Lesefunktion, ein Einzel-Get pro Flug wäre
-// bei vielen Flügen spürbar langsamer.
-async function readGliderNamesFromFlugbuch() {
-  const PREFIX = "flugbuch:";
-  const names = new Set();
-  try {
-    if (window.indexedDB) {
-      const db = await new Promise((resolve, reject) => {
-        const req = indexedDB.open("flugbuch-db", 1);
-        req.onupgradeneeded = () => { req.result.createObjectStore("kv"); };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      const entries = await new Promise((resolve, reject) => {
-        const tx = db.transaction("kv", "readonly");
-        const store = tx.objectStore("kv");
-        const keysReq = store.getAllKeys();
-        const valsReq = store.getAll();
-        let keys, vals;
-        keysReq.onsuccess = () => { keys = keysReq.result; if (vals) resolve({keys, vals}); };
-        valsReq.onsuccess = () => { vals = valsReq.result; if (keys) resolve({keys, vals}); };
-        tx.onerror = () => reject(tx.error);
-      });
-      entries.keys.forEach((k, i) => {
-        if (typeof k === "string" && k.startsWith(PREFIX + "flight:")) {
-          try {
-            const f = JSON.parse(entries.vals[i]);
-            if (f?.glider && String(f.glider).trim()) names.add(String(f.glider).trim());
-          } catch {}
-        }
-      });
-    }
-  } catch (e) { console.error("Schirm-Namen aus Flugbuch lesen fehlgeschlagen:", e); }
-  return [...names];
-}
-
-const PICKER_LABELS = { reserve: "Reserve", schirm: "Schirm", gurtzeug: "Sitz" };
-
-// Referenz-Liste zur Auswahl eines Slot-Namens (Reserve/Schirm/Sitz) statt
-// direkter Freitext-Eingabe — öffnet über denselben Tap, der vorher den
-// Namen sofort editierbar machte. Freitext bleibt über das Eingabefeld
-// unten weiterhin möglich (neuer Name, der dann Teil der Liste wird);
-// "Zurücksetzen" leert den Titel wieder auf den Standardnamen (Schirm 1 etc.).
-function SlotNamePicker({ kind, options, currentValue, accentColor, onSelect, onClose }) {
-  const [customText, setCustomText] = useState("");
-  return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#0a1628",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"75vh",display:"flex",flexDirection:"column",padding:16,boxSizing:"border-box"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <span style={{fontSize:15,fontWeight:800,color:"#e8f4fd"}}>{PICKER_LABELS[kind]} wählen</span>
-          <button onClick={onClose} style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:16,width:28,height:28,color:"rgba(232,244,253,0.7)",fontSize:14,cursor:"pointer"}}>✕</button>
-        </div>
-        <div style={{overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
-          <button onClick={()=>onSelect("")}
-            style={{textAlign:"left",background:"rgba(255,255,255,0.03)",border:"1px dashed rgba(255,255,255,0.2)",borderRadius:10,padding:"9px 12px",color:"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer"}}>
-            ↺ Zurücksetzen (Standardname)
-          </button>
-          {options.length === 0 && (
-            <div style={{fontSize:12,color:"rgba(232,244,253,0.4)",padding:"12px 0",textAlign:"center"}}>Noch keine Namen vorhanden.</div>
-          )}
-          {options.map(name => (
-            <button key={name} onClick={()=>onSelect(name)}
-              style={{textAlign:"left",background:name===currentValue?`${accentColor}22`:"rgba(255,255,255,0.05)",border:`1px solid ${name===currentValue?accentColor+"66":"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"10px 12px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>
-              {name}
-            </button>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <input value={customText} onChange={e=>setCustomText(e.target.value)}
-            placeholder="Eigenen Namen eingeben…"
-            onKeyDown={e=>{ if (e.key==="Enter" && customText.trim()) onSelect(customText.trim()); }}
-            style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
-          <button onClick={()=>customText.trim() && onSelect(customText.trim())} disabled={!customText.trim()}
-            style={{background:"rgba(34,197,94,0.18)",border:"1px solid rgba(34,197,94,0.4)",borderRadius:8,padding:"9px 14px",color:"#4ade80",fontSize:13,fontWeight:700,cursor:customText.trim()?"pointer":"default",opacity:customText.trim()?1:0.5}}>
-            ✓
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function WartungApp() {
   const isWide = useIsWide();
   const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" | "gurtzeug" — always exactly one
@@ -451,20 +439,7 @@ function WartungApp() {
     for (const kind in WARTUNG_KINDS) obj[kind] = WARTUNG_KINDS[kind].slotIds[0];
     return obj;
   });
-  // Slot, dessen Namens-Referenzliste gerade offen ist, oder null.
-  const [pickerFor, setPickerFor] = useState(null); // { kind, slotId } | null
-  // Schirm-Namen wie sie im Flugbuch vorkommen (flight.glider) — einmal beim
-  // Mount und bei jedem Fokus-Rückkehr neu geladen, analog zum gliderIcon-
-  // Reload-Muster in flugbuch.jsx, damit ein gerade im Flugbuch neu
-  // eingetragener Schirm-Name hier zeitnah in der Liste auftaucht.
-  const [flugbuchGliderNames, setFlugbuchGliderNames] = useState([]);
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => { readGliderNamesFromFlugbuch().then(names => { if (!cancelled) setFlugbuchGliderNames(names); }); };
-    load();
-    window.addEventListener("focus", load);
-    return () => { cancelled = true; window.removeEventListener("focus", load); };
-  }, []);
+  const [editingSlot, setEditingSlotState] = useState({ reserve: null, schirm: null, gurtzeug: null }); // slotId currently being renamed, or null, per Kategorie
   const [data, setData] = useState(() => {
     const obj = {};
     for (const kind in WARTUNG_KINDS) {
@@ -526,6 +501,7 @@ function WartungApp() {
   };
 
   const setActiveSlot = (kind, slotId) => setActiveSlotState(prev => ({ ...prev, [kind]: slotId }));
+  const setEditingSlot = (kind, slotId) => setEditingSlotState(prev => ({ ...prev, [kind]: slotId }));
 
   // Pro Kategorie an die konkreten Slot-IDs gebundene CRUD-Funktionen, damit
   // die Aufrufe in SlotColumnsView/SlotTabsView unten schlank bleiben.
@@ -535,16 +511,6 @@ function WartungApp() {
     updateCheck: (slotId, idx, patch, resort) => updateCheck(kind, slotId, idx, patch, resort),
     deleteCheck: (slotId, idx) => deleteCheck(kind, slotId, idx),
   });
-
-  // Referenz-Liste für die Namens-Auswahl einer Kategorie: bei Schirm die im
-  // Flugbuch vorkommenden Namen plus die bereits in Ausrüstung gesetzten
-  // Slot-Titel; bei Reserve/Sitz (keine Flugbuch-Entsprechung) nur die
-  // bereits gesetzten Slot-Titel dieser Kategorie.
-  const referenceOptions = (kind) => {
-    const fromSlots = Object.values(data[kind]).map(s => s.title).filter(Boolean);
-    const extra = kind === "schirm" ? flugbuchGliderNames : [];
-    return [...new Set([...fromSlots, ...extra])].sort((a,b) => a.localeCompare(b, "de"));
-  };
 
   if (!loaded) return null;
 
@@ -569,47 +535,38 @@ function WartungApp() {
       {/* Schirm section: 4 tab positions, each with a directly editable title */}
       {activeTab==="schirm" && (isWide ? (
         <SlotColumnsView slotIds={WARTUNG_KINDS.schirm.slotIds} dataMap={data.schirm} {...opsFor("schirm")}
-          onOpenPicker={slotId=>setPickerFor({kind:"schirm",slotId})}
+          editingTab={editingSlot.schirm} setEditingTab={slotId=>setEditingSlot("schirm",slotId)}
           accentColor={WARTUNG_KINDS.schirm.accentColor} accentBg={WARTUNG_KINDS.schirm.accentBg}
           hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.schirm} dataMap={data.schirm} {...opsFor("schirm")}
           activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
-          onOpenPicker={slotId=>setPickerFor({kind:"schirm",slotId})} />
+          editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)} />
       ))}
 
       {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
       {activeTab==="gurtzeug" && (isWide ? (
         <SlotColumnsView slotIds={WARTUNG_KINDS.gurtzeug.slotIds} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
-          onOpenPicker={slotId=>setPickerFor({kind:"gurtzeug",slotId})}
+          editingTab={editingSlot.gurtzeug} setEditingTab={slotId=>setEditingSlot("gurtzeug",slotId)}
           accentColor={WARTUNG_KINDS.gurtzeug.accentColor} accentBg={WARTUNG_KINDS.gurtzeug.accentBg}
           hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.gurtzeug} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
-          onOpenPicker={slotId=>setPickerFor({kind:"gurtzeug",slotId})} />
+          editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)} />
       ))}
 
       {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
       {activeTab==="reserve" && (isWide ? (
         <SlotColumnsView slotIds={WARTUNG_KINDS.reserve.slotIds} dataMap={data.reserve} {...opsFor("reserve")}
-          onOpenPicker={slotId=>setPickerFor({kind:"reserve",slotId})}
+          editingTab={editingSlot.reserve} setEditingTab={slotId=>setEditingSlot("reserve",slotId)}
           accentColor={WARTUNG_KINDS.reserve.accentColor} accentBg={WARTUNG_KINDS.reserve.accentBg}
           hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.reserve} dataMap={data.reserve} {...opsFor("reserve")}
           activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
-          onOpenPicker={slotId=>setPickerFor({kind:"reserve",slotId})} />
+          editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)} />
       ))}
-
-      {pickerFor && (
-        <SlotNamePicker kind={pickerFor.kind}
-          options={referenceOptions(pickerFor.kind)}
-          currentValue={data[pickerFor.kind][pickerFor.slotId]?.title || ""}
-          accentColor={WARTUNG_KINDS[pickerFor.kind].accentColor}
-          onSelect={name => { updateSlot(pickerFor.kind, pickerFor.slotId, { title: name }); setPickerFor(null); }}
-          onClose={()=>setPickerFor(null)} />
-      )}
     </div>
   );
 }
