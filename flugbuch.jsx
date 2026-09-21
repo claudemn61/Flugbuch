@@ -1264,7 +1264,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // clearing the container directly guarantees a clean slate.
     container.innerHTML = "";
     readyRef.current = false;
-    const initialCenter = track.length ? [track[0].lon, track[0].lat] : [sP.lon, sP.lat];
+    // sP/eP kommen nur aus dem IGC-Import — bei einem neuen Flug, dem bisher
+    // nur eine Hike-GPX angehängt wurde (kein IGC-Track), sind sie noch
+    // undefined; hasMap ist dank hasHike trotzdem true, also hier zusätzlich
+    // auf den ersten Hike-Punkt zurückfallen statt auf sP.lon zuzugreifen.
+    const initialCenter = track.length ? [track[0].lon, track[0].lat]
+      : (sP && eP) ? [sP.lon, sP.lat]
+      : [flight.hikeTrack[0].lon, flight.hikeTrack[0].lat];
     // Vollbild-Karte ist randlos (siehe fullDivRef unten) — MapTilers
     // eigene Standard-Steuerung (Zoom +/-, Kompass, Standort) landet dabei
     // standardmässig exakt oben rechts, wo bereits unser ✕-Knopf sitzt, und
@@ -1425,6 +1431,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     }
     else if (track.length) fitToPoints(cleanTrack.length ? cleanTrack : track);
     else if (sP && eP) fitToPoints([sP, eP]);
+    else if (flight?.hikeTrack?.length) fitToPoints(flight.hikeTrack);
   };
 
   useEffect(() => {
