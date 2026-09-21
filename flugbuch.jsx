@@ -4735,12 +4735,20 @@ function levenshtein(a, b) {
   return dp[n];
 }
 
+// Normalisierter, reihenfolge-unabhängiger Schlüssel für ein Namenspaar —
+// dient dazu, sich eine explizite "ist kein Tippfehler"-Bestätigung für
+// genau dieses Paar zu merken.
+function pairKey(a, b) {
+  return [a.trim().toLowerCase(), b.trim().toLowerCase()].sort().join("|||");
+}
+
 // Findet einen bereits verwendeten Namen, der dem übergebenen sehr ähnlich,
 // aber nicht identisch ist (Gross-/Kleinschreibung ignoriert) — Schwelle
 // mit der Länge skaliert, damit z.B. eine falsche Ziffer oder ein
 // fehlendes Leerzeichen erkannt wird, ohne bei kurzen Namen schon zwei
-// abweichende Buchstaben als "ähnlich" zu werten.
-function findSimilarName(value, otherNames) {
+// abweichende Buchstaben als "ähnlich" zu werten. Als "kein Tippfehler"
+// bestätigte Paare (confirmedPairs) werden übersprungen.
+function findSimilarName(value, otherNames, confirmedPairs) {
   const v = (value||"").trim();
   if (!v) return null;
   const vLower = v.toLowerCase();
@@ -4748,6 +4756,7 @@ function findSimilarName(value, otherNames) {
   for (const other of otherNames) {
     const o = (other||"").trim();
     if (!o || o.toLowerCase() === vLower) continue;
+    if (confirmedPairs && confirmedPairs.has(pairKey(v, o))) continue;
     const dist = levenshtein(vLower, o.toLowerCase());
     const threshold = Math.max(1, Math.min(3, Math.ceil(Math.max(v.length, o.length) * 0.25)));
     if (dist <= threshold && dist < bestDist) { best = o; bestDist = dist; }
@@ -4762,6 +4771,9 @@ function findSimilarName(value, otherNames) {
 function SchirmSelect({ value, onSave, extra, flights }) {
   const [equipmentNames, setEquipmentNames] = useState([]);
   const [editing, setEditing] = useState(false);
+  // Als "kein Tippfehler" bestätigte Namenspaare (siehe findSimilarName) —
+  // dieselbe Liste, die auch Ausrüstung ▸ Wartung befüllt.
+  const [confirmedPairs, setConfirmedPairs] = useState(new Set());
   useEffect(() => {
     (async () => {
       try {
@@ -4774,8 +4786,20 @@ function SchirmSelect({ value, onSave, extra, flights }) {
           setEquipmentNames(list);
         }
       } catch {}
+      try {
+        const c = await window.storage.get("service:confirmedSimilarNames");
+        if (c) setConfirmedPairs(new Set(JSON.parse(c.value) || []));
+      } catch {}
     })();
   }, []);
+  const confirmPair = (a, b) => {
+    setConfirmedPairs(prev => {
+      const next = new Set(prev);
+      next.add(pairKey(a, b));
+      try { window.storage.set("service:confirmedSimilarNames", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   // Vorschlagsliste umfasst nicht nur die aktuell in der Ausrüstung
   // eingetragenen Schirme, sondern auch alle jemals in einem Flug
@@ -4792,7 +4816,7 @@ function SchirmSelect({ value, onSave, extra, flights }) {
   const options = value && !names.includes(value) ? [value, ...names] : names;
 
   if (!editing) {
-    const similarName = findSimilarName(value, names);
+    const similarName = findSimilarName(value, names, confirmedPairs);
     return (
       <>
         <div data-inline-row onClick={()=>setEditing(true)}
@@ -4804,8 +4828,12 @@ function SchirmSelect({ value, onSave, extra, flights }) {
           <span style={{fontSize:13,color:value?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{value || "—"}</span>
         </div>
         {similarName && (
-          <div style={{fontSize:11,color:"#fcd34d",textAlign:"right",padding:"0 0 6px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            ⚠️ Ähnlich zu „{similarName}" — Tippfehler?
+          <div style={{fontSize:11,color:"#fcd34d",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:8,flexWrap:"wrap",padding:"0 0 6px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+            <span>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</span>
+            <button onClick={(e)=>{ e.stopPropagation(); confirmPair(value, similarName); }}
+              style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:8,padding:"3px 9px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+              ✓ Ok, kein Tippfehler
+            </button>
           </div>
         )}
       </>

@@ -132,12 +132,20 @@ function levenshtein(a, b) {
   return dp[n];
 }
 
+// Normalisierter, reihenfolge-unabhängiger Schlüssel für ein Namenspaar —
+// dient dazu, sich eine explizite "ist kein Tippfehler"-Bestätigung für
+// genau dieses Paar zu merken.
+function pairKey(a, b) {
+  return [a.trim().toLowerCase(), b.trim().toLowerCase()].sort().join("|||");
+}
+
 // Findet einen bereits verwendeten Namen, der dem übergebenen sehr ähnlich,
 // aber nicht identisch ist (Gross-/Kleinschreibung ignoriert) — Schwelle
 // mit der Länge skaliert, damit z.B. eine falsche Ziffer oder ein
 // fehlendes Leerzeichen erkannt wird, ohne bei kurzen Namen schon zwei
-// abweichende Buchstaben als "ähnlich" zu werten.
-function findSimilarName(value, otherNames) {
+// abweichende Buchstaben als "ähnlich" zu werten. Als "kein Tippfehler"
+// bestätigte Paare (confirmedPairs) werden übersprungen.
+function findSimilarName(value, otherNames, confirmedPairs) {
   const v = (value||"").trim();
   if (!v) return null;
   const vLower = v.toLowerCase();
@@ -145,6 +153,7 @@ function findSimilarName(value, otherNames) {
   for (const other of otherNames) {
     const o = (other||"").trim();
     if (!o || o.toLowerCase() === vLower) continue;
+    if (confirmedPairs && confirmedPairs.has(pairKey(v, o))) continue;
     const dist = levenshtein(vLower, o.toLowerCase());
     const threshold = Math.max(1, Math.min(3, Math.ceil(Math.max(v.length, o.length) * 0.25)));
     if (dist <= threshold && dist < bestDist) { best = o; bestDist = dist; }
@@ -164,7 +173,7 @@ function emptySchirmSlot() {
 // open column instead of switching between them via tabs — "spaltenartig
 // fix offen". Used for all three chapters (Reserve/Schirm/Sitz); Reserve
 // has no Zulassung field, the others do.
-function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung }) {
+function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung, confirmedPairs, onConfirmPair }) {
   return (
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 16px 20px"}}>
       {slotIds.map((slotId, i) => {
@@ -175,7 +184,7 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
         // Tippfehler-Warnung: mit den Namen der anderen Slots derselben
         // Kategorie vergleichen (nicht kategorieübergreifend, kein Bezug
         // zum Flugbuch — bewusst einfach gehalten).
-        const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==slotId).map(id=>(dataMap[id]||emptySchirmSlot()).name));
+        const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==slotId).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
         return (
           <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
             {isEditing ? (
@@ -195,7 +204,13 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
               <input value={data.name} onChange={e=>updateSlot(slotId,{name:e.target.value})}
                 style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
               {similarName && (
-                <div style={{fontSize:10,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+                <div style={{fontSize:10,color:"#fcd34d",marginTop:4,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</span>
+                  <button onClick={()=>onConfirmPair(data.name, similarName)}
+                    style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:8,padding:"2px 7px",color:"#4ade80",fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                    ✓ Ok, kein Tippfehler
+                  </button>
+                </div>
               )}
             </div>
             <div>
@@ -292,11 +307,11 @@ const WARTUNG_KINDS = {
 // Schmale (iPhone-)Ansicht: Tab-Auswahl (Titel direkt editierbar) + Felder
 // für den jeweils aktiven Slot. Pendant zu SlotColumnsView für die breite
 // Ansicht, mit derselben Parametrisierung über "config".
-function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot }) {
+function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot, confirmedPairs, onConfirmPair }) {
   const { slotIds, accentColor, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
   const data = dataMap[activeSlot] || emptySchirmSlot();
   const { nextDue, overdue, soonDue } = computeDueStatus(data);
-  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==activeSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name));
+  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==activeSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
   return (
     <div style={{padding:"12px 16px 0"}}>
       {/* Tabs: tap an inactive tab to switch to it; tap the already-
@@ -343,7 +358,13 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
             placeholder={namePlaceholder}
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
           {similarName && (
-            <div style={{fontSize:11,color:"#fcd34d",marginTop:4}}>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</div>
+            <div style={{fontSize:11,color:"#fcd34d",marginTop:4,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span>⚠️ Ähnlich zu „{similarName}" — Tippfehler?</span>
+              <button onClick={()=>onConfirmPair(data.name, similarName)}
+                style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:8,padding:"3px 9px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                ✓ Ok, kein Tippfehler
+              </button>
+            </div>
           )}
         </div>
 
@@ -440,6 +461,25 @@ function WartungApp() {
     return obj;
   });
   const [editingSlot, setEditingSlotState] = useState({ reserve: null, schirm: null, gurtzeug: null }); // slotId currently being renamed, or null, per Kategorie
+  // Als "kein Tippfehler" bestätigte Namenspaare (siehe findSimilarName) —
+  // "service:"-Präfix, damit im Backup erfasst.
+  const [confirmedPairs, setConfirmedPairs] = useState(new Set());
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:confirmedSimilarNames");
+        if (r) setConfirmedPairs(new Set(JSON.parse(r.value) || []));
+      } catch (e) { console.error("Load error (confirmedSimilarNames):", e); }
+    })();
+  }, []);
+  const confirmPair = (a, b) => {
+    setConfirmedPairs(prev => {
+      const next = new Set(prev);
+      next.add(pairKey(a, b));
+      try { window.storage.set("service:confirmedSimilarNames", JSON.stringify([...next])); } catch (e) { console.error("Save error (confirmedSimilarNames):", e); }
+      return next;
+    });
+  };
   const [data, setData] = useState(() => {
     const obj = {};
     for (const kind in WARTUNG_KINDS) {
@@ -537,11 +577,13 @@ function WartungApp() {
         <SlotColumnsView slotIds={WARTUNG_KINDS.schirm.slotIds} dataMap={data.schirm} {...opsFor("schirm")}
           editingTab={editingSlot.schirm} setEditingTab={slotId=>setEditingSlot("schirm",slotId)}
           accentColor={WARTUNG_KINDS.schirm.accentColor} accentBg={WARTUNG_KINDS.schirm.accentBg}
-          hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle} />
+          hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.schirm} dataMap={data.schirm} {...opsFor("schirm")}
           activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
-          editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)} />
+          editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ))}
 
       {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
@@ -549,11 +591,13 @@ function WartungApp() {
         <SlotColumnsView slotIds={WARTUNG_KINDS.gurtzeug.slotIds} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           editingTab={editingSlot.gurtzeug} setEditingTab={slotId=>setEditingSlot("gurtzeug",slotId)}
           accentColor={WARTUNG_KINDS.gurtzeug.accentColor} accentBg={WARTUNG_KINDS.gurtzeug.accentBg}
-          hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle} />
+          hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.gurtzeug} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
-          editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)} />
+          editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ))}
 
       {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
@@ -561,11 +605,13 @@ function WartungApp() {
         <SlotColumnsView slotIds={WARTUNG_KINDS.reserve.slotIds} dataMap={data.reserve} {...opsFor("reserve")}
           editingTab={editingSlot.reserve} setEditingTab={slotId=>setEditingSlot("reserve",slotId)}
           accentColor={WARTUNG_KINDS.reserve.accentColor} accentBg={WARTUNG_KINDS.reserve.accentBg}
-          hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle} />
+          hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.reserve} dataMap={data.reserve} {...opsFor("reserve")}
           activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
-          editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)} />
+          editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)}
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
       ))}
     </div>
   );
