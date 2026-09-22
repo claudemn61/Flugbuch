@@ -2103,15 +2103,45 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
   useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
   useEffect(() => { panPosRef.current = panPos; }, [panPos]);
   const panGestureRef = useRef(null);
+  // 2-Finger-Spreizgeste zum Zoomen (stufenlos 1-8×, wie die Auswahlliste
+  // oben es auch begrenzt) — zoomt um den Punkt zwischen den beiden
+  // Fingern herum (per anchorFrac/midFrac), nicht einfach um die Mitte.
+  // midFrac wird nur beim Start der Geste erfasst, nicht laufend
+  // nachgeführt — ein leichtes Verschieben des Mittelpunkts während des
+  // Spreizens verschiebt den Ausschnitt entsprechend mit, was sich beim
+  // Testen natürlich anfühlte, ohne die Berechnung pro Bewegung neu
+  // aufsetzen zu müssen.
+  const pinchGestureRef = useRef(null);
+  const touchDist = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault(); e.stopPropagation();
+        panGestureRef.current = null;
+        const [t1, t2] = e.touches;
+        const rect = canvas.getBoundingClientRect();
+        const midFrac = ((t1.clientX + t2.clientX) / 2 - rect.left) / rect.width;
+        const startZoom = zoomLevelRef.current;
+        const anchorFrac = (panPosRef.current - (1/startZoom)/2) + midFrac/startZoom;
+        pinchGestureRef.current = { startDist: touchDist(t1, t2), startZoom, midFrac, anchorFrac };
+        return;
+      }
       if (zoomLevelRef.current <= 1 || e.touches.length !== 1) return;
       e.preventDefault(); e.stopPropagation();
       panGestureRef.current = { startX: e.touches[0].clientX, startPan: panPosRef.current };
     };
     const onTouchMove = (e) => {
+      const p = pinchGestureRef.current;
+      if (p && e.touches.length === 2) {
+        e.preventDefault(); e.stopPropagation();
+        const dist = touchDist(e.touches[0], e.touches[1]);
+        const newZoom = Math.min(8, Math.max(1, p.startZoom * (dist / p.startDist)));
+        setZoomLevel(newZoom);
+        setPanPos(p.anchorFrac - p.midFrac/newZoom + (1/newZoom)/2);
+        return;
+      }
       const g = panGestureRef.current;
       if (!g || zoomLevelRef.current <= 1) return;
       e.preventDefault(); e.stopPropagation();
@@ -2122,7 +2152,10 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
       const fracDelta = -dx / canvas.clientWidth / zoomLevelRef.current * 2;
       setPanPos(Math.min(1, Math.max(0, g.startPan + fracDelta)));
     };
-    const onTouchEnd = () => { panGestureRef.current = null; };
+    const onTouchEnd = (e) => {
+      if (e.touches.length < 2) pinchGestureRef.current = null;
+      if (e.touches.length === 0) panGestureRef.current = null;
+    };
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
     canvas.addEventListener("touchmove", onTouchMove, { passive: false });
     canvas.addEventListener("touchend", onTouchEnd);
@@ -2455,14 +2488,18 @@ function FlightProfile({ flight, onPositionChange, playbackDistanceKm: rawPlayba
         <div style={{fontSize:10,fontWeight:700,color:"#7dd3fc",letterSpacing:1.5,textTransform:"uppercase"}}>Höhenprofil</div>
       </div>
       <div style={{borderRadius:14,overflow:"hidden",border:"1px solid rgba(100,180,255,0.12)",background:"#040e20"}}>
-        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:zoomLevel>1?"none":"auto"}} />
+        {/* touchAction immer "none": auch bei zoomLevel===1 muss der Browser
+            eine 2-Finger-Spreizgeste hier durchlassen statt sie selbst als
+            Seiten-Zoom abzufangen — die eigene Pinch-Erkennung greift ab
+            dem allerersten Finger. */}
+        <canvas ref={canvasRef} style={{width:"100%",height:160,display:"block",touchAction:"none"}} />
       </div>
       {controlsSlot && ReactDOM.createPortal(
         <>
           <div style={{position:"relative",flex:"1 1 0",minWidth:0}}>
             <button onClick={()=>setZoomPickerOpen(o=>!o)}
               style={{width:"100%",height:34,boxSizing:"border-box",background:"rgba(220,38,38,0.18)",border:"1px solid rgba(220,38,38,0.4)",borderRadius:8,color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              🔍{zoomLevel}×▾
+              🔍{zoomLevel % 1 === 0 ? zoomLevel : zoomLevel.toFixed(1)}×▾
             </button>
             {zoomPickerOpen && (
               <>
@@ -5005,7 +5042,12 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
       setInlinePassagier(next.customFields?.passagier || "");
     };
     const onTouchStart = (e) => {
-      if (profileZoomActive || e.target.closest?.('[data-no-swipe]')) { touchStart.current = null; return; }
+      // e.touches.length!==1 schliesst insbesondere eine 2-Finger-Spreizgeste
+      // aus (z.B. zum Zoomen im Höhenprofil, siehe FlightProfile) — sonst
+      // würde der erste der beiden Finger hier als Wisch-Start erfasst und
+      // beim Loslassen fälschlich einen Flugwechsel auslösen (genau der
+      // Konflikt, der die frühere Pinch-Zoom-Geste unbrauchbar machte).
+      if (profileZoomActive || e.touches.length !== 1 || e.target.closest?.('[data-no-swipe]')) { touchStart.current = null; return; }
       const t = e.touches[0];
       touchStart.current = { x: t.clientX, y: t.clientY };
     };

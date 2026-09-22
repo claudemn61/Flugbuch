@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.7.1";
+const APP_VERSION = "6.7.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.7.2", note: "Flugdetail, Höhenprofil: mit 2-Finger-Spreizgeste zoombar (bis 7×), im gezoomten Zustand mit einem Finger verschiebbar — bisher nur über die Zoomstufen-Auswahl möglich. Dabei den alten Konflikt mit dem Wischen zwischen Flügen behoben (ein Finger einer beginnenden Zwei-Finger-Geste wurde fälschlich als Wisch-Start erkannt)." },
   { v: "6.7.1", note: "Flugbuch (Schirm-Feld) und Ausrüstung ▸ Wartung (Name-Feld bei Reserve/Schirm/Sitz) warnen jetzt, wenn ein eingetippter Name einem bereits verwendeten Namen sehr ähnlich, aber nicht identisch ist (z.B. fehlendes Leerzeichen oder eine falsche Ziffer) — ein Hinweis auf einen möglichen Tippfehler statt einer zweiten, abweichenden Schreibweise für denselben Schirm. Bleibt bewusst Freitext, keine Auswahlpflicht." },
   { v: "6.6.8", note: "Home-Seite: readServiceUrgency (Reserve/Schirm/Sitz-Fälligkeit fürs Home-Tile) nutzt jetzt window.storage statt einem eigenen, doppelten rohen IndexedDB-Zugriff — spart die zweite indexedDB.open-Implementierung. readFlightStatsFromStorage bleibt bewusst beim eigenen Massen-Scan (window.storage hat keine Bulk-Lesefunktion, wäre bei vielen Flügen langsamer). Per Timing-Test verifiziert, dass window.storage schon vor dem ersten Mount der Home-Seite bereitsteht (keine Race Condition), und per Vergleichstest, dass die Fälligkeitsanzeige identisch bleibt." },
   { v: "6.6.7", note: "Ausrüstung, Wartung: die dreifach duplizierte CRUD-Logik und Fälligkeits-Berechnung für Reserve/Schirm/Sitz zu einer gemeinsamen, pro Kategorie parametrisierten Implementierung zusammengeführt (WARTUNG_KINDS-Konfiguration, computeDueStatus-Helfer, neue SlotTabsView-Komponente für die schmale Ansicht analog zur bestehenden SlotColumnsView). Rein intern — per Vergleichstest (identischer gerenderter DOM alt/neu, alle drei Kategorien, beide Layouts) und Persistenz-Test über einen Reload verifiziert, keine sichtbare Änderung." },
