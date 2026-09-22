@@ -6763,7 +6763,9 @@ function FlugbuchApp() {
       setFlights(sorted);
       setBackupDirty(false);
       try { window.storage.set("settings:backupDirty", "0"); } catch {}
-      try { window.storage.set("settings:lastBackupAt", new Date().toISOString()); } catch {}
+      // Erstellungs-Zeitpunkt DES BACKUPS selbst (nicht der Import-Zeitpunkt) —
+      // ältere Backups ohne exportedAt fallen auf "jetzt" zurück.
+      try { window.storage.set("settings:lastBackupAt", data.exportedAt || new Date().toISOString()); } catch {}
       setBackupMsg(`✓ ${data.flights.length} Flüge${restoredExtras?` + Service/Reisen-Daten`:""} wiederhergestellt.`);
     } catch (e) {
       setBackupMsg("Fehler beim Import: " + e.message);
