@@ -800,6 +800,15 @@ function fmtDateCompact(date) {
   return `${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(-2)}`;
 }
 
+// "tt.m.jj" / "h:mm" für die Backup-Zeitanzeige auf der Home-Seite — Tag
+// zweistellig, Monat und Stunde bewusst ohne führende Null (so angefragt).
+function fmtBackupDate(d) {
+  return `${String(d.getDate()).padStart(2,"0")}.${d.getMonth()+1}.${String(d.getFullYear()).slice(-2)}`;
+}
+function fmtBackupTime(d) {
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
 function formatServiceStat(entry) {
   return { line1: `${entry.categoryLabel} ${entry.name} ${fmtDateCompact(entry.nextDue)}`, line2: null, color: entry.color || "#f87171" };
 }
@@ -817,6 +826,23 @@ function HomeApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [titleCfg, setTitleCfg] = useState(null);
   const [editingTitle, setEditingTitle] = useState(false);
+  // Zeitpunkt der letzten Datensicherung (Export oder Import, siehe
+  // exportBackup/importBackup in flugbuch.jsx) — bei Fokus-Rückkehr neu
+  // geladen, damit ein frisch im Flugbuch erstelltes/eingespieltes Backup
+  // hier ohne kompletten Reload sichtbar wird.
+  const [lastBackupAt, setLastBackupAt] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await window.storage.get("settings:lastBackupAt");
+        if (!cancelled && r?.value) setLastBackupAt(new Date(r.value));
+      } catch {}
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => { cancelled = true; window.removeEventListener("focus", load); };
+  }, []);
 
   // "service:"-Präfix, damit Titel-Editor und Home-Foto vom Backup-Export/
   // Import erfasst werden (siehe exportBackup/importBackup in flugbuch.jsx).
@@ -1075,17 +1101,25 @@ function HomeApp() {
             </svg>
           )}
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 10px", background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0, opacity: 0.8 }}>
-                ⚙️
-              </button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35 }}>
+                {lastBackupAt && (<>
+                  <div>{fmtBackupDate(lastBackupAt)}</div>
+                  <div>{fmtBackupTime(lastBackupAt)}</div>
+                </>)}
+              </div>
               <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
-                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer" }}>
+                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer", alignSelf: "center" }}>
                 {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
               </div>
-              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0 }}>
-                v{APP_VERSION}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)" }}>
+                  v{APP_VERSION}
+                </div>
+                <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
+                  style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", opacity: 0.8 }}>
+                  ⚙️
+                </button>
               </div>
             </div>
             <div style={{ textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.6)", textShadow: "0 1px 4px rgba(0,0,0,0.85)", marginTop: 3 }}>

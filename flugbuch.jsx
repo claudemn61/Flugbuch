@@ -6666,6 +6666,8 @@ function FlugbuchApp() {
     const markBackedUp = () => {
       setBackupDirty(false);
       try { window.storage.set("settings:backupDirty", "0"); } catch {}
+      // Zeitpunkt der Sicherung, von der Home-Seite angezeigt.
+      try { window.storage.set("settings:lastBackupAt", new Date().toISOString()); } catch {}
     };
 
     // Prefer the native share sheet (lets the user pick "Save to Files" → iCloud Drive)
@@ -6761,6 +6763,7 @@ function FlugbuchApp() {
       setFlights(sorted);
       setBackupDirty(false);
       try { window.storage.set("settings:backupDirty", "0"); } catch {}
+      try { window.storage.set("settings:lastBackupAt", new Date().toISOString()); } catch {}
       setBackupMsg(`✓ ${data.flights.length} Flüge${restoredExtras?` + Service/Reisen-Daten`:""} wiederhergestellt.`);
     } catch (e) {
       setBackupMsg("Fehler beim Import: " + e.message);
