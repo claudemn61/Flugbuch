@@ -1102,28 +1102,23 @@ function HomeApp() {
           )}
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 10px", background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10 }}>
-              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35 }}>
+              <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
+                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0, opacity: 0.8 }}>
+                ⚙️
+              </button>
+              <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
+                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer", alignSelf: "center" }}>
+                {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35, textAlign: "right" }}>
                 {lastBackupAt && (<>
                   <div>{fmtBackupDate(lastBackupAt)}</div>
                   <div>{fmtBackupTime(lastBackupAt)}</div>
                 </>)}
               </div>
-              <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
-                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer", alignSelf: "center" }}>
-                {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)" }}>
-                  v{APP_VERSION}
-                </div>
-                <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-                  style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", opacity: 0.8 }}>
-                  ⚙️
-                </button>
-              </div>
             </div>
-            <div style={{ textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.6)", textShadow: "0 1px 4px rgba(0,0,0,0.85)", marginTop: 3 }}>
-              © Claude Mair-Noack
+            <div style={{ textAlign: "center", fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", marginTop: 3 }}>
+              v{APP_VERSION}
             </div>
           </div>
         </div>
