@@ -1101,13 +1101,8 @@ function HomeApp() {
             </svg>
           )}
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 10px", background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-              {/* position:relative + top (statt margin/padding) verschiebt diesen
-                  Block rein optisch nach unten, ohne die für die Zeilenhöhe
-                  massgebliche Boxgrösse zu ändern — sonst würde die dadurch
-                  wachsende Zeile die zentrierte Titel-Position (unten) wieder
-                  verschieben und den Abgleich laufend verfehlen. */}
-              <div style={{ position: "relative", top: 8.5, fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35 }}>
                 {lastBackupAt && (<>
                   <div>{fmtBackupDate(lastBackupAt)}</div>
                   <div>{fmtBackupTime(lastBackupAt)}</div>
@@ -1117,7 +1112,7 @@ function HomeApp() {
                 style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer", alignSelf: "center" }}>
                 {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
               </div>
-              <div style={{ position: "relative", top: 8.5, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
                 <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)" }}>
                   v{APP_VERSION}
                 </div>
