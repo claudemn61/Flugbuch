@@ -6128,6 +6128,25 @@ function FlugbuchApp() {
   const [sortDir, setSortDirRaw] = useState("desc");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchRowOpen, setSearchRowOpen] = useState(false);
+  // Ein-/Ausblenden der ganzen 6er-Icon-Zeile (Import…Suchen/Sortieren) als
+  // Einheit, persistiert wie searchStatsColumns — "service:"-Präfix, damit
+  // es vom Backup-Export/Import erfasst wird.
+  const [iconRowOpen, setIconRowOpen] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:iconRowOpen");
+        if (r) setIconRowOpen(JSON.parse(r.value));
+      } catch (e) { console.error("Load error (iconRowOpen):", e); }
+    })();
+  }, []);
+  const toggleIconRowOpen = () => {
+    setIconRowOpen(o => {
+      const next = !o;
+      window.storage.set("service:iconRowOpen", JSON.stringify(next)).catch(e => console.error("Save error (iconRowOpen):", e));
+      return next;
+    });
+  };
   // Two independent, freely choosable grouping levels (Gr. 1° = outer,
   // Gr. 2° = inner, nested inside Gr. 1°). Jahr is no longer a fixed,
   // always-on outer wrapper — it's just one of the selectable fields now,
@@ -7425,6 +7444,10 @@ function FlugbuchApp() {
         </span>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={addNewFlight} style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Flug</button>
+          <button onClick={toggleIconRowOpen} title={iconRowOpen?"Werkzeugleiste ausblenden":"Werkzeugleiste einblenden"}
+            style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(232,244,253,0.8)",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+            {iconRowOpen?"▾":"▸"}
+          </button>
           <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
             style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
             ?
@@ -7432,13 +7455,15 @@ function FlugbuchApp() {
         </div>
       </div>
 
-      {/* Row 2: Import / Backup / Auswahl / Weltkarte / Suchen — 5 quadratische
+      {/* Row 2: Import / Backup / Auswahl / Weltkarte / Suchen — 6 quadratische
           Icon-Buttons, einheitliches Design: grauer Rand standardmässig, die
           jeweils aktive Kachel (offenes Panel) mit rotem Rand und flächig
           leicht rot eingefärbtem Hintergrund. Reihenfolge (Sortierrichtung)
           und die feste Jahres-Gruppierung sind hierher ins Suchen/Sortieren-
           Panel gewandert, seit Jahr nur noch ein wählbares Gruppieren-Feld
-          unter mehreren ist statt eines fest verdrahteten Extra-Buttons. */}
+          unter mehreren ist statt eines fest verdrahteten Extra-Buttons. Als
+          Ganzes über das ▾/▸ neben "+ Flug" ein-/ausblendbar (iconRowOpen). */}
+      {iconRowOpen && (
       <div style={{padding:"10px 16px 0",display:"flex",gap:8}}>
         <button onClick={()=>{ setShowImportMenu(m=>!m); setShowBackupMenu(false); }} title="Import"
           style={{flex:"1 1 0",minWidth:0,aspectRatio:"2/1",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(239,68,68,0.15)":"rgba(255,255,255,0.05)",border:showImportMenu?"2px solid rgba(239,68,68,0.4)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:30,cursor:"pointer"}}>
@@ -7469,6 +7494,7 @@ function FlugbuchApp() {
           🔍
         </button>
       </div>
+      )}
 
       {showViewsMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,maxHeight:340,overflowY:"auto"}}>
