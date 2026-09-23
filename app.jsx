@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.7.2";
+const APP_VERSION = "6.8";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.8", note: "Home-Header (Telefon-Layout) neu geordnet: schmaler Streifen zwischen Bild und Flugbuch-Kachel (Hintergrund wie die Home-Grundfarbe) mit Zahnrad links und Backup-Datum/-Zeit rechts, einzeilig statt bisher auf dem Bild überlagert — Bildhöhe passt sich automatisch an. Versionsnummer jetzt direkt an den Titel angehängt statt eigener Zeile, mit eigener Farbe und eigener, unabhängig einstellbarer Schriftgrösse im Titel-Editor." },
   { v: "6.7.2", note: "Flugdetail, Höhenprofil: mit 2-Finger-Spreizgeste zoombar (bis 7×), im gezoomten Zustand mit einem Finger verschiebbar — bisher nur über die Zoomstufen-Auswahl möglich. Dabei den alten Konflikt mit dem Wischen zwischen Flügen behoben (ein Finger einer beginnenden Zwei-Finger-Geste wurde fälschlich als Wisch-Start erkannt)." },
   { v: "6.7.1", note: "Flugbuch (Schirm-Feld) und Ausrüstung ▸ Wartung (Name-Feld bei Reserve/Schirm/Sitz) warnen jetzt, wenn ein eingetippter Name einem bereits verwendeten Namen sehr ähnlich, aber nicht identisch ist (z.B. fehlendes Leerzeichen oder eine falsche Ziffer) — ein Hinweis auf einen möglichen Tippfehler statt einer zweiten, abweichenden Schreibweise für denselben Schirm. Bleibt bewusst Freitext, keine Auswahlpflicht." },
   { v: "6.6.8", note: "Home-Seite: readServiceUrgency (Reserve/Schirm/Sitz-Fälligkeit fürs Home-Tile) nutzt jetzt window.storage statt einem eigenen, doppelten rohen IndexedDB-Zugriff — spart die zweite indexedDB.open-Implementierung. readFlightStatsFromStorage bleibt bewusst beim eigenen Massen-Scan (window.storage hat keine Bulk-Lesefunktion, wäre bei vielen Flügen langsamer). Per Timing-Test verifiziert, dass window.storage schon vor dem ersten Mount der Home-Seite bereitsteht (keine Race Condition), und per Vergleichstest, dass die Fälligkeitsanzeige identisch bleibt." },
@@ -466,6 +467,8 @@ const DEFAULT_TITLE_CFG = {
   ],
   fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
   fontSize: 26,
+  versionColor: "#818c9a",
+  versionFontSize: 16,
 };
 const TITLE_FONTS = [
   { label: "Standard", value: "-apple-system,BlinkMacSystemFont,sans-serif" },
@@ -485,6 +488,8 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
   );
   const [fontFamily, setFontFamily] = useState(current.fontFamily);
   const [fontSize, setFontSize] = useState(current.fontSize);
+  const [versionColor, setVersionColor] = useState(current.versionColor || DEFAULT_TITLE_CFG.versionColor);
+  const [versionFontSize, setVersionFontSize] = useState(current.versionFontSize || DEFAULT_TITLE_CFG.versionFontSize);
 
   const updateSeg = (id, patch) => setSegments(segs => segs.map(s => s._id===id ? {...s, ...patch} : s));
   const addSeg = () => setSegments(segs => [...segs, { _id: newSegId(), text: "neu", color: "#ffffff" }]);
@@ -541,9 +546,30 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
             style={{width:"100%"}} />
         </div>
 
+        <div style={{marginBottom:8}}>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:6}}>Farbe der Versionsnummer (an den Titel angehängt)</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <input type="color" value={versionColor} onChange={e=>setVersionColor(e.target.value)}
+              style={{width:28,height:26,border:"none",background:"none",cursor:"pointer",padding:0,flexShrink:0}} />
+            <div style={{display:"flex",gap:4}}>
+              {TITLE_SWATCHES.map(c => (
+                <div key={c} onClick={()=>setVersionColor(c)}
+                  style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:versionColor===c?"2px solid #7dd3fc":"1px solid rgba(255,255,255,0.25)"}} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:4}}>Schriftgrösse der Versionsnummer: {versionFontSize}px</div>
+          <input type="range" min="6" max="30" value={versionFontSize} onChange={e=>setVersionFontSize(+e.target.value)}
+            style={{width:"100%"}} />
+        </div>
+
         <div style={{textAlign:"center",marginBottom:16,padding:"14px 0",background:"rgba(255,255,255,0.03)",borderRadius:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
           <span style={{fontFamily,fontSize,fontWeight:900,letterSpacing:-0.5}}>
             {segments.map(seg => <span key={seg._id} style={{color:seg.color}}>{seg.text}</span>)}
+            <span style={{fontSize:versionFontSize,color:versionColor,fontWeight:700}}> v{APP_VERSION}</span>
           </span>
         </div>
 
@@ -552,7 +578,7 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
             style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
             Zurücksetzen
           </button>
-          <button onClick={()=>onSave({ segments: segments.map(({_id,...s})=>s), fontFamily, fontSize })}
+          <button onClick={()=>onSave({ segments: segments.map(({_id,...s})=>s), fontFamily, fontSize, versionColor, versionFontSize })}
             style={{flex:1,background:"linear-gradient(135deg,#0ea5e9,#0284c7)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
             Speichern
           </button>
@@ -1102,28 +1128,45 @@ function HomeApp() {
             </svg>
           )}
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "16px 20px 10px", background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, transparent 100%)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10 }}>
-              <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
-                style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0, opacity: 0.8 }}>
-                ⚙️
-              </button>
-              <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
-                style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", flex: 1, cursor: "pointer", alignSelf: "center" }}>
-                {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
+            {isWide && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 10, marginBottom: 3 }}>
+                <button onClick={(e)=>{ e.stopPropagation(); setShowSettings(true); }} title="Einstellungen"
+                  style={{ background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.4)", flexShrink: 0, opacity: 0.8 }}>
+                  ⚙️
+                </button>
+                <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35, textAlign: "right" }}>
+                  {lastBackupAt && (<>
+                    <div>{fmtBackupDate(lastBackupAt)}</div>
+                    <div>{fmtBackupTime(lastBackupAt)}</div>
+                  </>)}
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", flexShrink: 0, lineHeight: 1.35, textAlign: "right" }}>
-                {lastBackupAt && (<>
-                  <div>{fmtBackupDate(lastBackupAt)}</div>
-                  <div>{fmtBackupTime(lastBackupAt)}</div>
-                </>)}
-              </div>
-            </div>
-            <div style={{ textAlign: "center", fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", marginTop: 3 }}>
-              v{APP_VERSION}
+            )}
+            <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
+              style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", cursor: "pointer" }}>
+              {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
+              <span style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).versionFontSize || DEFAULT_TITLE_CFG.versionFontSize, color: (titleCfg||DEFAULT_TITLE_CFG).versionColor || DEFAULT_TITLE_CFG.versionColor }}> v{APP_VERSION}</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Schmaler Streifen zwischen Bild und erster Kachel (nur Telefon-
+          Layout — im Tablet/Desktop-Layout liegen Bild und Kacheln
+          nebeneinander statt übereinander) — Hintergrund wie die
+          Home-Grundfarbe, Zahnrad links, Backup-Datum/-Zeit rechts,
+          beides einzeilig. */}
+      {!isWide && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 20px", background: "#040e20" }}>
+          <div onClick={()=>setShowSettings(true)} title="Einstellungen"
+            style={{ fontSize: 20, lineHeight: 1, cursor: "pointer", opacity: 0.8 }}>
+            ⚙️
+          </div>
+          <div style={{ fontSize: 16, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1 }}>
+            {lastBackupAt && `${fmtBackupDate(lastBackupAt)} · ${fmtBackupTime(lastBackupAt)}`}
+          </div>
+        </div>
+      )}
 
       <div style={isWide
         ? { width: 1, background: "rgba(255,255,255,0.08)", margin: "20px 0", flexShrink: 0 }

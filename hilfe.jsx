@@ -35,11 +35,11 @@ const SECTIONS = [
   {
     id: "home", title: "2. Startseite",
     body: () => (<>
-      <p>Zeigt ein editierbares Titelfoto mit dem App-Namen, darunter die vier Kapitel-Kacheln (jede mit Live-Kennzahlen, z.B. Anzahl Flüge). Die Reisen-Kachel blendet sich automatisch aus, solange keine Reisen erfasst sind.</p>
+      <p>Zeigt ein editierbares Titelfoto mit dem App-Namen, darunter ein schmaler Streifen (Zahnrad links, Datum/Zeit der letzten Sicherung rechts) und darunter die vier Kapitel-Kacheln (jede mit Live-Kennzahlen, z.B. Anzahl Flüge). Die Reisen-Kachel blendet sich automatisch aus, solange keine Reisen erfasst sind.</p>
       <h3>2.1 Titelfoto und Titeltext ändern</h3>
-      <p>Auf das Foto tippen (ausserhalb des Titeltexts) öffnet die Bildauswahl des Geräts — das Foto wird lokal gespeichert. Auf den Titeltext selbst tippen öffnet stattdessen den Titel-Editor: beliebig viele Textteile, je mit eigener Farbe, sechs Schriftarten zur Auswahl, Schriftgrösse per Regler, mit Live-Vorschau. "Zurücksetzen" stellt "meinflugbuch" in der Standard-Optik wieder her.</p>
+      <p>Auf das Foto tippen (ausserhalb des Titeltexts) öffnet die Bildauswahl des Geräts — das Foto wird lokal gespeichert. Auf den Titeltext selbst tippen öffnet stattdessen den Titel-Editor: beliebig viele Textteile, je mit eigener Farbe, sechs Schriftarten zur Auswahl, Schriftgrösse per Regler, mit Live-Vorschau. Die an den Titel angehängte Versionsnummer hat dort eine eigene Farbe und eine eigene, unabhängig einstellbare Schriftgrösse. "Zurücksetzen" stellt "meinflugbuch" in der Standard-Optik wieder her.</p>
       <h3>2.2 Einstellungen (Zahnrad)</h3>
-      <p>Öffnet ein Panel mit: der App-URL (antippen/halten zum Kopieren), ❓ Hilfe (diese Seite), 🪂 Schirme (Auswahl des Kartenmarkers, siehe unten), 📁 Log Files (technisches Fehlerprotokoll) und 📝 Notizen (freies App-weites Notizfeld). Die Datensicherung (Backup) liegt nicht hier, sondern im Flugbuch selbst (siehe 3.3).</p>
+      <p>Das Zahnrad sitzt im schmalen Streifen unter dem Titelfoto (auf iPad/Mac weiterhin auf dem Foto selbst, neben Datum/Zeit der letzten Sicherung). Öffnet ein Panel mit: der App-URL (antippen/halten zum Kopieren), ❓ Hilfe (diese Seite), 🪂 Schirme (Auswahl des Kartenmarkers, siehe unten), 📁 Log Files (technisches Fehlerprotokoll) und 📝 Notizen (freies App-weites Notizfeld). Die Datensicherung (Backup) liegt nicht hier, sondern im Flugbuch selbst (siehe 3.3).</p>
       <p>🪂 Schirme: das Icon für den Referenzpunkt auf der Karte und die Cine-Wiedergabe wird pro Flug automatisch anhand des Schirm-Namens gewählt — kommt der Name eines der hinterlegten Schirm-Icons (z.B. "Mentor") im eingetragenen Schirm des Flugs vor (z.B. "Ozone Mentor 7"), wird dessen Icon verwendet. Ohne Treffer kommt "Eigenes Symbol" (frei eintippbarer Buchstabe oder Emoji) zum Einsatz. Hier einstellbar: das eigene Symbol sowie, über "Weitere Icons", zusätzliche frühere Icon-Varianten.</p>
     </>),
   },
