@@ -1162,7 +1162,7 @@ function HomeApp() {
             style={{ fontSize: 20, lineHeight: 1, cursor: "pointer", opacity: 0.8 }}>
             ⚙️
           </div>
-          <div style={{ fontSize: 16, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1 }}>
+          <div style={{ fontSize: 12, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1 }}>
             {lastBackupAt && `${fmtBackupDate(lastBackupAt)} · ${fmtBackupTime(lastBackupAt)}`}
           </div>
         </div>
