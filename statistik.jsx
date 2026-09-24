@@ -1878,6 +1878,25 @@ function StatistikApp() {
   const [flights, setFlights] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [openTable, setOpenTable] = useState(null); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze"
+  // Ein-/Ausblenden der ganzen 7er-Hauptkacheln-Zeile als Einheit, analog
+  // Flugbuch (iconRowOpen) — persistiert mit "service:"-Präfix, damit es
+  // vom Backup-Export/Import erfasst wird.
+  const [tilesRowOpen, setTilesRowOpen] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:statTilesRowOpen");
+        if (r) setTilesRowOpen(JSON.parse(r.value));
+      } catch (e) { console.error("Load error (statTilesRowOpen):", e); }
+    })();
+  }, []);
+  const toggleTilesRowOpen = () => {
+    setTilesRowOpen(o => {
+      const next = !o;
+      window.storage.set("service:statTilesRowOpen", JSON.stringify(next)).catch(e => console.error("Save error (statTilesRowOpen):", e));
+      return next;
+    });
+  };
   // If this page was left via a Statistik-entry click (which stashes its
   // tableId here before navigating to Flugbuch), reopen the same tile once,
   // then forget it so a fresh visit doesn't get stuck.
@@ -1993,16 +2012,23 @@ function StatistikApp() {
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center"}}>
           📊 Statistik
         </span>
+        <button onClick={toggleTilesRowOpen} title={tilesRowOpen?"Hauptkacheln ausblenden":"Hauptkacheln einblenden"}
+          style={{background:"rgba(255,255,255,0.08)",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center",gap:4,flexShrink:0,marginRight:6}}>
+          ☰ {tilesRowOpen?"▾":"▸"}
+        </button>
         <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
           style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
           ?
         </button>
       </div>
 
-      {/* 5 badges as full-width horizontal bars, stacked — each with its own
+      {/* 7 badges as full-width horizontal bars, stacked — each with its own
           colour accent rail plus a radial-gradient glow blob behind the
           icon, exactly matching Home's tile design (rail + icon glow)
-          rather than a uniform 2x2 grid of same-coloured boxes. */}
+          rather than a uniform 2x2 grid of same-coloured boxes. Als Ganzes
+          über das ☰/▾▸ im Header ein-/ausblendbar (tilesRowOpen), analog
+          der 6er-Icon-Zeile in Flugbuch. */}
+      {tilesRowOpen && (
       <div style={isWide
         ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
         : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2024,6 +2050,7 @@ function StatistikApp() {
           </button>
         ))}
       </div>
+      )}
 
       {TABLES.map(t => openTable===t.id && (
         t.id === "saison"
