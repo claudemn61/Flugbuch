@@ -468,8 +468,6 @@ const DEFAULT_TITLE_CFG = {
   ],
   fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
   fontSize: 26,
-  versionColor: "#818c9a",
-  versionFontSize: 16,
 };
 const TITLE_FONTS = [
   { label: "Standard", value: "-apple-system,BlinkMacSystemFont,sans-serif" },
@@ -489,8 +487,6 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
   );
   const [fontFamily, setFontFamily] = useState(current.fontFamily);
   const [fontSize, setFontSize] = useState(current.fontSize);
-  const [versionColor, setVersionColor] = useState(current.versionColor || DEFAULT_TITLE_CFG.versionColor);
-  const [versionFontSize, setVersionFontSize] = useState(current.versionFontSize || DEFAULT_TITLE_CFG.versionFontSize);
 
   const updateSeg = (id, patch) => setSegments(segs => segs.map(s => s._id===id ? {...s, ...patch} : s));
   const addSeg = () => setSegments(segs => [...segs, { _id: newSegId(), text: "neu", color: "#ffffff" }]);
@@ -547,30 +543,9 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
             style={{width:"100%"}} />
         </div>
 
-        <div style={{marginBottom:8}}>
-          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:6}}>Farbe der Versionsnummer (an den Titel angehängt)</div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <input type="color" value={versionColor} onChange={e=>setVersionColor(e.target.value)}
-              style={{width:28,height:26,border:"none",background:"none",cursor:"pointer",padding:0,flexShrink:0}} />
-            <div style={{display:"flex",gap:4}}>
-              {TITLE_SWATCHES.map(c => (
-                <div key={c} onClick={()=>setVersionColor(c)}
-                  style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:versionColor===c?"2px solid #7dd3fc":"1px solid rgba(255,255,255,0.25)"}} />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:"rgba(232,244,253,0.5)",marginBottom:4}}>Schriftgrösse der Versionsnummer: {versionFontSize}px</div>
-          <input type="range" min="6" max="30" value={versionFontSize} onChange={e=>setVersionFontSize(+e.target.value)}
-            style={{width:"100%"}} />
-        </div>
-
         <div style={{textAlign:"center",marginBottom:16,padding:"14px 0",background:"rgba(255,255,255,0.03)",borderRadius:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
           <span style={{fontFamily,fontSize,fontWeight:900,letterSpacing:-0.5}}>
             {segments.map(seg => <span key={seg._id} style={{color:seg.color}}>{seg.text}</span>)}
-            <span style={{fontSize:versionFontSize,color:versionColor,fontWeight:700}}> v{APP_VERSION}</span>
           </span>
         </div>
 
@@ -579,7 +554,7 @@ function TitleEditor({ current, onSave, onReset, onClose }) {
             style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
             Zurücksetzen
           </button>
-          <button onClick={()=>onSave({ segments: segments.map(({_id,...s})=>s), fontFamily, fontSize, versionColor, versionFontSize })}
+          <button onClick={()=>onSave({ segments: segments.map(({_id,...s})=>s), fontFamily, fontSize })}
             style={{flex:1,background:"linear-gradient(135deg,#0ea5e9,#0284c7)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
             Speichern
           </button>
@@ -1146,8 +1121,12 @@ function HomeApp() {
             <div onClick={(e)=>{ e.stopPropagation(); setEditingTitle(true); }}
               style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).fontSize, fontFamily: (titleCfg||DEFAULT_TITLE_CFG).fontFamily, fontWeight: 800, letterSpacing: -0.5, textShadow: "0 2px 8px rgba(0,0,0,0.6)", textAlign: "center", cursor: "pointer" }}>
               {(titleCfg||DEFAULT_TITLE_CFG).segments.map((seg,i) => <span key={i} style={{ color: seg.color }}>{seg.text}</span>)}
-              <span style={{ fontSize: (titleCfg||DEFAULT_TITLE_CFG).versionFontSize || DEFAULT_TITLE_CFG.versionFontSize, color: (titleCfg||DEFAULT_TITLE_CFG).versionColor || DEFAULT_TITLE_CFG.versionColor }}> v{APP_VERSION}</span>
             </div>
+            {isWide && (
+              <div style={{ textAlign: "center", fontSize: 11, color: "rgba(232,244,253,0.55)", fontWeight: 700, textShadow: "0 2px 6px rgba(0,0,0,0.85)", marginTop: 3 }}>
+                v{APP_VERSION}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1155,15 +1134,18 @@ function HomeApp() {
       {/* Schmaler Streifen zwischen Bild und erster Kachel (nur Telefon-
           Layout — im Tablet/Desktop-Layout liegen Bild und Kacheln
           nebeneinander statt übereinander) — Hintergrund wie die
-          Home-Grundfarbe, Zahnrad links, Backup-Datum/-Zeit rechts,
-          beides einzeilig. */}
+          Home-Grundfarbe, 3 Spalten: Version links, Zahnrad eingemittet,
+          Backup-Datum/-Zeit rechts, alles einzeilig. */}
       {!isWide && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 20px", background: "#040e20" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "6px 20px", background: "#040e20" }}>
+          <div style={{ fontSize: 12, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1, textAlign: "left" }}>
+            v{APP_VERSION}
+          </div>
           <div onClick={()=>setShowSettings(true)} title="Einstellungen"
             style={{ fontSize: 20, lineHeight: 1, cursor: "pointer", opacity: 0.8 }}>
             ⚙️
           </div>
-          <div style={{ fontSize: 12, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1 }}>
+          <div style={{ fontSize: 12, color: "rgba(232,244,253,0.55)", fontWeight: 400, lineHeight: 1, textAlign: "right" }}>
             {lastBackupAt && `${fmtBackupDate(lastBackupAt)} · ${fmtBackupTime(lastBackupAt)}`}
           </div>
         </div>
