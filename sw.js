@@ -14,7 +14,7 @@
 // erhöhen, damit alte, nicht mehr benötigte Cache-Einträge aufgeräumt
 // werden. Für normale Inhalts-Updates ist das NICHT nötig — die sind
 // dank "Network-first" ohnehin sofort aktuell, sobald wieder Netz da ist.
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_NAME = `flugbuch-cache-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -41,11 +41,24 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => Promise.all(
-        PRECACHE_URLS.map((url) =>
-          fetch(url, { mode: url.startsWith("http") ? "cors" : "same-origin" })
-            .then((res) => { if (res && res.ok) return cache.put(url, res); })
-            .catch(() => {}) // einzelne fehlgeschlagene Datei blockiert den Rest nicht
-        )
+        PRECACHE_URLS.map((url) => {
+          // "opaque" Antworten (kein CORS) haben IMMER ok:false, auch wenn
+          // die Anfrage in Wirklichkeit erfolgreich war — trotzdem cachen,
+          // ein Script-/CSS-Tag braucht den Response-Body nicht lesbar,
+          // nur abspielbar.
+          const cacheIfUsable = (res) => { if (res && (res.ok || res.type === "opaque")) return cache.put(url, res); };
+          if (!url.startsWith("http")) {
+            return fetch(url, { mode: "same-origin" }).then(cacheIfUsable).catch(() => {});
+          }
+          // Extern: zuerst echtes CORS versuchen (liefert eine prüfbare
+          // Antwort); unterstützt der Server das nicht (z.B. evtl.
+          // MapTiler), mit no-cors nachfassen statt die Datei ganz
+          // auszulassen — einzelne fehlgeschlagene Datei blockiert den
+          // Rest so oder so nicht.
+          return fetch(url, { mode: "cors" }).then(cacheIfUsable).catch(() =>
+            fetch(url, { mode: "no-cors" }).then(cacheIfUsable).catch(() => {})
+          );
+        })
       ))
       .then(() => self.skipWaiting())
   );
@@ -75,11 +88,15 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     fetch(req, fetchOptions).then((response) => {
-      if (response && response.ok) {
+      // Wie beim Precache: "opaque" (extern ohne CORS, z.B. <script>/<link>
+      // ohne crossorigin-Attribut) hat immer ok:false — trotzdem cachen,
+      // sonst werden extern geladene Dateien (React/Babel/MapTiler) nie
+      // aufgefrischt, weil dieser Zweig sie sonst stillschweigend überspringt.
+      if (response && (response.ok || response.type === "opaque")) {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
       }
       return response;
-    }).catch(() => caches.match(req).then((cached) => cached || Response.error()))
+    }).catch(() => caches.match(req, { ignoreSearch: true }).then((cached) => cached || Response.error()))
   );
 });

@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.8.1";
+const APP_VERSION = "6.8.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.8.2", note: "Offline-Modus: zwei Bugs im Service Worker behoben. 1) Von Statistik/Reisen aus per Klick geöffnete Flüge (URL mit Filter-Parametern) liessen sich offline nicht öffnen, wenn nicht exakt diese URL zuvor online besucht wurde — der Cache-Fallback ignoriert Query-Parameter jetzt. 2) Extern geladene Dateien ohne CORS-Freigabe (React/Babel/tz-lookup/MapTiler) wurden vom Cache stillschweigend übersprungen, weil solche \"opaken\" Antworten technisch nie als \"ok\" gelten — werden jetzt trotzdem gecacht, war u.a. die Ursache dafür, dass die Karte offline manchmal leer blieb." },
   { v: "6.8.1", note: "Flugbuch: die 6er-Icon-Zeile (Import/Backup/Auswahl/Weltkarte/Darstellungen/Suchen) ist jetzt als Ganzes ein-/ausblendbar (▾/▸-Button neben \"+ Flug\"), um mehr Platz für die Flugliste zu schaffen — Zustand bleibt über Neustarts erhalten." },
   { v: "6.8", note: "Home-Header (Telefon-Layout) neu geordnet: schmaler Streifen zwischen Bild und Flugbuch-Kachel (Hintergrund wie die Home-Grundfarbe) mit Zahnrad links und Backup-Datum/-Zeit rechts, einzeilig statt bisher auf dem Bild überlagert — Bildhöhe passt sich automatisch an. Versionsnummer jetzt direkt an den Titel angehängt statt eigener Zeile, mit eigener Farbe und eigener, unabhängig einstellbarer Schriftgrösse im Titel-Editor." },
   { v: "6.7.2", note: "Flugdetail, Höhenprofil: mit 2-Finger-Spreizgeste zoombar (bis 7×), im gezoomten Zustand mit einem Finger verschiebbar — bisher nur über die Zoomstufen-Auswahl möglich. Dabei den alten Konflikt mit dem Wischen zwischen Flügen behoben (ein Finger einer beginnenden Zwei-Finger-Geste wurde fälschlich als Wisch-Start erkannt)." },
