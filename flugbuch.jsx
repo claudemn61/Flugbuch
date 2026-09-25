@@ -6143,6 +6143,21 @@ function FlugbuchApp() {
   const toggleIconRowOpen = () => {
     setIconRowOpen(o => {
       const next = !o;
+      if (!next) {
+        // Beim Zuklappen der ganzen Zeile auch alle darin offenen Kacheln
+        // schliessen, statt sie unerreichbar (ohne eigenen Button) offen
+        // stehen zu lassen.
+        setShowImportMenu(false);
+        setShowBackupMenu(false);
+        setSelectMode(false);
+        setSelectedIds(new Set());
+        setCopyMsg("");
+        setShowViewsMenu(false);
+        setViewsMode("none");
+        setSavingViewName(null);
+        setEditingView(null);
+        setSearchRowOpen(false);
+      }
       window.storage.set("service:iconRowOpen", JSON.stringify(next)).catch(e => console.error("Save error (iconRowOpen):", e));
       return next;
     });
