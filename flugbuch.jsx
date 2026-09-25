@@ -661,16 +661,22 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
     // more limited implementation.
     const searched = search.trim() ? matchFlights(relevantFlights, search) : relevantFlights;
     const seen = new Map();
+    // Nur id/name/date je Flug merken (nicht das ganze Flugobjekt, das u.a.
+    // den kompletten Track enthält) — points fliesst über pointsKey/
+    // JSON.stringify in einen Effekt-Dependency-Array, das würde sonst
+    // unnötig riesig und bei jedem Tippen im Suchfeld neu serialisiert.
     for (const f of searched) {
       if (showSP && f.startPt && f.startPt.lat != null) {
         const name = f.site || "";
         const key = `SP:${f.startPt.lat.toFixed(3)},${f.startPt.lon.toFixed(3)}`;
-        if (!seen.has(key)) seen.set(key, { lat: f.startPt.lat, lon: f.startPt.lon, type: "SP", name });
+        if (!seen.has(key)) seen.set(key, { lat: f.startPt.lat, lon: f.startPt.lon, type: "SP", name, flights: [] });
+        seen.get(key).flights.push({ id: f.id, name: f.name, date: f.date });
       }
       if (showLP && f.endPt && f.endPt.lat != null) {
         const name = f.customFields?.landung || "";
         const key = `LP:${f.endPt.lat.toFixed(3)},${f.endPt.lon.toFixed(3)}`;
-        if (!seen.has(key)) seen.set(key, { lat: f.endPt.lat, lon: f.endPt.lon, type: "LP", name });
+        if (!seen.has(key)) seen.set(key, { lat: f.endPt.lat, lon: f.endPt.lon, type: "LP", name, flights: [] });
+        seen.get(key).flights.push({ id: f.id, name: f.name, date: f.date });
       }
     }
     return [...seen.values()];
@@ -739,7 +745,30 @@ function WorldMapView({ flights, selectedIds, onBack, onOpenFlight }) {
         const el = document.createElement("div");
         el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${p.type==="SP"?"#4ade80":"#f87171"};border:2px solid rgba(255,255,255,0.85);box-shadow:0 1px 4px rgba(0,0,0,0.5);`;
         const marker = new sdk.Marker({ element: el }).setLngLat([p.lon, p.lat]);
-        marker.setPopup(new sdk.Popup({ offset: 14 }).setText(p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz")));
+
+        // Popup listet alle Flüge an diesem Ort auf (ein Ort wird oft
+        // mehrfach beflogen), antippen eines Flugs öffnet ihn direkt im
+        // Detail — analog zum Antippen eines IGC-Tracks weiter oben.
+        const popupEl = document.createElement("div");
+        popupEl.style.cssText = "display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;min-width:120px;";
+        const title = document.createElement("div");
+        title.textContent = p.name || (p.type === "SP" ? "Startplatz" : "Landeplatz");
+        title.style.cssText = "font-weight:800;margin-bottom:3px;";
+        popupEl.appendChild(title);
+        const byDateDesc = [...p.flights].sort((a, b) => parseDateToTs(b.date) - parseDateToTs(a.date));
+        byDateDesc.forEach(pf => {
+          const row = document.createElement("div");
+          row.textContent = `${pf.name || "Flug"}${pf.date ? " · " + pf.date : ""}`;
+          row.style.cssText = "cursor:pointer;color:#0284c7;padding:2px 0;white-space:nowrap;";
+          row.onclick = (ev) => {
+            ev.stopPropagation();
+            const fl = flights.find(f => f.id === pf.id);
+            if (fl && onOpenFlight) onOpenFlight(fl);
+          };
+          popupEl.appendChild(row);
+        });
+
+        marker.setPopup(new sdk.Popup({ offset: 14 }).setDOMContent(popupEl));
         marker.addTo(map);
       });
 
