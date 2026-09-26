@@ -3257,6 +3257,7 @@ const GROUP_FIELDS = [
   { id: "std",     label: "Std." },
   { id: "glider",  label: "Schirm" },
   { id: "typ",     label: "Typ" },
+  { id: "pax",     label: "Passagier" },
   { id: "site",    label: "Startplatz" },
   { id: "landung", label: "Landeplatz" },
   { id: "reise",   label: "Reise" },
