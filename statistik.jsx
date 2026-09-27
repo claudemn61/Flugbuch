@@ -2518,18 +2518,22 @@ const STAT_TABLE_FILTER_FIELD = {
 // Einmal definiert, sowohl für die gemeinsame Kopfzeile als auch für jede
 // Schirm-Werte-Zeile genutzt — feste Breiten sorgen dafür, dass Titel oben
 // und Werte darunter sauber übereinander stehen.
+// "id" (wo gesetzt) entspricht dem jeweiligen SORT_OPTIONS-Feld — darüber
+// findet die Kopfzeile rechts oben (siehe StatTable) den passenden Wert
+// des gerade aktiven Sortierfelds. Zeit/Flug und km/Flug sind nicht
+// sortierbar und bleiben deshalb ohne id.
 const SCHIRM_STAT_COLUMNS = [
-  { label: "Gesamte Flugzeit", w: 72, value: r => fmtHM(r.totalSec) },
-  { label: "Längster Flug",    w: 62, value: r => fmtHours(r.maxSec) },
-  { label: "Gesamte Distanz",  w: 72, value: r => `${r.totalDist.toFixed(1)} km` },
-  { label: "Weitester Flug",   w: 64, value: r => `${r.maxDist.toFixed(1)} km` },
+  { id: "totalSec",  label: "Gesamte Flugzeit", w: 72, value: r => fmtHM(r.totalSec) },
+  { id: "maxSec",    label: "Längster Flug",    w: 62, value: r => fmtHours(r.maxSec) },
+  { id: "totalDist", label: "Gesamte Distanz",  w: 72, value: r => `${r.totalDist.toFixed(1)} km` },
+  { id: "maxDist",   label: "Weitester Flug",   w: 64, value: r => `${r.maxDist.toFixed(1)} km` },
   { label: "Zeit/Flug",        w: 54, value: r => fmtHM(Math.round(r.totalSec/r.count)) },
   { label: "km/Flug",          w: 54, value: r => `${(r.totalDist/r.count).toFixed(1)} km` },
-  { label: "Grösste Höhe",     w: 60, value: r => `${r.maxAlt} m` },
-  { label: "Startplätze",      w: 56, value: r => String(r.startSites) },
-  { label: "Landeplätze",      w: 58, value: r => String(r.endSites) },
-  { label: "Erster Flug",      w: 54, value: r => fmtDateShort(r.first) },
-  { label: "Letzter Flug",     w: 54, value: r => fmtDateShort(r.last) },
+  { id: "maxAlt",    label: "Grösste Höhe",     w: 60, value: r => `${r.maxAlt} m` },
+  { id: "startSites", label: "Startplätze",     w: 56, value: r => String(r.startSites) },
+  { id: "endSites",  label: "Landeplätze",      w: 58, value: r => String(r.endSites) },
+  { id: "first",     label: "Erster Flug",      w: 54, value: r => fmtDateShort(r.first) },
+  { id: "last",      label: "Letzter Flug",     w: 54, value: r => fmtDateShort(r.last) },
 ];
 // Dieselben Werte wie bei Schirm (siehe SCHIRM_STAT_COLUMNS) — aggregate()
 // berechnet ohnehin für jede Gruppierung (Schirm/Passagier/Start-/Landeplatz)
@@ -2540,18 +2544,18 @@ const PASSAGIER_STAT_COLUMNS = SCHIRM_STAT_COLUMNS;
 // verschiedene von hier aus erreicht wurden) bleibt. Analog umgekehrt bei
 // Landeplätzen.
 const STARTPLATZ_STAT_COLUMNS = [
-  { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
+  { id: "alt", label: "m.ü.M.", w: 54, value: r => r.alt ? String(r.alt) : "—" },
   ...SCHIRM_STAT_COLUMNS.filter(c => c.label !== "Startplätze"),
 ];
 const LANDEPLATZ_STAT_COLUMNS = [
-  { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
+  { id: "alt", label: "m.ü.M.", w: 54, value: r => r.alt ? String(r.alt) : "—" },
   ...SCHIRM_STAT_COLUMNS.filter(c => c.label !== "Landeplätze"),
 ];
 const HIKE_STAT_COLUMNS = [
-  { label: "Höhenmeter",   w: 58, value: r => r.hoehenmeter!=null ? `${r.hoehenmeter} m` : "—" },
+  { id: "hoehenmeter", label: "Höhenmeter",   w: 58, value: r => r.hoehenmeter!=null ? `${r.hoehenmeter} m` : "—" },
   { label: "Hike-Dauer",   w: 58, value: r => r.hikeDauer || "—" },
-  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
-  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
+  { id: "first", label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
+  { id: "last",  label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
 ];
 const STAT_COLUMNS_BY_ID = {
   schirm: SCHIRM_STAT_COLUMNS,
@@ -2605,6 +2609,12 @@ function StatTable({ table, sortOptions }) {
   const setSortField = (f) => { setSortFieldRaw(f); persistSort(f, sortDir); };
   const setSortDir = (updater) => { setSortDirRaw(prev => { const next = typeof updater==="function" ? updater(prev) : updater; persistSort(sortField, next); return next; }); };
   const [showSortMenu, setShowSortMenu] = useState(false);
+  // Kopfzeile rechts oben zeigt statt der festen Fluganzahl neu den Wert
+  // des gerade aktiven Sortierfelds (gleiche Spalten wie im Chip-Streifen
+  // darunter) — nur "Anzahl"/"Name" haben keinen eigenen Wert dort, für die
+  // bleibt die Fluganzahl der sinnvolle Default.
+  const colById = new Map((STAT_COLUMNS_BY_ID[id]||[]).filter(c=>c.id).map(c=>[c.id,c]));
+  const headerValue = (r) => colById.has(sortField) ? colById.get(sortField).value(r) : `${r.count} Flüge`;
   // Keeps every card's chip row scrolled to the same horizontal position:
   // scrolling any one card's chips (e.g. one Schirm's stats) mirrors that
   // scrollLeft onto every other card's chip row, while each card's name/
@@ -2693,7 +2703,7 @@ function StatTable({ table, sortOptions }) {
                 {r.r4>0 && <span>{r.r4}×4⭐️</span>}
               </div>
             )}
-            <div style={{fontSize:13,fontWeight:700,color:"#f87171",flexShrink:0}}>{r.count} Flüge</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#f87171",flexShrink:0}}>{headerValue(r)}</div>
           </div>
           <div ref={el => { chipRowRefs.current[idx] = el; }} onScroll={handleChipScroll}
             style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2,WebkitOverflowScrolling:"touch"}}>
