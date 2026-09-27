@@ -78,6 +78,17 @@ function TripNameInput({ name, onRename }) {
 }
 
 function ReisenApp() {
+  // Graustufen-Test-Ansicht (Einstellungen ▸ 🎨 Ansicht auf Home): reiner
+  // CSS-Filter auf das <html>-Element, verändert nichts an den bestehenden
+  // Farben/Styles selbst — siehe app.jsx (SettingsOverlay/toggleMonochrome).
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:monochromeMode");
+        document.documentElement.style.filter = (r && JSON.parse(r.value)) ? "invert(1) grayscale(1)" : "";
+      } catch (e) { console.error("Graustufen-Ansicht: Laden fehlgeschlagen:", e); }
+    })();
+  }, []);
   const [flights, setFlights] = useState([]);
   const [names, setNames] = useState([]);
   const [loaded, setLoaded] = useState(false);
