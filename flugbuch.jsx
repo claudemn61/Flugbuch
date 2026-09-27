@@ -7491,7 +7491,7 @@ function FlugbuchApp() {
           <button onClick={addNewFlight} style={{width:58,boxSizing:"border-box",textAlign:"center",background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Flug</button>
           <button onClick={toggleIconRowOpen} title={iconRowOpen?"Werkzeugleiste ausblenden":"Werkzeugleiste einblenden"}
             style={{width:58,boxSizing:"border-box",textAlign:"center",background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
-            {iconRowOpen?"-edit":"+edit"}
+            {iconRowOpen?"-Edit":"+Edit"}
           </button>
         </div>
       </div>
