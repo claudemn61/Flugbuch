@@ -2513,9 +2513,17 @@ const SCHIRM_STAT_COLUMNS = [
 // berechnet ohnehin für jede Gruppierung (Schirm/Passagier/Start-/Landeplatz)
 // dieselben Felder, bisher wurden hier nur Erster/Letzter Flug angezeigt.
 const PASSAGIER_STAT_COLUMNS = SCHIRM_STAT_COLUMNS;
-const PLATZ_STAT_COLUMNS = [
+// Bei einem Startplatz ist "Startplätze" immer 1 (sinnlos, jede Zeile IST ja
+// bereits genau ein Startplatz) — weggelassen, "Landeplätze" (wie viele
+// verschiedene von hier aus erreicht wurden) bleibt. Analog umgekehrt bei
+// Landeplätzen.
+const STARTPLATZ_STAT_COLUMNS = [
   { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
-  ...SCHIRM_STAT_COLUMNS,
+  ...SCHIRM_STAT_COLUMNS.filter(c => c.label !== "Startplätze"),
+];
+const LANDEPLATZ_STAT_COLUMNS = [
+  { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
+  ...SCHIRM_STAT_COLUMNS.filter(c => c.label !== "Landeplätze"),
 ];
 const HIKE_STAT_COLUMNS = [
   { label: "Höhenmeter",   w: 58, value: r => r.hoehenmeter!=null ? `${r.hoehenmeter} m` : "—" },
@@ -2526,8 +2534,8 @@ const HIKE_STAT_COLUMNS = [
 const STAT_COLUMNS_BY_ID = {
   schirm: SCHIRM_STAT_COLUMNS,
   passagiere: PASSAGIER_STAT_COLUMNS,
-  startplaetze: PLATZ_STAT_COLUMNS,
-  landeplaetze: PLATZ_STAT_COLUMNS,
+  startplaetze: STARTPLATZ_STAT_COLUMNS,
+  landeplaetze: LANDEPLATZ_STAT_COLUMNS,
   hike: HIKE_STAT_COLUMNS,
 };
 // Kleines Badge neben Koordinaten — kopiert sie per Tippen in die
