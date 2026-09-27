@@ -605,10 +605,6 @@ function SettingsOverlay({ onClose }) {
   // Suchbegriff dient, um beim Öffnen eines Flugs automatisch das
   // passende Icon anhand des Schirm-Namens im Flug zu wählen.
   const [gliderVariantNames, setGliderVariantNames] = useState({});
-  // Graustufen-Test-Ansicht: reiner CSS-Filter (invert+grayscale) auf das
-  // <html>-Element, per Knopf hier an-/ausschaltbar. Rührt nichts an den
-  // bestehenden Farben/Styles selbst an — rein additiv, sofort rückgängig.
-  const [monochromeMode, setMonochromeMode] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -618,19 +614,9 @@ function SettingsOverlay({ onClose }) {
         if (c && c.value) setGliderCustomChar(c.value);
         const n = await window.storage.get("service:gliderVariantNames");
         if (n && n.value) { try { setGliderVariantNames(JSON.parse(n.value) || {}); } catch {} }
-        const m = await window.storage.get("service:monochromeMode");
-        if (m) setMonochromeMode(JSON.parse(m.value));
       } catch (e) { console.error("Schirm-Auswahl: Laden fehlgeschlagen:", e); }
     })();
   }, []);
-  const toggleMonochrome = () => {
-    setMonochromeMode(prev => {
-      const next = !prev;
-      document.documentElement.style.filter = next ? "invert(1) grayscale(1)" : "";
-      window.storage.set("service:monochromeMode", JSON.stringify(next)).catch(e => console.error("Graustufen-Ansicht: Speichern fehlgeschlagen:", e));
-      return next;
-    });
-  };
   const chooseGlider = async (id) => {
     setGliderVariant(id);
     try { await window.storage.set("gliderVariant", id); } catch (e) { console.error("Schirm-Auswahl: Speichern fehlgeschlagen:", e); }
@@ -700,18 +686,6 @@ function SettingsOverlay({ onClose }) {
             onClick={()=>window.location.href="hilfe.html"}>
             <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>❓ Hilfe</span>
             <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>›</span>
-          </div>
-        </div>
-
-        {/* Ansicht: Test-Umschalter für die Graustufen-Darstellung der ganzen
-            App (CSS-Filter, siehe toggleMonochrome oben) */}
-        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden",marginBottom:10}}>
-          <div style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>🎨 Graustufen-Ansicht (Test)</span>
-            <button onClick={toggleMonochrome}
-              style={{background:monochromeMode?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.08)",border:`1px solid ${monochromeMode?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.15)"}`,color:monochromeMode?"#4ade80":"rgba(232,244,253,0.6)",borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-              {monochromeMode?"Ein":"Aus"}
-            </button>
           </div>
         </div>
 
@@ -873,18 +847,6 @@ function HomeApp() {
     load();
     window.addEventListener("focus", load);
     return () => { cancelled = true; window.removeEventListener("focus", load); };
-  }, []);
-
-  // Graustufen-Test-Ansicht (Einstellungen ▸ 🎨 Ansicht): reiner CSS-Filter
-  // auf das <html>-Element, verändert nichts an den bestehenden Farben/
-  // Styles selbst — rein additiv und jederzeit rückgängig zu machen.
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("service:monochromeMode");
-        document.documentElement.style.filter = (r && JSON.parse(r.value)) ? "invert(1) grayscale(1)" : "";
-      } catch (e) { console.error("Graustufen-Ansicht: Laden fehlgeschlagen:", e); }
-    })();
   }, []);
 
   // "service:"-Präfix, damit Titel-Editor und Home-Foto vom Backup-Export/

@@ -1840,17 +1840,6 @@ function BrevetApp() {
 
 // ── Top-level shell: Ausrüstung, Gewichte | Wartung | Brevet ────────────
 function AusruestungApp() {
-  // Graustufen-Test-Ansicht (Einstellungen ▸ 🎨 Ansicht auf Home): reiner
-  // CSS-Filter auf das <html>-Element, verändert nichts an den bestehenden
-  // Farben/Styles selbst — siehe app.jsx (SettingsOverlay/toggleMonochrome).
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("service:monochromeMode");
-        document.documentElement.style.filter = (r && JSON.parse(r.value)) ? "invert(1) grayscale(1)" : "";
-      } catch (e) { console.error("Graustufen-Ansicht: Laden fehlgeschlagen:", e); }
-    })();
-  }, []);
   const [tab, setTab] = useState("gewichte"); // "gewichte" | "wartung" | "brevet"
   // Werkzeugleiste +Setup/🔀/🗑 in Ausrüstung, Gewichte — zugeklappt als
   // Startzustand. Kein eigenes Icon dafür: erster Klick auf den Tab

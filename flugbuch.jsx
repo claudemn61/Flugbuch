@@ -6012,17 +6012,6 @@ function GpxManualMatchResolver({ item, flights, onAssign, onSkip }) {
 
 function FlugbuchApp() {
   const isWide = useIsWide();
-  // Graustufen-Test-Ansicht (Einstellungen ▸ 🎨 Ansicht auf Home): reiner
-  // CSS-Filter auf das <html>-Element, verändert nichts an den bestehenden
-  // Farben/Styles selbst — siehe app.jsx (SettingsOverlay/toggleMonochrome).
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("service:monochromeMode");
-        document.documentElement.style.filter = (r && JSON.parse(r.value)) ? "invert(1) grayscale(1)" : "";
-      } catch (e) { console.error("Graustufen-Ansicht: Laden fehlgeschlagen:", e); }
-    })();
-  }, []);
   const [flights, setFlights] = useState([]);
   // Derived once whenever the flight list changes — rangDauer/pctDauer,
   // rangStrecke/pctStrecke, and entfernungSL need every flight to compute
