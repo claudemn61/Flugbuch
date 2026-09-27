@@ -5241,12 +5241,6 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
     // buttons for each.
     const [showDeleteMenu, setShowDeleteMenu] = useState(false);
     const [confirmDeleteKind, setConfirmDeleteKind] = useState(null); // null | "igc" | "gpxhike" | "all"
-    // Als In-App-Overlay statt externem Tab: iOS-Home-Screen-Apps (standalone)
-    // kennen keine echten Browser-Tabs — ein target="_blank"-Link verlässt die
-    // PWA komplett, man muss sie erst schliessen, um zum Flug zurückzukehren.
-    // Das Overlay bleibt innerhalb der App, sodass man per Knopfdruck zwischen
-    // Flugdetail und XContest hin- und herwechseln kann.
-    const [xcontestOverlay, setXcontestOverlay] = useState(false);
     const deleteTrack = async () => {
       const upd = { ...fl, track: [] };
       await saveFlight(upd);
@@ -5394,7 +5388,7 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginLeft:"auto",justifyContent:"flex-end"}}>
               {fl.track?.length>1&&<span style={{background:"rgba(232,244,253,0.18)",color:"rgba(232,244,253,0.75)",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>IGC</span>}
               {fl.hikeTrack?.length>1&&<span style={{background:"rgba(22,163,74,0.22)",color:"#4ade80",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0}}>GPX</span>}
-              <button onClick={()=>setXcontestOverlay(true)}
+              <button onClick={()=>window.open(buildXContestLink(fl), "_blank")}
                 title="XContest — dieser Flug"
                 style={{background:"rgba(245,158,11,0.18)",border:"1px solid rgba(245,158,11,0.4)",color:"#fcd34d",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,flexShrink:0,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>
                 XContest
@@ -5801,24 +5795,6 @@ function DetailContent({ fl, flights, navFlights, customFieldDefs, setFlights, s
                   style={{flex:1,background:"rgba(245,158,11,0.2)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:10,padding:"10px",color:"#fcd34d",fontSize:14,fontWeight:700,cursor:"pointer"}}>Automatisch</button>
               </div>
             </div>
-          </div>
-        )}
-
-        {xcontestOverlay && (
-          <div style={{position:"fixed",inset:0,background:"#0a1628",zIndex:200,display:"flex",flexDirection:"column"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",paddingTop:"calc(10px + env(safe-area-inset-top, 0px))",background:"#14253a",borderBottom:"1px solid rgba(255,255,255,0.1)",flexShrink:0}}>
-              <button onClick={()=>setXcontestOverlay(false)}
-                style={{background:"rgba(245,158,11,0.18)",border:"1px solid rgba(245,158,11,0.4)",color:"#fcd34d",borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-                ← Flug
-              </button>
-              <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>XContest — {fl.name}</div>
-              <a href={buildXContestLink(fl)} target="_blank" rel="noopener noreferrer"
-                title="In Safari öffnen (falls die Einbettung hier leer bleibt)"
-                style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#e8f4fd",borderRadius:20,padding:"6px 10px",fontSize:12,fontWeight:700,cursor:"pointer",textDecoration:"none",flexShrink:0}}>
-                ⇱
-              </a>
-            </div>
-            <iframe src={buildXContestLink(fl)} title="XContest" style={{flex:1,border:"none",width:"100%"}} />
           </div>
         )}
       </div>
