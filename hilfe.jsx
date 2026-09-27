@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState } = React;
 
 // ── Content data ─────────────────────────────────────────────────────────
 // Kept as data (not hardcoded JSX per section) so the table of contents can
@@ -193,17 +193,6 @@ function KurzContent() {
 }
 
 function HilfeApp() {
-  // Graustufen-Test-Ansicht (Einstellungen ▸ 🎨 Ansicht auf Home): reiner
-  // CSS-Filter auf das <html>-Element, verändert nichts an den bestehenden
-  // Farben/Styles selbst — siehe app.jsx (SettingsOverlay/toggleMonochrome).
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("service:monochromeMode");
-        document.documentElement.style.filter = (r && JSON.parse(r.value)) ? "invert(1) grayscale(1)" : "";
-      } catch (e) { console.error("Graustufen-Ansicht: Laden fehlgeschlagen:", e); }
-    })();
-  }, []);
   const [openId, setOpenId] = useState(null);
   const [mode, setMode] = useState(() => new URLSearchParams(location.search).get("kurz") ? "kurz" : "lang");
 
