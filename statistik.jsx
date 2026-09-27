@@ -1963,8 +1963,18 @@ function StatistikApp() {
       { id: "first", label: "Erster Flug" },
       { id: "last", label: "Letzter Flug" },
     ],
+    // Passagier/Start-/Landeplatz zeigen inzwischen dieselben Zusatzwerte
+    // wie Schirm in der Kachel (siehe SCHIRM_STAT_COLUMNS-Verwendung unten)
+    // — hier entsprechend um dieselben Sortierfelder ergänzt.
     passagiere: [
       { id: "count", label: "Anzahl" },
+      { id: "totalSec", label: "Gesamte Flugzeit" },
+      { id: "maxSec", label: "Längster Flug" },
+      { id: "totalDist", label: "Gesamte Distanz" },
+      { id: "maxDist", label: "Weitester Flug" },
+      { id: "maxAlt", label: "Grösste Höhe" },
+      { id: "startSites", label: "Startplätze" },
+      { id: "endSites", label: "Landeplätze" },
       { id: "first", label: "Erster Flug" },
       { id: "last", label: "Letzter Flug" },
       { id: "name", label: "Name" },
@@ -1972,6 +1982,12 @@ function StatistikApp() {
     landeplaetze: [
       { id: "count", label: "Anzahl Flüge" },
       { id: "alt", label: "Höhe m.ü.M." },
+      { id: "totalSec", label: "Gesamte Flugzeit" },
+      { id: "maxSec", label: "Längster Flug" },
+      { id: "totalDist", label: "Gesamte Distanz" },
+      { id: "maxDist", label: "Weitester Flug" },
+      { id: "maxAlt", label: "Grösste Höhe" },
+      { id: "startSites", label: "Startplätze" },
       { id: "first", label: "Erster Flug" },
       { id: "last", label: "Letzter Flug" },
       { id: "name", label: "Name" },
@@ -1979,6 +1995,12 @@ function StatistikApp() {
     startplaetze: [
       { id: "count", label: "Anzahl Flüge" },
       { id: "alt", label: "Höhe m.ü.M." },
+      { id: "totalSec", label: "Gesamte Flugzeit" },
+      { id: "maxSec", label: "Längster Flug" },
+      { id: "totalDist", label: "Gesamte Distanz" },
+      { id: "maxDist", label: "Weitester Flug" },
+      { id: "maxAlt", label: "Grösste Höhe" },
+      { id: "endSites", label: "Landeplätze" },
       { id: "first", label: "Erster Flug" },
       { id: "last", label: "Letzter Flug" },
       { id: "name", label: "Name" },
