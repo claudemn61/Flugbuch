@@ -2509,14 +2509,13 @@ const SCHIRM_STAT_COLUMNS = [
   { label: "Erster Flug",      w: 54, value: r => fmtDateShort(r.first) },
   { label: "Letzter Flug",     w: 54, value: r => fmtDateShort(r.last) },
 ];
-const PASSAGIER_STAT_COLUMNS = [
-  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
-  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
-];
+// Dieselben Werte wie bei Schirm (siehe SCHIRM_STAT_COLUMNS) — aggregate()
+// berechnet ohnehin für jede Gruppierung (Schirm/Passagier/Start-/Landeplatz)
+// dieselben Felder, bisher wurden hier nur Erster/Letzter Flug angezeigt.
+const PASSAGIER_STAT_COLUMNS = SCHIRM_STAT_COLUMNS;
 const PLATZ_STAT_COLUMNS = [
   { label: "m.ü.M.",       w: 54, value: r => r.alt ? String(r.alt) : "—" },
-  { label: "Erster Flug",  w: 54, value: r => fmtDateShort(r.first) },
-  { label: "Letzter Flug", w: 54, value: r => fmtDateShort(r.last) },
+  ...SCHIRM_STAT_COLUMNS,
 ];
 const HIKE_STAT_COLUMNS = [
   { label: "Höhenmeter",   w: 58, value: r => r.hoehenmeter!=null ? `${r.hoehenmeter} m` : "—" },
