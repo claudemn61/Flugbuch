@@ -1873,6 +1873,30 @@ function GraphSection({ flights }) {
   );
 }
 
+// Eine der 7 farbigen Hauptkacheln (Schirm/Startplätze/.../Graph) — als
+// eigene Komponente, damit Graph (fixierte Vollbild-Ebene statt Details
+// inline) für sein "zurück zur Auswahl" exakt dieselbe Kachel (inkl.
+// eigener Akzentfarbe) wiederverwenden kann statt eines eigenen ✕-Knopfs.
+function StatTileButton({ t, isWide, active, big, onClick }) {
+  return (
+    <button onClick={onClick}
+      style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
+        background:active?`${t.color}26`:"rgba(255,255,255,0.05)",
+        border:`1px solid ${active?t.color+"66":"rgba(255,255,255,0.1)"}`,
+        borderRadius:12,color:active?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+      {/* Accent rail */}
+      <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
+      {/* Icon block with glow blob */}
+      <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+        background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
+        {t.icon}
+      </div>
+      <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
+      {(!isWide || big) && <span style={{opacity:0.6,fontSize:big?28:13,display:"flex",alignItems:"center",paddingRight:16}}>{big ? "▾" : (active?"▾":"▸")}</span>}
+    </button>
+  );
+}
+
 function StatistikApp() {
   const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
@@ -2048,21 +2072,8 @@ function StatistikApp() {
           ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
           : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
           {shown.map(t => (
-            <button key={t.id} onClick={pickerOpen ? ()=>{setOpenTable(t.id); setPickerOpen(false);} : ()=>setPickerOpen(true)}
-              style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
-                background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
-                border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
-                borderRadius:12,color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
-              {/* Accent rail */}
-              <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
-              {/* Icon block with glow blob */}
-              <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
-                background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
-                {t.icon}
-              </div>
-              <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
-              {(!isWide || !pickerOpen) && <span style={{opacity:0.6,fontSize:pickerOpen?13:28,display:"flex",alignItems:"center",paddingRight:16}}>{pickerOpen ? (openTable===t.id?"▾":"▸") : "▾"}</span>}
-            </button>
+            <StatTileButton key={t.id} t={t} isWide={isWide} active={openTable===t.id} big={!pickerOpen}
+              onClick={pickerOpen ? ()=>{setOpenTable(t.id); setPickerOpen(false);} : ()=>setPickerOpen(true)} />
           ))}
         </div>
         );
@@ -2086,21 +2097,15 @@ function StatistikApp() {
           ganzen Seite) — die Zeichenfläche selbst misst ihre Breite laufend
           (siehe GraphSection/attachChartTouch), so dass Vollbild und v.a.
           Querformat wirklich genutzt werden statt nur die bisherige
-          schmale Karten-Breite hochzuskalieren. Zusätzlich an pickerOpen
-          gekoppelt, damit sich Graph wie jede andere Kategorie verhält:
-          "Schliessen" öffnet den Picker (statt die Auswahl zu löschen),
-          die Vollbild-Ebene weicht dann kurz der Kachel-Auswahl. */}
+          schmale Karten-Breite hochzuskalieren. Statt eines eigenen
+          ✕-Schliessen-Knopfs steht oben dieselbe Titel-Kachel wie bei den
+          übrigen Kategorien (blaugrün, grosser Pfeil) — Antippen öffnet
+          genau wie dort den Picker statt die Auswahl zu löschen. */}
       {openTable === "graph" && !pickerOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:"#210710",display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 10px",borderBottom:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>
-            {/* Öffnet nur den Picker (pickerOpen=true), löscht openTable
-                nicht mehr — Tap auf "Graph" im Picker öffnet direkt wieder
-                dieses Vollbild, Tap auf eine andere Kachel wechselt dorthin. */}
-            <button onClick={()=>setPickerOpen(true)} title="Schliessen"
-              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
-              ✕
-            </button>
-            <span style={{fontWeight:900,fontSize:16,flex:1}}>📈 Graph</span>
+          <div style={{padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 0",flexShrink:0}}>
+            <StatTileButton t={TABLES.find(x=>x.id==="graph")} isWide={false} active big
+              onClick={()=>setPickerOpen(true)} />
           </div>
           <div style={{flex:1,minHeight:0,overflowY:"auto",padding:"10px 16px calc(16px + env(safe-area-inset-bottom, 0px))"}}>
             <GraphSection flights={flights} />
