@@ -715,7 +715,12 @@ function GewichteApp({ toolbarOpen, setToolbarOpen }) {
 
   const addItem = (catId) => {
     const id = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
-    const next = { ...data, items: { ...data.items, [catId]: [...data.items[catId], { id, name: "", weight: "" }] } };
+    // Körpergewicht-Positionen starten mit einem echten Wert (statt leer),
+    // da ihr Gewicht per Schieberegler erfasst wird — ein Schieber kennt
+    // keinen "leeren" Zustand, ohne Startwert würde die Anzeige (z.B.
+    // "80 kg") sonst vom tatsächlich gespeicherten (leeren) Wert abweichen.
+    const weight = catId === "koerpergewicht" ? "80" : "";
+    const next = { ...data, items: { ...data.items, [catId]: [...data.items[catId], { id, name: "", weight }] } };
     save(next);
   };
   const updateItem = (catId, itemId, patch) => {
@@ -889,6 +894,37 @@ function GewichteApp({ toolbarOpen, setToolbarOpen }) {
                   <button onClick={()=>setConfirmDeleteItem({catId:cat.id, itemId:it.id, name: it.name||"diese Position"})}
                     style={{flexShrink:0,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:6,width:24,height:24,color:"#f87171",fontSize:11,cursor:"pointer"}}>✕</button>
                 );
+                if (cat.id === "koerpergewicht") {
+                  // Körpergewicht (Pilot/Passagier) per Schieberegler statt
+                  // Zahleneingabe — 30–150 kg im 5-kg-Raster reicht für die
+                  // Praxis und lässt sich unterwegs schneller bedienen als
+                  // Eintippen. Andere Kategorien (Ausrüstungsgewichte mit
+                  // Dezimalstellen) behalten die normale Zahleneingabe.
+                  const kgVal = it.weight !== "" ? Math.min(150, Math.max(30, parseKg(it.weight))) : 80;
+                  return (
+                    <div key={it.id} style={{display:"flex",flexDirection:"column",gap:6,...rowStyle}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        {editMode && Checkbox}
+                        {editMode ? NameInput : (
+                          <span style={{flex:1,minWidth:0,color:"#e8f4fd",fontSize:13.5,padding:"4px 0"}}>{it.name}</span>
+                        )}
+                        {!editMode && fmtNum(it.weight) != null && (
+                          <span style={{flexShrink:0,color:"rgba(232,244,253,0.7)",fontSize:13}}>{fmtNum(it.weight)} kg</span>
+                        )}
+                        {editMode && DuplicateBtn}
+                        {editMode && DeleteBtn}
+                      </div>
+                      {editMode && (
+                        <div style={{display:"flex",alignItems:"center",gap:10,paddingLeft:28}}>
+                          <input type="range" min={30} max={150} step={5} value={kgVal}
+                            onChange={e=>updateItem(cat.id, it.id, {weight:e.target.value})}
+                            style={{flex:1,accentColor:cat.color}} />
+                          <span style={{flexShrink:0,width:52,textAlign:"right",color:"#e8f4fd",fontSize:13,fontWeight:700}}>{kgVal} kg</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 if (!isSchirm) {
                   return (
                     <div key={it.id} style={{display:"flex",alignItems:"center",gap:8,...rowStyle}}>
