@@ -2050,11 +2050,14 @@ function StatistikApp() {
           rather than a uniform 2x2 grid of same-coloured boxes. Als Ganzes
           über das ☰/▾▸ im Header ein-/ausblendbar (tilesRowOpen), analog
           der 6er-Icon-Zeile in Flugbuch. */}
-      {tilesRowOpen && (
+      {/* Zugeklappt (tilesRowOpen=false) bleibt die gerade aktive Kachel
+          (falls eine offen ist) als einzige stehen — quasi als Titel-Kachel
+          für die Tabelle darunter, statt komplett zu verschwinden. */}
+      {(tilesRowOpen || openTable) && (
       <div style={isWide
         ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
         : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-        {TABLES.map(t => (
+        {(tilesRowOpen ? TABLES : TABLES.filter(t=>t.id===openTable)).map(t => (
           <button key={t.id} onClick={()=>setOpenTable(openTable===t.id?null:t.id)}
             style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
               background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
