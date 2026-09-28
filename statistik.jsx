@@ -2100,10 +2100,28 @@ function StatistikApp() {
           schmale Karten-Breite hochzuskalieren. Statt eines eigenen
           ✕-Schliessen-Knopfs steht oben dieselbe Titel-Kachel wie bei den
           übrigen Kategorien (blaugrün, grosser Pfeil) — Antippen öffnet
-          genau wie dort den Picker statt die Auswahl zu löschen. */}
+          genau wie dort den Picker statt die Auswahl zu löschen. Die
+          fixierte Ebene deckt sonst den Seiten-Header mit ab (anders als
+          bei den übrigen Kategorien, deren Details darunter im normalen
+          Seitenfluss stehen) — deshalb hier eine eigene Kopie desselben
+          Headers, statt "Statistik" beim Öffnen von Graph verschwinden zu
+          lassen. */}
       {openTable === "graph" && !pickerOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:"#210710",display:"flex",flexDirection:"column"}}>
-          <div style={{padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 0",flexShrink:0}}>
+          <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",flexShrink:0}}>
+            <button onClick={()=>{try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href="index.html";}} title="Zur Startseite"
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+              🏠
+            </button>
+            <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center"}}>
+              📊 Statistik
+            </span>
+            <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
+              style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+              ?
+            </button>
+          </div>
+          <div style={{padding:"14px 16px 0",flexShrink:0}}>
             <StatTileButton t={TABLES.find(x=>x.id==="graph")} isWide={false} active big
               onClick={()=>setPickerOpen(true)} />
           </div>
