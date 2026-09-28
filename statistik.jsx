@@ -1877,26 +1877,15 @@ function StatistikApp() {
   const isWide = useIsWide();
   const [flights, setFlights] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [openTable, setOpenTable] = useState(null); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze"
-  // Ein-/Ausblenden der ganzen 7er-Hauptkacheln-Zeile als Einheit, analog
-  // Flugbuch (iconRowOpen) — persistiert mit "service:"-Präfix, damit es
-  // vom Backup-Export/Import erfasst wird.
-  const [tilesRowOpen, setTilesRowOpen] = useState(true);
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("service:statTilesRowOpen");
-        if (r) setTilesRowOpen(JSON.parse(r.value));
-      } catch (e) { console.error("Load error (statTilesRowOpen):", e); }
-    })();
-  }, []);
-  const toggleTilesRowOpen = () => {
-    setTilesRowOpen(o => {
-      const next = !o;
-      window.storage.set("service:statTilesRowOpen", JSON.stringify(next)).catch(e => console.error("Save error (statTilesRowOpen):", e));
-      return next;
-    });
-  };
+  // Es ist immer genau eine Kategorie aktiv (Default "schirm", die einzige
+  // Kachel, die nie ausgeblendet wird) — ihre Details stehen permanent
+  // darunter. pickerOpen ist rein transient: Tap auf die aktive Kachel
+  // zeigt kurz alle 7 zur Auswahl, ein Tap darauf setzt openTable neu und
+  // klappt sofort wieder auf die eine gewählte Kachel + Details darunter
+  // zusammen. Ersetzt das frühere separate ☰-Ein-/Ausblenden-Badge, das
+  // dadurch überflüssig wurde.
+  const [openTable, setOpenTable] = useState("schirm"); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze" | ...
+  const [pickerOpen, setPickerOpen] = useState(false);
   // If this page was left via a Statistik-entry click (which stashes its
   // tableId here before navigating to Flugbuch), reopen the same tile once,
   // then forget it so a fresh visit doesn't get stuck.
@@ -2034,10 +2023,6 @@ function StatistikApp() {
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center"}}>
           📊 Statistik
         </span>
-        <button onClick={toggleTilesRowOpen} title={tilesRowOpen?"Hauptkacheln ausblenden":"Hauptkacheln einblenden"}
-          style={{background:"rgba(255,255,255,0.08)",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center",gap:4,flexShrink:0,marginRight:6}}>
-          ☰ {tilesRowOpen?"▾":"▸"}
-        </button>
         <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
           style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
           ?
@@ -2047,28 +2032,23 @@ function StatistikApp() {
       {/* 7 badges as full-width horizontal bars, stacked — each with its own
           colour accent rail plus a radial-gradient glow blob behind the
           icon, exactly matching Home's tile design (rail + icon glow)
-          rather than a uniform 2x2 grid of same-coloured boxes. Als Ganzes
-          über das ☰/▾▸ im Header ein-/ausblendbar (tilesRowOpen), analog
-          der 6er-Icon-Zeile in Flugbuch. */}
-      {/* Zugeklappt (tilesRowOpen=false) bleibt die gerade aktive Kachel
-          (falls eine offen ist) als einzige stehen — als Titel-Kachel mit
-          deutlich grösserem Pfeil. Ihr Antippen schliesst die Kategorie
-          nicht mehr, sondern klappt wie das ☰-Badge die volle Kachel-Liste
-          wieder auf (Design der Liste unverändert); die Details darunter
-          waren die ganze Zeit weiter da und erscheinen dadurch sofort
-          wieder mit. Graph verhielt sich bisher anders (eigene fixierte
-          Vollbild-Ebene unabhängig von tilesRowOpen) — jetzt erscheint auch
-          sie nur noch, wenn die Kachel-Zeile aufgeklappt ist, und wird beim
-          Zuklappen durch dieselbe Titel-Kachel ersetzt wie jede andere
-          Kategorie. */}
-      {(tilesRowOpen || openTable) && (() => {
-        const collapsedTitleMode = !tilesRowOpen;
+          rather than a uniform 2x2 grid of same-coloured boxes. */}
+      {/* Im Normalzustand (pickerOpen=false) steht nur die aktive Kachel da,
+          mit deutlich grösserem Pfeil — Details darunter sind permanent
+          sichtbar. Ihr Antippen öffnet kurz alle 7 zur Auswahl (pickerOpen);
+          Tap auf eine davon setzt openTable neu und klappt sofort wieder
+          auf die eine gewählte Kachel + Details zusammen. Graph (eigene
+          fixierte Vollbild-Ebene statt Details inline) fügt sich genauso
+          ein: sein "Schliessen"-Knopf öffnet ebenfalls den Picker statt die
+          Auswahl ganz zu löschen. */}
+      {(() => {
+        const shown = pickerOpen ? TABLES : TABLES.filter(t=>t.id===openTable);
         return (
         <div style={isWide
           ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
           : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-          {(tilesRowOpen ? TABLES : TABLES.filter(t=>t.id===openTable)).map(t => (
-            <button key={t.id} onClick={collapsedTitleMode ? ()=>setTilesRowOpen(true) : ()=>setOpenTable(openTable===t.id?null:t.id)}
+          {shown.map(t => (
+            <button key={t.id} onClick={pickerOpen ? ()=>{setOpenTable(t.id); setPickerOpen(false);} : ()=>setPickerOpen(true)}
               style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
                 background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
                 border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
@@ -2081,7 +2061,7 @@ function StatistikApp() {
                 {t.icon}
               </div>
               <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
-              {(!isWide || collapsedTitleMode) && <span style={{opacity:0.6,fontSize:collapsedTitleMode?28:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>}
+              {(!isWide || !pickerOpen) && <span style={{opacity:0.6,fontSize:pickerOpen?13:28,display:"flex",alignItems:"center",paddingRight:16}}>{pickerOpen ? (openTable===t.id?"▾":"▸") : "▾"}</span>}
             </button>
           ))}
         </div>
@@ -2106,20 +2086,17 @@ function StatistikApp() {
           ganzen Seite) — die Zeichenfläche selbst misst ihre Breite laufend
           (siehe GraphSection/attachChartTouch), so dass Vollbild und v.a.
           Querformat wirklich genutzt werden statt nur die bisherige
-          schmale Karten-Breite hochzuskalieren. Zusätzlich an tilesRowOpen
-          gekoppelt, damit sich Graph beim Zuklappen der Kachel-Zeile genau
-          wie jede andere Kategorie verhält: die Vollbild-Ebene weicht dann
-          der Titel-Kachel, statt weiter alles zu verdecken. */}
-      {openTable === "graph" && tilesRowOpen && (
+          schmale Karten-Breite hochzuskalieren. Zusätzlich an pickerOpen
+          gekoppelt, damit sich Graph wie jede andere Kategorie verhält:
+          "Schliessen" öffnet den Picker (statt die Auswahl zu löschen),
+          die Vollbild-Ebene weicht dann kurz der Kachel-Auswahl. */}
+      {openTable === "graph" && !pickerOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:"#210710",display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 10px",borderBottom:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>
-            {/* Schliesst nur die Vollbild-Ebene (tilesRowOpen=false), löscht
-                openTable nicht mehr — dadurch landet man wie bei jeder
-                anderen Kategorie auf der Titel-Kachel "Graph" statt ganz
-                zurück auf die leere Auswahl, und der ☰-Button (vorher
-                unerreichbar hinter der Vollbild-Ebene) ist nicht mehr nötig
-                um dorthin zu gelangen. */}
-            <button onClick={()=>setTilesRowOpen(false)} title="Schliessen"
+            {/* Öffnet nur den Picker (pickerOpen=true), löscht openTable
+                nicht mehr — Tap auf "Graph" im Picker öffnet direkt wieder
+                dieses Vollbild, Tap auf eine andere Kachel wechselt dorthin. */}
+            <button onClick={()=>setPickerOpen(true)} title="Schliessen"
               style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
               ✕
             </button>
