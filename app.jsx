@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.8.3";
+const APP_VERSION = "6.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.9", note: "Statistik: zugeklappte Hauptkacheln-Zeile zeigt die gerade aktive Kachel jetzt als einzelne, breite Titel-Kachel mit deutlich grösserem Pfeil statt komplett zu verschwinden. Antippen klappt wie gewohnt die volle Kachel-Liste wieder auf, die Details der Kategorie bleiben dabei durchgehend sichtbar. Graph (bisher eigene Vollbild-Ebene unabhängig von der Kachel-Zeile) verhält sich jetzt genauso: Schliessen kehrt zur Titel-Kachel zurück statt zur leeren Auswahl, erneutes Antippen öffnet Graph direkt wieder im Vollbild." },
   { v: "6.8.3", note: "Statistik: die Kacheln Passagiere/Startplätze/Landeplätze zeigen jetzt dieselben Zusatzwerte wie Schirm (Gesamte Flugzeit, Längster Flug, Gesamte Distanz, Weitester Flug, Zeit/Flug, km/Flug, Grösste Höhe, Startplätze, Landeplätze) — bisher nur Erster/Letzter Flug bzw. bei Start-/Landeplätzen zusätzlich m.ü.M." },
   { v: "6.8.2", note: "Offline-Modus: zwei Bugs im Service Worker behoben. 1) Von Statistik/Reisen aus per Klick geöffnete Flüge (URL mit Filter-Parametern) liessen sich offline nicht öffnen, wenn nicht exakt diese URL zuvor online besucht wurde — der Cache-Fallback ignoriert Query-Parameter jetzt. 2) Extern geladene Dateien ohne CORS-Freigabe (React/Babel/tz-lookup/MapTiler) wurden vom Cache stillschweigend übersprungen, weil solche \"opaken\" Antworten technisch nie als \"ok\" gelten — werden jetzt trotzdem gecacht, war u.a. die Ursache dafür, dass die Karte offline manchmal leer blieb." },
   { v: "6.8.1", note: "Flugbuch: die 6er-Icon-Zeile (Import/Backup/Auswahl/Weltkarte/Darstellungen/Suchen) ist jetzt als Ganzes ein-/ausblendbar (▾/▸-Button neben \"+ Flug\"), um mehr Platz für die Flugliste zu schaffen — Zustand bleibt über Neustarts erhalten." },

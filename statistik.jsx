@@ -2051,31 +2051,42 @@ function StatistikApp() {
           über das ☰/▾▸ im Header ein-/ausblendbar (tilesRowOpen), analog
           der 6er-Icon-Zeile in Flugbuch. */}
       {/* Zugeklappt (tilesRowOpen=false) bleibt die gerade aktive Kachel
-          (falls eine offen ist) als einzige stehen — quasi als Titel-Kachel
-          für die Tabelle darunter, statt komplett zu verschwinden. */}
-      {(tilesRowOpen || openTable) && (
-      <div style={isWide
-        ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
-        : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-        {(tilesRowOpen ? TABLES : TABLES.filter(t=>t.id===openTable)).map(t => (
-          <button key={t.id} onClick={()=>setOpenTable(openTable===t.id?null:t.id)}
-            style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
-              background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
-              border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
-              borderRadius:12,color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
-            {/* Accent rail */}
-            <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
-            {/* Icon block with glow blob */}
-            <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
-              background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
-              {t.icon}
-            </div>
-            <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
-            {!isWide && <span style={{opacity:0.6,fontSize:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>}
-          </button>
-        ))}
-      </div>
-      )}
+          (falls eine offen ist) als einzige stehen — als Titel-Kachel mit
+          deutlich grösserem Pfeil. Ihr Antippen schliesst die Kategorie
+          nicht mehr, sondern klappt wie das ☰-Badge die volle Kachel-Liste
+          wieder auf (Design der Liste unverändert); die Details darunter
+          waren die ganze Zeit weiter da und erscheinen dadurch sofort
+          wieder mit. Graph verhielt sich bisher anders (eigene fixierte
+          Vollbild-Ebene unabhängig von tilesRowOpen) — jetzt erscheint auch
+          sie nur noch, wenn die Kachel-Zeile aufgeklappt ist, und wird beim
+          Zuklappen durch dieselbe Titel-Kachel ersetzt wie jede andere
+          Kategorie. */}
+      {(tilesRowOpen || openTable) && (() => {
+        const collapsedTitleMode = !tilesRowOpen;
+        return (
+        <div style={isWide
+          ? { padding: "14px 16px 0", display: "flex", flexDirection: "row", gap: 10 }
+          : { padding: "14px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+          {(tilesRowOpen ? TABLES : TABLES.filter(t=>t.id===openTable)).map(t => (
+            <button key={t.id} onClick={collapsedTitleMode ? ()=>setTilesRowOpen(true) : ()=>setOpenTable(openTable===t.id?null:t.id)}
+              style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
+                background:openTable===t.id?`${t.color}26`:"rgba(255,255,255,0.05)",
+                border:`1px solid ${openTable===t.id?t.color+"66":"rgba(255,255,255,0.1)"}`,
+                borderRadius:12,color:openTable===t.id?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+              {/* Accent rail */}
+              <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
+              {/* Icon block with glow blob */}
+              <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+                background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
+                {t.icon}
+              </div>
+              <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
+              {(!isWide || collapsedTitleMode) && <span style={{opacity:0.6,fontSize:collapsedTitleMode?28:13,display:"flex",alignItems:"center",paddingRight:16}}>{openTable===t.id?"▾":"▸"}</span>}
+            </button>
+          ))}
+        </div>
+        );
+      })()}
 
       {TABLES.map(t => openTable===t.id && (
         t.id === "saison"
@@ -2090,16 +2101,25 @@ function StatistikApp() {
           )
       ))}
 
-      {/* Graph öffnet bewusst nicht mehr wie die anderen Badges inline
-          innerhalb der Seite, sondern formatfüllend (eigene fixierte
-          Ebene über der ganzen Seite) — die Zeichenfläche selbst misst
-          ihre Breite laufend (siehe GraphSection/attachChartTouch), so
-          dass Vollbild und v.a. Querformat wirklich genutzt werden statt
-          nur die bisherige schmale Karten-Breite hochzuskalieren. */}
-      {openTable === "graph" && (
+      {/* Graph öffnet bewusst nicht wie die anderen Badges inline innerhalb
+          der Seite, sondern formatfüllend (eigene fixierte Ebene über der
+          ganzen Seite) — die Zeichenfläche selbst misst ihre Breite laufend
+          (siehe GraphSection/attachChartTouch), so dass Vollbild und v.a.
+          Querformat wirklich genutzt werden statt nur die bisherige
+          schmale Karten-Breite hochzuskalieren. Zusätzlich an tilesRowOpen
+          gekoppelt, damit sich Graph beim Zuklappen der Kachel-Zeile genau
+          wie jede andere Kategorie verhält: die Vollbild-Ebene weicht dann
+          der Titel-Kachel, statt weiter alles zu verdecken. */}
+      {openTable === "graph" && tilesRowOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:"#210710",display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(10px + env(safe-area-inset-top, 0px)) 16px 10px",borderBottom:"1px solid rgba(255,255,255,0.08)",flexShrink:0}}>
-            <button onClick={()=>setOpenTable(null)} title="Schliessen"
+            {/* Schliesst nur die Vollbild-Ebene (tilesRowOpen=false), löscht
+                openTable nicht mehr — dadurch landet man wie bei jeder
+                anderen Kategorie auf der Titel-Kachel "Graph" statt ganz
+                zurück auf die leere Auswahl, und der ☰-Button (vorher
+                unerreichbar hinter der Vollbild-Ebene) ist nicht mehr nötig
+                um dorthin zu gelangen. */}
+            <button onClick={()=>setTilesRowOpen(false)} title="Schliessen"
               style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
               ✕
             </button>
