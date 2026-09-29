@@ -1651,47 +1651,40 @@ function GraphSection({ flights }) {
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           {(groupedSwapped ? [
-            { key:"y", letter:"X", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
-            { key:"x", letter:"Y", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
+            { key:"y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
+            { key:"x", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
           ] : [
-            { key:"x", letter:"X", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
-            { key:"y", letter:"Y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
+            { key:"x", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
+            { key:"y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
           ]).map(b => (
-            <div key={b.key} style={{flex:1,minWidth:0,display:"flex",gap:6}}>
-              <button onClick={()=>setAxisOptionsOpen(b.popup)} title="Achsen-Optionen"
-                style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
-                {b.letter}
-              </button>
-              <select value={b.value} onChange={e=>b.onChange(e.target.value)}
-                style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-                {b.options.map(o=><option key={o[b.optKey]} value={o[b.optKey]} style={{background:"#0a1628"}}>{o.label}</option>)}
-              </select>
-            </div>
+            // "Auswahlliste bearbeiten" ist der oberste Eintrag der Liste
+            // selbst statt eines eigenen X-/Y-Buchstaben daneben — Achsen-
+            // Optionen (Bereich/Reihenfolge/Eigener Feldwert) öffnen jetzt
+            // per Tap auf die Achse im Diagramm selbst (siehe die
+            // unsichtbaren Tap-Flächen dort).
+            <select key={b.key} value={b.value}
+              onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal(b.popup==="gx"?"x":"y"); return; } b.onChange(e.target.value); }}
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
+              {b.options.map(o=><option key={o[b.optKey]} value={o[b.optKey]} style={{background:"#0a1628"}}>{o.label}</option>)}
+            </select>
           ))}
         </div>
       ) : null}
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
-            <button onClick={()=>setAxisOptionsOpen("fx")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
-              X
-            </button>
-            <select value={freeX} onChange={e=>setFreeX(e.target.value)}
-              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-            </select>
-          </div>
-          <div style={{flex:1,minWidth:0,display:"flex",gap:6}}>
-            <button onClick={()=>setAxisOptionsOpen("fy")} title="Achsen-Optionen"
-              style={{flexShrink:0,width:28,background:"none",border:"none",margin:0,padding:0,appearance:"none",WebkitAppearance:"none",textAlign:"left",cursor:"pointer",fontSize:17,fontWeight:400,color:"rgba(232,244,253,0.55)"}}>
-              Y
-            </button>
-            <select value={freeY} onChange={e=>setFreeY(e.target.value)}
-              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
-              {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-            </select>
-          </div>
+          <select value={freeX}
+            onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeX(e.target.value); }}
+            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
+            {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+          </select>
+          <select value={freeY}
+            onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeY(e.target.value); }}
+            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
+            {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+          </select>
         </div>
       </>)}
 
@@ -1762,6 +1755,14 @@ function GraphSection({ flights }) {
             style={{overflow:"hidden",touchAction:"none",borderRadius:8,flex:1,minHeight:0}}>
             {mode==="grouped" && groupedSwapped ? (
               <svg viewBox={`0 0 ${W} ${HH}`} width={W} height={HH} style={{display:"block"}}>
+                {/* Unsichtbare Tap-Flächen über den Achsen-Randstreifen statt
+                    des kleinen X-/Y-Buchstabens oben — öffnet direkt das
+                    Achsen-Optionen-Popup (Bereich/Reihenfolge/Eigener
+                    Feldwert), grösserer und intuitiverer Tap-Bereich. */}
+                <rect x={0} y={padTopH} width={padLeftH} height={plotHH} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("gx"); }} />
+                <rect x={padLeftH} y={padTopH+plotHH} width={plotWH} height={HH-padTopH-plotHH} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("gy"); }} />
                 {ticks.map((t,i)=>{
                   const x = scaleValueH(t);
                   return (
@@ -1796,6 +1797,10 @@ function GraphSection({ flights }) {
               </svg>
             ) : mode==="grouped" ? (
               <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{display:"block"}}>
+                <rect x={0} y={padTop} width={padLeft} height={plotH} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("gy"); }} />
+                <rect x={padLeft} y={padTop+plotH} width={plotW} height={H-padTop-plotH} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("gx"); }} />
                 {ticks.map((t,i)=>{
                   const y = scaleY(t);
                   return (
@@ -1845,6 +1850,10 @@ function GraphSection({ flights }) {
               </svg>
             ) : (
               <svg viewBox={`0 0 ${W2} ${H2}`} width={W2} height={H2} style={{display:"block"}}>
+                <rect x={0} y={padTop2} width={padLeft2} height={plotH2} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("fy"); }} />
+                <rect x={padLeft2} y={padTop2+plotH2} width={plotW2} height={H2-padTop2-plotH2} fill="transparent" style={{cursor:"pointer",pointerEvents:"all"}}
+                  onClick={e=>{ e.stopPropagation(); setAxisOptionsOpen("fx"); }} />
                 {freeTicksY.map((t,i)=>{
                   const y = scaleY2(t);
                   return (
@@ -1935,20 +1944,17 @@ function GraphSection({ flights }) {
         <AxisOptionsPopup title="X-Achse" onClose={()=>setAxisOptionsOpen(null)}>
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
           <AxisOptionRow label={`Sortierung: ${xSortByValue?"nach Y-Wert":xIsCategorical?"A–Z":"eigener Wert"}`} icon="⇄" active={xSortByValue} onClick={()=>setXSortByValue(v=>!v)} />
-          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("x");}} />
         </AxisOptionsPopup>
       )}
       {axisOptionsOpen==="gy" && (
         <AxisOptionsPopup title="Y-Achse" onClose={()=>setAxisOptionsOpen(null)}>
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
-          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("y");}} />
         </AxisOptionsPopup>
       )}
       {axisOptionsOpen==="fx" && (
         <AxisOptionsPopup title="X-Achse" onClose={()=>setAxisOptionsOpen(null)}>
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
           <AxisOptionRow label={xRankByY?"Rang nach Y-Wert":"Eigener Feldwert"} icon="⇄" active={xRankByY} onClick={()=>setXRankByY(v=>!v)} />
-          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
           <AxisRangeEditor fieldId={xRankByY?"nummer":freeX} minVal={xRangeFilter?xRangeFilter.min:fXMinFull} maxVal={xRangeFilter?xRangeFilter.max:fXMaxFull} active={!!xRangeFilter}
             onApply={(min,max)=>{ setXRangeFilter({min,max}); setView(null); }} onClear={()=>{ setXRangeFilter(null); setView(null); }} />
         </AxisOptionsPopup>
@@ -1957,7 +1963,6 @@ function GraphSection({ flights }) {
         <AxisOptionsPopup title="Y-Achse" onClose={()=>setAxisOptionsOpen(null)}>
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
           <AxisOptionRow label={yRankByX?"Rang nach X-Wert":"Eigener Feldwert"} icon="⇄" active={yRankByX} onClick={()=>setYRankByX(v=>!v)} />
-          <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
           <AxisRangeEditor fieldId={yRankByX?"nummer":freeY} minVal={yRangeFilter?yRangeFilter.min:fYMinFull} maxVal={yRangeFilter?yRangeFilter.max:fYMaxFull} active={!!yRangeFilter}
             onApply={(min,max)=>{ setYRangeFilter({min,max}); setView(null); }} onClear={()=>{ setYRangeFilter(null); setView(null); }} />
         </AxisOptionsPopup>
