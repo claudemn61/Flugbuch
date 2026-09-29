@@ -1053,6 +1053,11 @@ function AxisOptionsPopup({ title, onClose, children }) {
   );
 }
 
+// X-Achse durchgehend gelb, Y-Achse durchgehend rot — Wertangaben,
+// Achsenlinien (Gridlines) und das Listenauswahlfeld (Kachel + Text)
+// derselben Achse, über alle 4 Varianten (Gruppiert/Frei × X/Y) hinweg.
+const GRAPH_X_COLOR = "#fbbf24", GRAPH_X_GRID = "rgba(251,191,36,0.3)";
+const GRAPH_Y_COLOR = "#f87171", GRAPH_Y_GRID = "rgba(248,113,113,0.3)";
 function GraphSection({ flights }) {
   // Beim Öffnen eines Flugs aus dem Modus "Frei" (Punkt antippen → Nummer
   // antippen) legt graphFlightDetailUrl den kompletten Achsen-/Zoom-Zustand
@@ -1664,7 +1669,7 @@ function GraphSection({ flights }) {
             // unsichtbaren Tap-Flächen dort).
             <select key={b.key} value={b.value}
               onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal(b.popup==="gx"?"x":"y"); return; } b.onChange(e.target.value); }}
-              style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+              style={{flex:1,minWidth:0,boxSizing:"border-box",background:b.popup==="gx"?"rgba(251,191,36,0.12)":"rgba(248,113,113,0.12)",border:`1px solid ${b.popup==="gx"?"rgba(251,191,36,0.4)":"rgba(248,113,113,0.4)"}`,borderRadius:8,padding:"7px 6px",color:b.popup==="gx"?GRAPH_X_COLOR:GRAPH_Y_COLOR,fontSize:12,fontWeight:700}}>
               <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
               {b.options.map(o=><option key={o[b.optKey]} value={o[b.optKey]} style={{background:"#0a1628"}}>{o.label}</option>)}
             </select>
@@ -1675,13 +1680,13 @@ function GraphSection({ flights }) {
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <select value={freeX}
             onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeX(e.target.value); }}
-            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:8,padding:"7px 6px",color:GRAPH_X_COLOR,fontSize:12,fontWeight:700}}>
             <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
             {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
           </select>
           <select value={freeY}
             onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeY(e.target.value); }}
-            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"7px 6px",color:"#e8f4fd",fontSize:12,fontWeight:700}}>
+            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.4)",borderRadius:8,padding:"7px 6px",color:GRAPH_Y_COLOR,fontSize:12,fontWeight:700}}>
             <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
             {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
           </select>
@@ -1767,8 +1772,8 @@ function GraphSection({ flights }) {
                   const x = scaleValueH(t);
                   return (
                     <g key={i}>
-                      <line x1={x} y1={padTopH} x2={x} y2={padTopH+plotHH} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={x} y={padTopH+plotHH+12} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
+                      <line x1={x} y1={padTopH} x2={x} y2={padTopH+plotHH} stroke={GRAPH_Y_GRID} strokeWidth="1"/>
+                      <text x={x} y={padTopH+plotHH+12} textAnchor="middle" fontSize="8" fill={GRAPH_Y_COLOR} style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
                     </g>
                   );
                 })}
@@ -1783,7 +1788,7 @@ function GraphSection({ flights }) {
                     <g key={r.key}>
                       <rect x={barX} y={cy-barThickH/2} width={Math.max(0,barLen)} height={barThickH} rx="2.5" fill={isCurrentBar(r.key)?"#f87171":"#22d3ee"} opacity="0.85"/>
                       <text x={xEnd + (labelSide?4:-4)} y={cy} textAnchor={labelSide?"start":"end"} dominantBaseline="middle" fontSize="8" fontWeight="700" fill="rgba(232,244,253,0.75)" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
-                      <text x={padLeftH-6} y={cy} textAnchor="end" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                      <text x={padLeftH-6} y={cy} textAnchor="end" dominantBaseline="middle" fontSize="8" fill={GRAPH_X_COLOR}>{r.dispLabel}</text>
                     </g>
                   );
                 })}
@@ -1805,8 +1810,8 @@ function GraphSection({ flights }) {
                   const y = scaleY(t);
                   return (
                     <g key={i}>
-                      <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
+                      <line x1={padLeft} y1={y} x2={W-padRight} y2={y} stroke={GRAPH_Y_GRID} strokeWidth="1"/>
+                      <text x={padLeft-4} y={y+3} textAnchor="end" fontSize="8" fill={GRAPH_Y_COLOR} style={{fontVariantNumeric:"tabular-nums"}}>{formatGraphYMetric(t, yMetric)}</text>
                     </g>
                   );
                 })}
@@ -1833,9 +1838,9 @@ function GraphSection({ flights }) {
                         <text x={cx} y={y+4} transform={`rotate(-90 ${cx} ${y+4})`} textAnchor="end" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#0a1628" style={{fontVariantNumeric:"tabular-nums"}}>{r.valueText}</text>
                       )}
                       {anyRotate ? (
-                        <text x={cx} y={labelY} transform={`rotate(-90 ${cx} ${labelY})`} textAnchor="end" dominantBaseline="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                        <text x={cx} y={labelY} transform={`rotate(-90 ${cx} ${labelY})`} textAnchor="end" dominantBaseline="middle" fontSize="8" fill={GRAPH_X_COLOR}>{r.dispLabel}</text>
                       ) : (
-                        <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{r.dispLabel}</text>
+                        <text x={cx} y={H-6} textAnchor="middle" fontSize="8" fill={GRAPH_X_COLOR}>{r.dispLabel}</text>
                       )}
                     </g>
                   );
@@ -1858,8 +1863,17 @@ function GraphSection({ flights }) {
                   const y = scaleY2(t);
                   return (
                     <g key={i}>
-                      <line x1={padLeft2} y1={y} x2={W2-padRight2} y2={y} stroke="rgba(232,244,253,0.09)" strokeWidth="1"/>
-                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill="rgba(232,244,253,0.32)" style={{fontVariantNumeric:"tabular-nums"}}>{yRankByX ? String(Math.round(t)) : graphFormatAxisValue(freeY, t)}</text>
+                      <line x1={padLeft2} y1={y} x2={W2-padRight2} y2={y} stroke={GRAPH_Y_GRID} strokeWidth="1"/>
+                      <text x={padLeft2-4} y={y+3} textAnchor="end" fontSize="8" fill={GRAPH_Y_COLOR} style={{fontVariantNumeric:"tabular-nums"}}>{yRankByX ? String(Math.round(t)) : graphFormatAxisValue(freeY, t)}</text>
+                    </g>
+                  );
+                })}
+                {freeTicksX.map((t,i)=>{
+                  const x = scaleX2(t);
+                  return (
+                    <g key={i}>
+                      <line x1={x} y1={padTop2} x2={x} y2={padTop2+plotH2} stroke={GRAPH_X_GRID} strokeWidth="1"/>
+                      <text x={x} y={H2-8} textAnchor="middle" fontSize="8" fill={GRAPH_X_COLOR}>{xRankByY ? String(Math.round(t)) : graphFormatAxisValue(freeX, t)}</text>
                     </g>
                   );
                 })}
@@ -1911,9 +1925,6 @@ function GraphSection({ flights }) {
                     </text>
                   );
                 })()}
-                {freeTicksX.map((t,i)=>(
-                  <text key={i} x={scaleX2(t)} y={H2-8} textAnchor="middle" fontSize="8" fill="rgba(232,244,253,0.4)">{xRankByY ? String(Math.round(t)) : graphFormatAxisValue(freeX, t)}</text>
-                ))}
               </svg>
             )}
           </div>
