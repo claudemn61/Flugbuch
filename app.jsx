@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.9";
+const APP_VERSION = "6.9.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.9.1", note: "Statistik, Graph, Modus Frei: der sichtbare Bereich (Min/Max) von X- und Y-Achse ist jetzt einzeln über \"Bereich\" im jeweiligen Achsen-Popup manuell editierbar, unabhängig vom Pinch-Zoom — beim Datum-Feld über einen Datums-Picker, sonst als Zahl." },
   { v: "6.9", note: "Statistik: es ist immer genau eine der 7 Hauptkacheln aktiv, mit deutlich grösserem Pfeil, Details permanent darunter sichtbar (Standard beim Öffnen: Schirm) — das bisherige separate ☰-Ein-/Ausblenden-Badge entfällt dafür. Antippen der aktiven Kachel zeigt kurz alle 7 zur Auswahl; Tippen auf eine davon macht sie zur neuen aktiven Kachel samt Details, die übrigen schliessen automatisch. Graph (eigene Vollbild-Ebene statt Details inline) fügt sich gleich ein: \"Schliessen\" öffnet die Auswahl, ein erneuter Tipp auf Graph öffnet direkt wieder das Vollbild." },
   { v: "6.8.3", note: "Statistik: die Kacheln Passagiere/Startplätze/Landeplätze zeigen jetzt dieselben Zusatzwerte wie Schirm (Gesamte Flugzeit, Längster Flug, Gesamte Distanz, Weitester Flug, Zeit/Flug, km/Flug, Grösste Höhe, Startplätze, Landeplätze) — bisher nur Erster/Letzter Flug bzw. bei Start-/Landeplätzen zusätzlich m.ü.M." },
   { v: "6.8.2", note: "Offline-Modus: zwei Bugs im Service Worker behoben. 1) Von Statistik/Reisen aus per Klick geöffnete Flüge (URL mit Filter-Parametern) liessen sich offline nicht öffnen, wenn nicht exakt diese URL zuvor online besucht wurde — der Cache-Fallback ignoriert Query-Parameter jetzt. 2) Extern geladene Dateien ohne CORS-Freigabe (React/Babel/tz-lookup/MapTiler) wurden vom Cache stillschweigend übersprungen, weil solche \"opaken\" Antworten technisch nie als \"ok\" gelten — werden jetzt trotzdem gecacht, war u.a. die Ursache dafür, dass die Karte offline manchmal leer blieb." },

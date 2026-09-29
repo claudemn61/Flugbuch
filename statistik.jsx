@@ -331,6 +331,22 @@ function fmtDateShort(ts) {
   return `${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(2)}`;
 }
 
+// Für <input type="date"> (Graph, Frei: Achsen-Bereich manuell editierbar) —
+// bewusst über lokale Date-Komponenten statt toISOString(), da ein Flug-
+// Datum als lokale Mitternacht gespeichert ist (siehe parseDateToTs) und
+// toISOString() (UTC) das Datum je nach Zeitzone einen Tag verschieben
+// würde.
+function tsToDateInputValue(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function dateInputValueToTs(v) {
+  const m = String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+}
+
 function fmtHours(sec) {
   const h = Math.floor(sec/3600), m = Math.round((sec%3600)/60);
   return `${h}h ${String(m).padStart(2,"0")}m`;
@@ -979,6 +995,38 @@ function AxisOptionRow({ label, icon, active, onClick }) {
       <span>{label}</span>
       <span style={{fontSize:15}}>{icon}</span>
     </button>
+  );
+}
+// Manuell editierbarer Achsen-Bereich (Graph, Modus "Frei" — dort sind X
+// und Y echte numerische Werte, anders als im Modus "Gruppiert", wo X
+// eine Balken-Reihenfolge/-Anzahl statt eines Wertebereichs ist). Startet
+// beim aktuell wirksamen Bereich (Zoom oder volle Spanne) und wendet neue
+// Werte erst bei onBlur an, nicht bei jedem Tastendruck — Min muss dafür
+// kleiner als Max sein, sonst bleibt der bisherige Bereich unverändert.
+// Datum bekommt einen nativen Datums-Picker statt eines rohen Zahlenfelds
+// (der zugrundeliegende Wert ist ein Unix-Timestamp).
+function AxisRangeEditor({ fieldId, minVal, maxVal, onApply }) {
+  const isDate = fieldId === "datum";
+  const [lo, setLo] = useState(() => isDate ? tsToDateInputValue(minVal) : String(Math.round(minVal*100)/100));
+  const [hi, setHi] = useState(() => isDate ? tsToDateInputValue(maxVal) : String(Math.round(maxVal*100)/100));
+  const apply = () => {
+    if (isDate) {
+      const loTs = dateInputValueToTs(lo), hiTs = dateInputValueToTs(hi);
+      if (loTs != null && hiTs != null && hiTs > loTs) onApply(loTs, hiTs);
+    } else {
+      const loN = parseFloat(String(lo).replace(",", "."));
+      const hiN = parseFloat(String(hi).replace(",", "."));
+      if (Number.isFinite(loN) && Number.isFinite(hiN) && hiN > loN) onApply(loN, hiN);
+    }
+  };
+  const inputStyle = {flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 4px",color:"#e8f4fd",fontSize:12,textAlign:"center",boxSizing:"border-box"};
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 12px"}}>
+      <span style={{fontSize:12,fontWeight:700,color:"rgba(232,244,253,0.6)",flexShrink:0}}>Bereich</span>
+      <input type={isDate?"date":"text"} inputMode={isDate?undefined:"decimal"} value={lo} onChange={e=>setLo(e.target.value)} onBlur={apply} style={inputStyle} />
+      <span style={{color:"rgba(232,244,253,0.4)",fontSize:12,flexShrink:0}}>–</span>
+      <input type={isDate?"date":"text"} inputMode={isDate?undefined:"decimal"} value={hi} onChange={e=>setHi(e.target.value)} onBlur={apply} style={inputStyle} />
+    </div>
   );
 }
 function AxisOptionsPopup({ title, onClose, children }) {
@@ -1860,6 +1908,8 @@ function GraphSection({ flights }) {
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
           <AxisOptionRow label={xRankByY?"Rang nach Y-Wert":"Eigener Feldwert"} icon="⇄" active={xRankByY} onClick={()=>setXRankByY(v=>!v)} />
           <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
+          <AxisRangeEditor fieldId={xRankByY?"nummer":freeX} minVal={freeView.x0} maxVal={freeView.x1}
+            onApply={(x0,x1)=>setView({...freeView, x0, x1})} />
         </AxisOptionsPopup>
       )}
       {axisOptionsOpen==="fy" && (
@@ -1867,6 +1917,8 @@ function GraphSection({ flights }) {
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
           <AxisOptionRow label={yRankByX?"Rang nach X-Wert":"Eigener Feldwert"} icon="⇄" active={yRankByX} onClick={()=>setYRankByX(v=>!v)} />
           <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
+          <AxisRangeEditor fieldId={yRankByX?"nummer":freeY} minVal={freeView.y0} maxVal={freeView.y1}
+            onApply={(y0,y1)=>setView({...freeView, y0, y1})} />
         </AxisOptionsPopup>
       )}
     </div>
