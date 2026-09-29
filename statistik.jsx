@@ -1104,8 +1104,8 @@ function GraphSection({ flights }) {
   // Zoom-Fenster: Verschieben/Pinch bleiben sonst innerhalb der vollen,
   // ungefilterten Spanne, sodass ausgeblendete Punkte beim Verschieben
   // wieder auftauchen würden. {min,max} | null je Achse.
-  const [xRangeFilter, setXRangeFilter] = useState(null);
-  const [yRangeFilter, setYRangeFilter] = useState(null);
+  const [xRangeFilter, setXRangeFilter] = useState(graphReturnState?.xRangeFilter || null);
+  const [yRangeFilter, setYRangeFilter] = useState(graphReturnState?.yRangeFilter || null);
   // Vereinfachte Darstellung: die Achsen-Zeile zeigt nur noch das Dropdown.
   // Umkehren/Wert-Rang bzw. Wert-Zahl/⚙️ stecken in einem Popup, das durch
   // Antippen des Achsen-Titels ("X-Achse"/"Y-Achse") aufgeht.
@@ -1217,8 +1217,19 @@ function GraphSection({ flights }) {
   // ergäben die alten Zahlen keinen Sinn mehr, daher hier verworfen. Bewusst
   // NICHT bei jedem Zoom-Reset-Trigger oben (z.B. Reihenfolge umkehren),
   // das wäre unnötig aggressiv für eine bewusst gesetzte Einschränkung.
-  useEffect(() => { setXRangeFilter(null); }, [mode, freeX]);
-  useEffect(() => { setYRangeFilter(null); }, [mode, freeY]);
+  // Gleiches "ersten Durchlauf überspringen" wie beim Zoom-Reset oben nötig,
+  // sonst würde ein per graphReturnState (Rücksprung aus dem Flugdetail)
+  // wiederhergestellter Bereich sofort wieder verworfen.
+  const skipInitialXFilterResetRef = useRef(!!graphReturnState);
+  useEffect(() => {
+    if (skipInitialXFilterResetRef.current) { skipInitialXFilterResetRef.current = false; return; }
+    setXRangeFilter(null);
+  }, [mode, freeX]);
+  const skipInitialYFilterResetRef = useRef(!!graphReturnState);
+  useEffect(() => {
+    if (skipInitialYFilterResetRef.current) { skipInitialYFilterResetRef.current = false; return; }
+    setYRangeFilter(null);
+  }, [mode, freeY]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1920,7 +1931,7 @@ function GraphSection({ flights }) {
                   const cx = scaleX2(p.x), cy = scaleY2(p.y);
                   return (
                     <text x={cx} y={cy-9} textAnchor="middle" fontSize="10" fontWeight="800" fill="#fbbf24" style={{cursor:"pointer"}}
-                      onClick={e=>{ e.stopPropagation(); window.location.href = graphFlightDetailUrl(fl.id, { mode, freeX, freeY, view, xRankByY, yRankByX, xReversed, yReversed }); }}>
+                      onClick={e=>{ e.stopPropagation(); window.location.href = graphFlightDetailUrl(fl.id, { mode, freeX, freeY, view, xRankByY, yRankByX, xReversed, yReversed, xRangeFilter, yRangeFilter }); }}>
                       {fl.name}
                     </text>
                   );
