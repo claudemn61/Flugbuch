@@ -999,13 +999,17 @@ function AxisOptionRow({ label, icon, active, onClick }) {
 }
 // Manuell editierbarer Achsen-Bereich (Graph, Modus "Frei" — dort sind X
 // und Y echte numerische Werte, anders als im Modus "Gruppiert", wo X
-// eine Balken-Reihenfolge/-Anzahl statt eines Wertebereichs ist). Startet
-// beim aktuell wirksamen Bereich (Zoom oder volle Spanne) und wendet neue
-// Werte erst bei onBlur an, nicht bei jedem Tastendruck — Min muss dafür
-// kleiner als Max sein, sonst bleibt der bisherige Bereich unverändert.
-// Datum bekommt einen nativen Datums-Picker statt eines rohen Zahlenfelds
-// (der zugrundeliegende Wert ist ein Unix-Timestamp).
-function AxisRangeEditor({ fieldId, minVal, maxVal, onApply }) {
+// eine Balken-Reihenfolge/-Anzahl statt eines Wertebereichs ist). Filtert
+// echt (siehe xRangeFilter/yRangeFilter in GraphSection), ist also kein
+// Zoom-Fenster — Punkte ausserhalb verschwinden dauerhaft aus dem
+// Diagramm, bis der Bereich hier wieder gelöscht wird (✕, erscheint nur
+// wenn aktiv). Startet beim aktuell wirksamen Bereich (Filter oder volle
+// Spanne) und wendet neue Werte erst bei onBlur an, nicht bei jedem
+// Tastendruck — Min muss dafür kleiner als Max sein, sonst bleibt der
+// bisherige Bereich unverändert. Datum bekommt einen nativen Datums-
+// Picker statt eines rohen Zahlenfelds (zugrundeliegender Wert ist ein
+// Unix-Timestamp).
+function AxisRangeEditor({ fieldId, minVal, maxVal, active, onApply, onClear }) {
   const isDate = fieldId === "datum";
   const [lo, setLo] = useState(() => isDate ? tsToDateInputValue(minVal) : String(Math.round(minVal*100)/100));
   const [hi, setHi] = useState(() => isDate ? tsToDateInputValue(maxVal) : String(Math.round(maxVal*100)/100));
@@ -1026,6 +1030,12 @@ function AxisRangeEditor({ fieldId, minVal, maxVal, onApply }) {
       <input type={isDate?"date":"text"} inputMode={isDate?undefined:"decimal"} value={lo} onChange={e=>setLo(e.target.value)} onBlur={apply} style={inputStyle} />
       <span style={{color:"rgba(232,244,253,0.4)",fontSize:12,flexShrink:0}}>–</span>
       <input type={isDate?"date":"text"} inputMode={isDate?undefined:"decimal"} value={hi} onChange={e=>setHi(e.target.value)} onBlur={apply} style={inputStyle} />
+      {active && (
+        <button onClick={onClear} title="Bereich zurücksetzen"
+          style={{flexShrink:0,width:22,height:22,borderRadius:6,background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          ✕
+        </button>
+      )}
     </div>
   );
 }
@@ -1084,6 +1094,13 @@ function GraphSection({ flights }) {
   // läuft über den bereits vorhandenen ⇅-Umkehren-Button der Achse.
   const [xRankByY, setXRankByY] = useState(graphReturnState?.xRankByY || false);
   const [yRankByX, setYRankByX] = useState(graphReturnState?.yRankByX || false);
+  // Manuell gesetzter Achsen-Bereich (Modus Frei) — echter Daten-Filter
+  // (Punkte ausserhalb werden aus freePointsRaw entfernt), NICHT nur ein
+  // Zoom-Fenster: Verschieben/Pinch bleiben sonst innerhalb der vollen,
+  // ungefilterten Spanne, sodass ausgeblendete Punkte beim Verschieben
+  // wieder auftauchen würden. {min,max} | null je Achse.
+  const [xRangeFilter, setXRangeFilter] = useState(null);
+  const [yRangeFilter, setYRangeFilter] = useState(null);
   // Vereinfachte Darstellung: die Achsen-Zeile zeigt nur noch das Dropdown.
   // Umkehren/Wert-Rang bzw. Wert-Zahl/⚙️ stecken in einem Popup, das durch
   // Antippen des Achsen-Titels ("X-Achse"/"Y-Achse") aufgeht.
@@ -1190,6 +1207,13 @@ function GraphSection({ flights }) {
     if (skipInitialResetRef.current) { skipInitialResetRef.current = false; return; }
     resetZoom();
   }, [mode, xField, yMetric, drillValue, xReversed, xSortByValue, yReversed, hideEmpty, freeX, freeY, xRankByY, yRankByX, groupedSwapped]);
+  // Ein manuell gesetzter Achsen-Bereich (xRangeFilter/yRangeFilter) bezieht
+  // sich auf ein bestimmtes Feld — wird das Feld gewechselt (oder der Modus),
+  // ergäben die alten Zahlen keinen Sinn mehr, daher hier verworfen. Bewusst
+  // NICHT bei jedem Zoom-Reset-Trigger oben (z.B. Reihenfolge umkehren),
+  // das wäre unnötig aggressiv für eine bewusst gesetzte Einschränkung.
+  useEffect(() => { setXRangeFilter(null); }, [mode, freeX]);
+  useEffect(() => { setYRangeFilter(null); }, [mode, freeY]);
 
   // ── Pinch-Zoom/Pan ──────────────────────────────────────────────────
   // Echter Bereichs-Zoom: "view" hält den aktuell sichtbaren Ausschnitt
@@ -1507,6 +1531,14 @@ function GraphSection({ flights }) {
       const y = yRankOf ? yRankOf.get(p.key) : p.yv;
       return { key: p.key, x, y, xLabel: xRankByY ? String(x) : graphFormatAxisValue(freeX, x) };
     })
+    // Echter Daten-Filter (nicht nur Zoom-Fenster): Punkte ausserhalb eines
+    // manuell gesetzten Achsen-Bereichs (siehe AxisRangeEditor) fallen hier
+    // ganz weg, bevor daraus unten die "volle" Spanne (fXMinFull/fYMinFull
+    // etc.) berechnet wird — Verschieben/Zurücksetzen bleiben dadurch
+    // innerhalb des gefilterten Bereichs, statt die ausgeblendeten Punkte
+    // wieder freizugeben.
+    .filter(p => (!xRangeFilter || (p.x >= xRangeFilter.min && p.x <= xRangeFilter.max)) &&
+                 (!yRangeFilter || (p.y >= yRangeFilter.min && p.y <= yRangeFilter.max)))
     .sort((a,b) => a.x - b.x);
   const freeEmptyCount = freePointsRaw.filter(p => !p.y).length;
   const freePoints = hideEmpty ? freePointsRaw.filter(p => p.y) : freePointsRaw;
@@ -1908,8 +1940,8 @@ function GraphSection({ flights }) {
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={xReversed} onClick={()=>setXReversed(r=>!r)} />
           <AxisOptionRow label={xRankByY?"Rang nach Y-Wert":"Eigener Feldwert"} icon="⇄" active={xRankByY} onClick={()=>setXRankByY(v=>!v)} />
           <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
-          <AxisRangeEditor fieldId={xRankByY?"nummer":freeX} minVal={freeView.x0} maxVal={freeView.x1}
-            onApply={(x0,x1)=>setView({...freeView, x0, x1})} />
+          <AxisRangeEditor fieldId={xRankByY?"nummer":freeX} minVal={xRangeFilter?xRangeFilter.min:fXMinFull} maxVal={xRangeFilter?xRangeFilter.max:fXMaxFull} active={!!xRangeFilter}
+            onApply={(min,max)=>{ setXRangeFilter({min,max}); setView(null); }} onClear={()=>{ setXRangeFilter(null); setView(null); }} />
         </AxisOptionsPopup>
       )}
       {axisOptionsOpen==="fy" && (
@@ -1917,8 +1949,8 @@ function GraphSection({ flights }) {
           <AxisOptionRow label="Reihenfolge umkehren" icon="⇅" active={yReversed} onClick={()=>setYReversed(r=>!r)} />
           <AxisOptionRow label={yRankByX?"Rang nach X-Wert":"Eigener Feldwert"} icon="⇄" active={yRankByX} onClick={()=>setYRankByX(v=>!v)} />
           <AxisOptionRow label="Auswahlliste bearbeiten" icon="⚙️" onClick={()=>{setAxisOptionsOpen(null); setFieldOrderModal("free");}} />
-          <AxisRangeEditor fieldId={yRankByX?"nummer":freeY} minVal={freeView.y0} maxVal={freeView.y1}
-            onApply={(y0,y1)=>setView({...freeView, y0, y1})} />
+          <AxisRangeEditor fieldId={yRankByX?"nummer":freeY} minVal={yRangeFilter?yRangeFilter.min:fYMinFull} maxVal={yRangeFilter?yRangeFilter.max:fYMaxFull} active={!!yRangeFilter}
+            onApply={(min,max)=>{ setYRangeFilter({min,max}); setView(null); }} onClear={()=>{ setYRangeFilter(null); setView(null); }} />
         </AxisOptionsPopup>
       )}
     </div>
