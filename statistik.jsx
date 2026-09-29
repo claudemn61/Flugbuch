@@ -1877,22 +1877,25 @@ function GraphSection({ flights }) {
 // eigene Komponente, damit Graph (fixierte Vollbild-Ebene statt Details
 // inline) für sein "zurück zur Auswahl" exakt dieselbe Kachel (inkl.
 // eigener Akzentfarbe) wiederverwenden kann statt eines eigenen ✕-Knopfs.
+// Inhalt (Icon/Name/Pfeil) ist immer eine Zeile wie auf iOS — nur die
+// Breite/Flex des Buttons selbst folgt isWide, damit die 7 Kacheln auf
+// macOS weiterhin nebeneinander statt untereinander stehen.
 function StatTileButton({ t, isWide, active, big, onClick }) {
   return (
     <button onClick={onClick}
-      style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:isWide?"column":"row",alignItems:"stretch",padding:0,overflow:"hidden",
+      style={{width:isWide?undefined:"100%",flex:isWide?"1 1 0":undefined,minWidth:0,boxSizing:"border-box",display:"flex",flexDirection:"row",alignItems:"stretch",padding:0,overflow:"hidden",
         background:active?`${t.color}26`:"rgba(255,255,255,0.05)",
         border:`1px solid ${active?t.color+"66":"rgba(255,255,255,0.1)"}`,
         borderRadius:12,color:active?t.color:"rgba(232,244,253,0.85)",fontSize:15,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
       {/* Accent rail */}
-      <div style={isWide ? {height:5,width:"100%",background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`} : {width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
+      <div style={{width:5,background:t.color,flexShrink:0,boxShadow:`0 0 12px ${t.color}`}} />
       {/* Icon block with glow blob */}
-      <div style={{width:isWide?"100%":56,height:isWide?56:undefined,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+      <div style={{width:56,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
         background:`radial-gradient(circle, ${t.glow} 0%, ${t.glow} 40%, transparent 85%)`}}>
         {t.icon}
       </div>
-      <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:isWide?"center":"flex-start",padding:isWide?"10px 6px":"14px 8px",textAlign:isWide?"center":"left",fontSize:isWide?13:15}}>{t.label}</span>
-      {(!isWide || big) && <span style={{opacity:0.6,fontSize:big?28:13,display:"flex",alignItems:"center",paddingRight:16}}>{big ? "▾" : (active?"▾":"▸")}</span>}
+      <span style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-start",padding:"14px 8px",textAlign:"left",fontSize:15}}>{t.label}</span>
+      <span style={{opacity:0.6,fontSize:big?28:13,display:"flex",alignItems:"center",paddingRight:16}}>{big ? "▾" : (active?"▾":"▸")}</span>
     </button>
   );
 }
