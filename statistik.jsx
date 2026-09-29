@@ -1548,10 +1548,19 @@ function GraphSection({ flights }) {
   const plotW2 = W2 - padLeft2 - padRight2;
   const H2 = padTop2 + plotH2 + padBottom2;
   const freeXs = freePoints.map(p => p.x), freeYs = freePoints.map(p => p.y);
-  const fXMinFull = freeXs.length ? Math.min(...freeXs) : 0, fXMaxFullRaw = freeXs.length ? Math.max(...freeXs) : 1;
-  const fXMaxFull = fXMaxFullRaw > fXMinFull ? fXMaxFullRaw : fXMinFull+1;
+  const fXMinFullRaw = freeXs.length ? Math.min(...freeXs) : 0, fXMaxFullRawData = freeXs.length ? Math.max(...freeXs) : 1;
+  const fXMaxFullData = fXMaxFullRawData > fXMinFullRaw ? fXMaxFullRawData : fXMinFullRaw+1;
   const freeYMaxRaw = freeYs.length ? Math.max(...freeYs) : 0, freeYMinRaw = freeYs.length ? Math.min(...freeYs) : 0;
-  const { y0: fYMinFull, y1: fYMaxFull } = graphYAxisRange(freeYMinRaw, freeYMaxRaw, freeYDef?.zeroBased);
+  const { y0: fYMinFullData, y1: fYMaxFullData } = graphYAxisRange(freeYMinRaw, freeYMaxRaw, freeYDef?.zeroBased);
+  // Bei aktivem Achsen-Filter zeigt die Achse exakt dessen Min/Max — nicht
+  // die "schöne", ggf. bei 0 startende Rundung (graphYAxisRange) oder die
+  // tatsächlichen Datenextreme, die z.B. mangels Punkt exakt am Rand knapp
+  // innerhalb des eingegebenen Bereichs liegen können. So zeigt die Achse
+  // wirklich nur, was der Nutzer im Filter eingegeben hat.
+  const fXMinFull = xRangeFilter ? xRangeFilter.min : fXMinFullRaw;
+  const fXMaxFull = xRangeFilter ? xRangeFilter.max : fXMaxFullData;
+  const fYMinFull = yRangeFilter ? yRangeFilter.min : fYMinFullData;
+  const fYMaxFull = yRangeFilter ? yRangeFilter.max : fYMaxFullData;
   const freeFullView = { x0: fXMinFull, x1: fXMaxFull, y0: fYMinFull, y1: fYMaxFull };
   const freeView = (mode==="free" && view) ? view : freeFullView;
   // Eingegebene Flugnummer gefunden: auf eine mittlere Zoomstufe (ein
