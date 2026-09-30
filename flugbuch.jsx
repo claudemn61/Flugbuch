@@ -3120,9 +3120,11 @@ function evalToken(f, tok){
     const field=m[1].toLowerCase(), op=(m[2]==="≠"?"!=":m[2]), raw=m[3].trim().replace(/^"(.*)"$/, "$1");
     // "passagier:*" (or pax:*) means "any passenger at all" — for finding
     // biplace flights regardless of who the passenger was, rather than
-    // matching a specific name.
-    if((field==="passagier"||field==="pax") && raw==="*"){
-      const has = !!(f.customFields?.passagier||"").trim();
+    // matching a specific name. "reise:*" analog: irgendeiner Reise
+    // zugeordnet, unabhängig welcher.
+    if((field==="passagier"||field==="pax"||field==="reise") && raw==="*"){
+      const cfField = field==="reise" ? "reise" : "passagier";
+      const has = !!(f.customFields?.[cfField]||"").trim();
       return op==="!=" ? !has : has;
     }
     // igc:ja / igc:nein and gpx:ja / gpx:nein — presence of an imported
@@ -3822,7 +3824,7 @@ const SEARCH_FIELDS = [
   { id: "typ",       label: "Typ",            type: "text" },
   { id: "pilot",     label: "Pilot",          type: "text" },
   { id: "passagier", label: "Passagier",      type: "text", anyOption: true },
-  { id: "reise",     label: "Reise",          type: "text" },
+  { id: "reise",     label: "Reise",          type: "text", anyOption: true },
   { id: "datum",     label: "Datum",          type: "date" },
   { id: "startzeit", label: "Startzeit",      type: "time" },
   { id: "landezeit", label: "Landezeit",      type: "time" },
@@ -4039,7 +4041,7 @@ function formatFilterTerm(tok) {
   const value = m[3].trim().replace(/^"(.*)"$/, "$1");
   const fieldDef = SEARCH_FIELDS.find(f => f.id === (SEARCH_FIELD_ALIASES[rawField] || rawField));
   const label = fieldDef?.label || rawField;
-  if ((rawField === "passagier" || rawField === "pax") && value === "*") {
+  if ((rawField === "passagier" || rawField === "pax" || rawField === "reise") && value === "*") {
     return op === "!=" ? strikethroughText(label) : label;
   }
   if (fieldDef?.type === "bool") {
@@ -4203,7 +4205,7 @@ function SearchBar({ filterText, setFilterText, knownGliders }) {
                   )}
                   {fieldDef?.anyOption && (
                     <button onClick={()=>updateRow(idx,{value: row.value==="*" ? "" : "*"})}
-                      title="Beliebiger Passagier (Biplace-Flüge)"
+                      title={`Beliebige${fieldDef?.id==="reise"?"":"r"} ${fieldDef?.label}`}
                       style={{background:row.value==="*"?"rgba(125,211,252,0.25)":"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 5px",color:row.value==="*"?"#7dd3fc":"rgba(232,244,253,0.6)",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
                       beliebig
                     </button>
