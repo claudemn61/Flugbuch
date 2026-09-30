@@ -4024,6 +4024,12 @@ const SEARCH_FIELD_ALIASES = {
 // Symbole statt Verben ("enthält"/"ist") — kürzer und auf einen Blick
 // erfassbar, ohne dass ein Satz gelesen werden muss.
 const FILTER_OP_SYMBOLS = { ":": ":", "=": "=", "!=": "≠", ">": ">", "<": "<", ">=": "≥", "<=": "≤" };
+// Felder, deren Label in der Lesbar-Anzeige (formatFilterTerm) weggelassen
+// wird — nur bei Feldern mit selbsterklärenden Wörtern als Wert (z.B.
+// "Solo"/"Biplace"/"Hike" bei Typ), sonst wäre unklar, welches Feld gemeint
+// ist. Nur bei op ":" (enthält/ist) — bei "!=" bräuchte es das Label, sonst
+// läse sich der ausgeschlossene Wert wie ein eingeschlossener.
+const FILTER_LABEL_OMIT_FIELDS = new Set(["typ"]);
 function formatFilterTerm(tok) {
   const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
   if (!m) return /\s/.test(tok) ? `"${tok}"` : tok; // plain word (freie Textsuche)
@@ -4046,6 +4052,7 @@ function formatFilterTerm(tok) {
   } else if (/\s/.test(value)) {
     valStr = `"${value}"`;
   }
+  if (op === ":" && FILTER_LABEL_OMIT_FIELDS.has(fieldDef?.id)) return valStr;
   return op === ":" ? `${label}: ${valStr}` : `${label} ${FILTER_OP_SYMBOLS[op] || op} ${valStr}`;
 }
 function formatFilterHuman(query) {
