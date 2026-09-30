@@ -4024,6 +4024,13 @@ const SEARCH_FIELD_ALIASES = {
 // Symbole statt Verben ("enthält"/"ist") — kürzer und auf einen Blick
 // erfassbar, ohne dass ein Satz gelesen werden muss.
 const FILTER_OP_SYMBOLS = { ":": ":", "=": "=", "!=": "≠", ">": ">", "<": "<", ">=": "≥", "<=": "≤" };
+// Durchgestrichener Text rein per Unicode (COMBINING LONG STROKE OVERLAY
+// nach jedem Zeichen) — bleibt reiner String, keine JSX-Elemente nötig für
+// die Filter-Anzeige neben der Trefferzahl (die baut bisher überall auf
+// verketteten Strings statt React-Knoten auf).
+function strikethroughText(s) {
+  return s.split("").map(ch => ch + "̶").join("");
+}
 function formatFilterTerm(tok) {
   const m = tok.match(/^([\wäöü]+)\s*(>=|<=|!=|≠|>|<|=|:)\s*(.+)$/i);
   if (!m) return /\s/.test(tok) ? `"${tok}"` : tok; // plain word (freie Textsuche)
@@ -4037,7 +4044,8 @@ function formatFilterTerm(tok) {
   }
   if (fieldDef?.type === "bool") {
     const want = ["ja","vorhanden","true","1"].includes(value.toLowerCase());
-    return (op === "!=" ? !want : want) ? "vorhanden" : "nicht vorhanden";
+    const positive = op === "!=" ? !want : want;
+    return positive ? label : strikethroughText(label);
   }
   let valStr = value;
   if (fieldDef?.id === "monat" && /^\d+$/.test(value)) {
