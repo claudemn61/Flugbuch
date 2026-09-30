@@ -4040,7 +4040,7 @@ function formatFilterTerm(tok) {
   const fieldDef = SEARCH_FIELDS.find(f => f.id === (SEARCH_FIELD_ALIASES[rawField] || rawField));
   const label = fieldDef?.label || rawField;
   if ((rawField === "passagier" || rawField === "pax") && value === "*") {
-    return op === "!=" ? "kein Passagier" : "Passagier: vorhanden";
+    return op === "!=" ? strikethroughText(label) : label;
   }
   if (fieldDef?.type === "bool") {
     const want = ["ja","vorhanden","true","1"].includes(value.toLowerCase());
