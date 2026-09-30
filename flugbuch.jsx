@@ -4037,7 +4037,7 @@ function formatFilterTerm(tok) {
   }
   if (fieldDef?.type === "bool") {
     const want = ["ja","vorhanden","true","1"].includes(value.toLowerCase());
-    return `${label}: ${(op === "!=" ? !want : want) ? "vorhanden" : "nicht vorhanden"}`;
+    return (op === "!=" ? !want : want) ? "vorhanden" : "nicht vorhanden";
   }
   let valStr = value;
   if (fieldDef?.id === "monat" && /^\d+$/.test(value)) {
@@ -4046,12 +4046,16 @@ function formatFilterTerm(tok) {
   } else if (/\s/.test(value)) {
     valStr = `"${value}"`;
   }
-  // Label bei op ":" (enthält/ist) für alle Felder weglassen — der Wert
-  // allein reicht meist zum Verständnis, macht die Anzeige neben der
-  // Trefferzahl kürzer. Bei "!=" bleibt das Label nötig, sonst läse sich
-  // der ausgeschlossene Wert wie ein eingeschlossener.
+  // Einheit aus dem Label anfügen (z.B. "Distanz (km)" -> "45 km"), wenn
+  // Zahlenfeld mit Einheit und tatsächlich numerischer Wert — kompensiert,
+  // dass das Label (das die Einheit bisher trug) komplett wegfällt.
+  const unitMatch = fieldDef?.type === "number" && label.match(/\(([^)]+)\)\s*$/);
+  if (unitMatch && /^-?\d+([.,]\d+)?$/.test(value)) valStr = `${valStr} ${unitMatch[1]}`;
+  // Label komplett weggelassen (auch bei Vergleichsoperatoren) — der Wert
+  // (plus ggf. angehängte Einheit) reicht meist zum Verständnis und macht
+  // die Anzeige neben der Trefferzahl deutlich kürzer.
   if (op === ":") return valStr;
-  return `${label} ${FILTER_OP_SYMBOLS[op] || op} ${valStr}`;
+  return `${FILTER_OP_SYMBOLS[op] || op} ${valStr}`;
 }
 function formatFilterHuman(query) {
   if (!query || !query.trim()) return "";
