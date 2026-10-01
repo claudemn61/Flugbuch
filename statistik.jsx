@@ -1666,13 +1666,10 @@ function GraphSection({ flights }) {
 
       {mode==="grouped" ? (
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          {(groupedSwapped ? [
+          {[
             { key:"y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
             { key:"x", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
-          ] : [
-            { key:"x", popup:"gx", value:xField, onChange:setXField, options:orderedXFields, optKey:"id" },
-            { key:"y", popup:"gy", value:yMetric, onChange:setYMetric, options:orderedYMetrics, optKey:"id" },
-          ]).map(b => (
+          ].map(b => (
             // "Auswahlliste bearbeiten" ist der oberste Eintrag der Liste
             // selbst statt eines eigenen X-/Y-Buchstaben daneben — Achsen-
             // Optionen (Bereich/Reihenfolge/Eigener Feldwert) öffnen jetzt
