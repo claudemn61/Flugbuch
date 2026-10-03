@@ -1686,15 +1686,15 @@ function GraphSection({ flights }) {
       ) : null}
       {mode==="free" && (<>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <select value={freeX}
-            onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeX(e.target.value); }}
-            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:8,padding:"7px 6px",color:GRAPH_X_COLOR,fontSize:12,fontWeight:700}}>
-            <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
-            {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
-          </select>
           <select value={freeY}
             onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeY(e.target.value); }}
             style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.4)",borderRadius:8,padding:"7px 6px",color:GRAPH_Y_COLOR,fontSize:12,fontWeight:700}}>
+            <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
+            {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
+          </select>
+          <select value={freeX}
+            onChange={e=>{ if (e.target.value==="__editlist__") { setFieldOrderModal("free"); return; } setFreeX(e.target.value); }}
+            style={{flex:1,minWidth:0,boxSizing:"border-box",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:8,padding:"7px 6px",color:GRAPH_X_COLOR,fontSize:12,fontWeight:700}}>
             <option value="__editlist__" style={{background:"#0a1628"}}>✏️ Auswahlliste bearbeiten…</option>
             {orderedFreeFields.map(f=><option key={f.field} value={f.field} style={{background:"#0a1628"}}>{f.label}</option>)}
           </select>
