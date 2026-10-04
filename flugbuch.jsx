@@ -3723,6 +3723,35 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
   );
 }
 
+// "Minimal"-Zeile (💡-Menü): einzeilig, nur Nr./Datum/Startplatz/Passagier-
+// Symbol/Distanz/Dauer — Schrift/Farbe je Wert identisch zu FlightRow
+// (isWide-Variante) übernommen, nur ohne die übrigen Elemente (Pokal,
+// Reise-Label, Schirm, CSV/IGC/GPX-Badges, Bewertung, Hike-Dauer).
+function FlightRowMinimal({ f, onClick, selectMode, isSelected, onToggleSelect }) {
+  const pax = f.customFields?.passagier;
+  return (
+    <div onClick={selectMode ? ()=>onToggleSelect(f.id) : onClick}
+      style={{padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:isSelected?"rgba(14,165,233,0.1)":"transparent",transition:"background 0.15s",whiteSpace:"nowrap",overflow:"hidden"}}
+      onMouseEnter={e=>{ if(!isSelected) e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
+      onMouseLeave={e=>{ if(!isSelected) e.currentTarget.style.background="transparent"; }}>
+      {selectMode && (
+        <div style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${isSelected?"#7dd3fc":"rgba(232,244,253,0.3)"}`,background:isSelected?"#7dd3fc":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {isSelected && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
+        </div>
+      )}
+      <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
+      <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
+      <span style={{fontSize:11,color:"#f87171",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
+      {pax && <span style={{flexShrink:0,border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤</span>}
+      <span style={{flex:1}} />
+      <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
+        {f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{routeTypeGlyph(f)}{f.totalDist} km</span> : null}
+        <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{f.durationStr||"—"}</span>
+      </div>
+    </div>
+  );
+}
+
 // Splits a query string into tokens: parentheses, && / ||  (after
 // normalising UND/ODER/AND/OR to those), and atomic terms (field:value,
 // field>value, +word, -word, quoted phrases, bare words) — same atomic-term
@@ -6211,6 +6240,27 @@ function FlugbuchApp() {
       return next;
     });
   };
+  // "Minimal"-Listenansicht (💡-Menü, zuoberst): zeigt jeden Flug nur noch
+  // einzeilig mit Nr./Datum/Startplatz/Passagier-Symbol/Distanz/Dauer statt
+  // der normalen FlightRow — rein eine Darstellungsart, unabhängig von
+  // Suchen/Sortieren/Gruppieren. Persistiert wie iconRowOpen.
+  const [minimalView, setMinimalViewRaw] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:minimalView");
+        if (r) setMinimalViewRaw(JSON.parse(r.value));
+      } catch (e) { console.error("Load error (minimalView):", e); }
+    })();
+  }, []);
+  const toggleMinimalView = () => {
+    setMinimalViewRaw(v => {
+      const next = !v;
+      window.storage.set("service:minimalView", JSON.stringify(next)).catch(e => console.error("Save error (minimalView):", e));
+      return next;
+    });
+    setShowViewsMenu(false);
+  };
   // Two independent, freely choosable grouping levels (Gr. 1° = outer,
   // Gr. 2° = inner, nested inside Gr. 1°). Jahr is no longer a fixed,
   // always-on outer wrapper — it's just one of the selectable fields now,
@@ -7558,6 +7608,12 @@ function FlugbuchApp() {
 
       {showViewsMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,maxHeight:340,overflowY:"auto"}}>
+          <div onClick={toggleMinimalView}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.85)",background:minimalView?"rgba(14,165,233,0.1)":"transparent"}}>
+            <span style={{flex:1,minWidth:0}}>Minimal</span>
+            {minimalView && <span style={{fontSize:13,fontWeight:900}}>✓</span>}
+          </div>
+          <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"6px 0 4px"}} />
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>{ setSavingViewName(s=>s===null?"":null); setViewsMode("none"); setEditingView(null); }}
               title="Speichern als…"
@@ -8420,10 +8476,17 @@ function FlugbuchApp() {
         )}
         {(() => {
           const renderFlightRows = (list) => sortFlights(list, sortId, sortDir).map(f => (
-            <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
-              selectMode={selectMode} isSelected={selectedIds.has(f.id)}
-              onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
-              onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setDetailReturnView("list");setView("detail");}} />
+            minimalView ? (
+              <FlightRowMinimal key={f.id} f={f}
+                selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+                onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+                onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setDetailReturnView("list");setView("detail");}} />
+            ) : (
+              <FlightRow key={f.id} f={f} isLongest={f.id===longestId} sortId={sortId} reiseLabel={reiseLabels.get(f.id)} isWide={isWide}
+                selectMode={selectMode} isSelected={selectedIds.has(f.id)}
+                onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
+                onClick={()=>{setSelected(f);setInlinePassagier(f.customFields?.passagier||"");setDetailReturnView("list");setView("detail");}} />
+            )
           ));
           // levels: array of remaining group descriptors to apply, outer first.
           const renderLevel = (list, levels, prefix, depth) => {
