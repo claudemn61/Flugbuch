@@ -7638,7 +7638,7 @@ function FlugbuchApp() {
             <button onClick={toggleMinimalView}
               title="Minimal"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:minimalView?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
-              🧾
+              {minimalView ? "🔤" : "🔡"}
             </button>
             <button onClick={()=>{ setViewsMode(m=>m==="edit"?"none":"edit"); setSavingViewName(null); setEditingView(null); }}
               title="Bearbeiten"
