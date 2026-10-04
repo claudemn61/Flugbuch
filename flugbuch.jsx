@@ -3633,10 +3633,14 @@ function routeTypeGlyph(f) {
   return null;
 }
 
-// "24.06.2026" -> "24.06.26": 4-stelliges Jahr auf 2-stellig kürzen, sonst
-// unverändert (z.B. bereits kurze Testdaten oder leerer Wert).
+// "24.06.2026" -> "24.6.26": Jahr auf 2-stellig kürzen, Monat ohne führende
+// Null wo möglich (Tag bleibt unverändert). Unbekanntes Format (z.B. leer)
+// unverändert zurückgegeben.
 function shortDate(d) {
-  return String(d||"").replace(/(\d{2})\.(\d{2})\.\d{2}(\d{2})$/, "$1.$2.$3");
+  const s = String(d||"");
+  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  if (!m) return s;
+  return `${m[1]}.${parseInt(m[2],10)}.${m[3].slice(-2)}`;
 }
 
 function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel, isWide }) {
@@ -3729,10 +3733,10 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
 }
 
 // "Minimal"-Zeile (💡-Menü): einzeilig, nur Nr./Datum/Startplatz/Passagier-
-// Symbol/Bewertung/Distanz/Dauer — Schrift/Farbe je Wert identisch zu
-// FlightRow (isWide-Variante) übernommen, nur ohne die übrigen Elemente
-// (Pokal, Reise-Label, Schirm, CSV/IGC/GPX-Badges, Hike-Dauer). Distanz wie
-// in formatSortValue/sortFieldValue auch aus customFields.distKm/dk
+// Symbol/Hike-Symbol/Bewertung/Distanz/Dauer — Schrift/Farbe je Wert
+// identisch zu FlightRow (isWide-Variante) übernommen, nur ohne die übrigen
+// Elemente (Pokal, Reise-Label, Schirm, CSV/IGC-Badges, Hike-Dauer). Distanz
+// wie in formatSortValue/sortFieldValue auch aus customFields.distKm/dk
 // übernehmen, nicht nur aus f.totalDist — sonst fehlt sie bei Flügen, deren
 // Distanz nur dort (z.B. aus einem alten CSV-Import) steht.
 function FlightRowMinimal({ f, onClick, selectMode, isSelected, onToggleSelect }) {
@@ -3753,6 +3757,7 @@ function FlightRowMinimal({ f, onClick, selectMode, isSelected, onToggleSelect }
       <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{shortDate(f.date)}</span>
       <span style={{fontSize:11,color:"#f87171",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
       {pax && <span style={{flexShrink:0,border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤</span>}
+      {f.hikeTrack?.length>1 && <span style={{flexShrink:0,background:"rgba(34,197,94,0.22)",color:"#4ade80",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:700,boxShadow:"0 0 6px rgba(74,222,128,0.5)"}}>🥾</span>}
       <span style={{flex:1}} />
       <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
         {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047",fontSize:10}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
