@@ -3351,7 +3351,6 @@ const SEARCH_STATS_DEFS = [
 function computeSearchStats(flights) {
   if (!flights.length) return [];
   const fmtDur = (sec) => { const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60); return `${h}h ${String(m).padStart(2,"0")}m`; };
-  const shortDate = (d) => String(d||"").replace(/(\d{2})\.(\d{2})\.\d{2}(\d{2})$/, "$1.$2.$3"); // 24.06.2026 -> 24.06.26
   const totalSec = flights.reduce((s,f)=>s+(f.durationSec||0),0);
   const totalDist = flights.reduce((s,f)=>s+(f.totalDist||0),0);
   const withDur = flights.filter(f=>f.durationSec>0);
@@ -3634,6 +3633,12 @@ function routeTypeGlyph(f) {
   return null;
 }
 
+// "24.06.2026" -> "24.06.26": 4-stelliges Jahr auf 2-stellig kürzen, sonst
+// unverändert (z.B. bereits kurze Testdaten oder leerer Wert).
+function shortDate(d) {
+  return String(d||"").replace(/(\d{2})\.(\d{2})\.\d{2}(\d{2})$/, "$1.$2.$3");
+}
+
 function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onToggleSelect, reiseLabel, isWide }) {
   const pax = f.customFields?.passagier;
   const showSortValue = sortId && sortId !== "date" && sortId !== "number";
@@ -3724,11 +3729,16 @@ function FlightRow({ f, isLongest, onClick, sortId, selectMode, isSelected, onTo
 }
 
 // "Minimal"-Zeile (💡-Menü): einzeilig, nur Nr./Datum/Startplatz/Passagier-
-// Symbol/Distanz/Dauer — Schrift/Farbe je Wert identisch zu FlightRow
-// (isWide-Variante) übernommen, nur ohne die übrigen Elemente (Pokal,
-// Reise-Label, Schirm, CSV/IGC/GPX-Badges, Bewertung, Hike-Dauer).
+// Symbol/Bewertung/Distanz/Dauer — Schrift/Farbe je Wert identisch zu
+// FlightRow (isWide-Variante) übernommen, nur ohne die übrigen Elemente
+// (Pokal, Reise-Label, Schirm, CSV/IGC/GPX-Badges, Hike-Dauer). Distanz wie
+// in formatSortValue/sortFieldValue auch aus customFields.distKm/dk
+// übernehmen, nicht nur aus f.totalDist — sonst fehlt sie bei Flügen, deren
+// Distanz nur dort (z.B. aus einem alten CSV-Import) steht.
 function FlightRowMinimal({ f, onClick, selectMode, isSelected, onToggleSelect }) {
   const pax = f.customFields?.passagier;
+  const cf = f.customFields || {};
+  const dist = f.totalDist || cf.distKm || cf.dk;
   return (
     <div onClick={selectMode ? ()=>onToggleSelect(f.id) : onClick}
       style={{padding:"9px 16px",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:isSelected?"rgba(14,165,233,0.1)":"transparent",transition:"background 0.15s",whiteSpace:"nowrap",overflow:"hidden"}}
@@ -3740,12 +3750,13 @@ function FlightRowMinimal({ f, onClick, selectMode, isSelected, onToggleSelect }
         </div>
       )}
       <span style={{fontWeight:700,fontSize:15,flexShrink:0}}>{f.name}</span>
-      <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{f.date}</span>
+      <span style={{fontSize:11,color:"rgba(232,244,253,0.4)",flexShrink:0}}>{shortDate(f.date)}</span>
       <span style={{fontSize:11,color:"#f87171",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{f.site||"—"}</span>
       {pax && <span style={{flexShrink:0,border:"1px solid rgba(232,244,253,0.15)",borderRadius:20,padding:"1px 7px",fontSize:9,color:"rgba(232,244,253,0.5)"}}>👤</span>}
       <span style={{flex:1}} />
       <div style={{textAlign:"right",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
-        {f.totalDist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{routeTypeGlyph(f)}{f.totalDist} km</span> : null}
+        {f.rating>0 && <span style={{fontSize:11,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}><span style={{color:"#fde047",fontSize:10}}>{f.rating}</span><span style={{color:"#fde047",fontSize:"0.75em"}}>★</span></span>}
+        {dist ? <span style={{fontSize:11,color:"rgba(232,244,253,0.3)"}}>{routeTypeGlyph(f)}{dist} km</span> : null}
         <span style={{fontSize:13,fontWeight:600,color:"#7dd3fc"}}>{f.durationStr||"—"}</span>
       </div>
     </div>
@@ -7608,12 +7619,6 @@ function FlugbuchApp() {
 
       {showViewsMenu && (
         <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,maxHeight:340,overflowY:"auto"}}>
-          <div onClick={toggleMinimalView}
-            style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,fontSize:13,cursor:"pointer",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.85)",background:minimalView?"rgba(14,165,233,0.1)":"transparent"}}>
-            <span style={{flex:1,minWidth:0}}>Minimal</span>
-            {minimalView && <span style={{fontSize:13,fontWeight:900}}>✓</span>}
-          </div>
-          <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",margin:"6px 0 4px"}} />
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>{ setSavingViewName(s=>s===null?"":null); setViewsMode("none"); setEditingView(null); }}
               title="Speichern als…"
@@ -7624,6 +7629,11 @@ function FlugbuchApp() {
               title="Verschieben"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="move"?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
               🔀
+            </button>
+            <button onClick={toggleMinimalView}
+              title="Minimal"
+              style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:minimalView?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
+              🧾
             </button>
             <button onClick={()=>{ setViewsMode(m=>m==="edit"?"none":"edit"); setSavingViewName(null); setEditingView(null); }}
               title="Bearbeiten"
