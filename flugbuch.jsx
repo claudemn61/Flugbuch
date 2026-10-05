@@ -7556,35 +7556,33 @@ function FlugbuchApp() {
       {/* Header */}
       <div ref={titleBarRef} style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={goHome} title="Zur Startseite"
-              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
-              🏠
-            </button>
-            {listReturnTo && (
-              <button onClick={()=>{ try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }} title="Zurück zu Statistik"
-                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
-                📊
-              </button>
-            )}
-          </div>
-          <button onClick={toggleMinimalView} title="Minimal"
-            style={{background:minimalView?"rgba(14,165,233,0.2)":"rgba(255,255,255,0.06)",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.8)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
-            {minimalView ? "🔤" : "🔡"}
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={goHome} title="Zur Startseite"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            🏠
           </button>
+          {listReturnTo && (
+            <button onClick={()=>{ try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }} title="Zurück zu Statistik"
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+              📊
+            </button>
+          )}
         </div>
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center",marginLeft:-8}}>
           ✈️ Flugbuch
         </span>
-        <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={addNewFlight} title="Neuer Flug"
             style={{background:"transparent",border:"none",color:"#4ade80",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:900,cursor:"pointer",flexShrink:0}}>
             +
           </button>
           <button onClick={toggleIconRowOpen} title={iconRowOpen?"Werkzeugleiste ausblenden":"Werkzeugleiste einblenden"}
-            style={{background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+            style={{background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:10,width:38,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
             ⚙️
+          </button>
+          <button onClick={toggleMinimalView} title="Minimal"
+            style={{background:minimalView?"rgba(14,165,233,0.2)":"rgba(255,255,255,0.06)",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.8)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,width:38,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+            {minimalView ? "🔤" : "🔡"}
           </button>
         </div>
       </div>
