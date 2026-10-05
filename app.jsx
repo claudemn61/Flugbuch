@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.10";
+const APP_VERSION = "6.10.1";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.10.1", note: "Flugliste-Header: \"+ Flug\" und \"+/-Edit\" durch gleich grosse Icon-Buttons wie 🏠 ersetzt (➕ Neuer Flug, ⚙️ Werkzeugleiste ein-/ausblenden), dazu neu das 🔡/🔤-Icon für die Minimal-Ansicht (zeigt den aktuellen Zustand) — dafür aus der Icon-Zeile im 💡-Menü entfernt, dort jetzt wieder 4 statt 5 Icons. Alle drei rechts im Header nebeneinander." },
   { v: "6.10", note: "Flugliste: neue \"Minimal\"-Listenansicht, über das 🔡/🔤-Icon in der Icon-Zeile des 💡-Menüs (\"Gespeicherte Darstellungen\", 3. von 5, zeigt den aktuellen Zustand) ein-/ausschaltbar — zeigt jeden Flug nur noch einzeilig mit Nr./Datum (kurz)/Startplatz/Passagier-Symbol (ohne Namen)/Hike-Symbol/Bewertung/Distanz/Dauer, Schrift und Farben identisch zur normalen Ansicht. Bleibt über Neustarts erhalten." },
   { v: "6.9.1", note: "Statistik, Graph, Modus Frei: der sichtbare Bereich (Min/Max) von X- und Y-Achse ist jetzt einzeln über \"Bereich\" im jeweiligen Achsen-Popup manuell editierbar, unabhängig vom Pinch-Zoom — beim Datum-Feld über einen Datums-Picker, sonst als Zahl." },
   { v: "6.9", note: "Statistik: es ist immer genau eine der 7 Hauptkacheln aktiv, mit deutlich grösserem Pfeil, Details permanent darunter sichtbar (Standard beim Öffnen: Schirm) — das bisherige separate ☰-Ein-/Ausblenden-Badge entfällt dafür. Antippen der aktiven Kachel zeigt kurz alle 7 zur Auswahl; Tippen auf eine davon macht sie zur neuen aktiven Kachel samt Details, die übrigen schliessen automatisch. Graph (eigene Vollbild-Ebene statt Details inline) fügt sich gleich ein: \"Schliessen\" öffnet die Auswahl, ein erneuter Tipp auf Graph öffnet direkt wieder das Vollbild." },
