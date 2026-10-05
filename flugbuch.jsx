@@ -6275,7 +6275,6 @@ function FlugbuchApp() {
       window.storage.set("service:minimalView", JSON.stringify(next)).catch(e => console.error("Save error (minimalView):", e));
       return next;
     });
-    setShowViewsMenu(false);
   };
   // Two independent, freely choosable grouping levels (Gr. 1° = outer,
   // Gr. 2° = inner, nested inside Gr. 1°). Jahr is no longer a fixed,
@@ -7573,10 +7572,17 @@ function FlugbuchApp() {
           ✈️ Flugbuch
         </span>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          <button onClick={addNewFlight} style={{width:58,boxSizing:"border-box",textAlign:"center",background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>+ Flug</button>
+          <button onClick={addNewFlight} title="Neuer Flug"
+            style={{background:"rgba(34,197,94,0.15)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+            ➕
+          </button>
           <button onClick={toggleIconRowOpen} title={iconRowOpen?"Werkzeugleiste ausblenden":"Werkzeugleiste einblenden"}
-            style={{width:58,boxSizing:"border-box",textAlign:"center",background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:20,padding:"7px 10px",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
-            {iconRowOpen?"-Edit":"+Edit"}
+            style={{background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+            ⚙️
+          </button>
+          <button onClick={toggleMinimalView} title="Minimal"
+            style={{background:minimalView?"rgba(14,165,233,0.2)":"rgba(255,255,255,0.06)",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.8)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+            {minimalView ? "🔤" : "🔡"}
           </button>
         </div>
       </div>
@@ -7588,7 +7594,7 @@ function FlugbuchApp() {
           und die feste Jahres-Gruppierung sind hierher ins Suchen/Sortieren-
           Panel gewandert, seit Jahr nur noch ein wählbares Gruppieren-Feld
           unter mehreren ist statt eines fest verdrahteten Extra-Buttons. Als
-          Ganzes über das ▾/▸ neben "+ Flug" ein-/ausblendbar (iconRowOpen). */}
+          Ganzes über das ⚙️ rechts im Header ein-/ausblendbar (iconRowOpen). */}
       {iconRowOpen && (
       <div style={{padding:"10px 16px 0",display:"flex",gap:8}}>
         <button onClick={()=>{ setShowImportMenu(m=>!m); setShowBackupMenu(false); }} title="Import"
@@ -7634,11 +7640,6 @@ function FlugbuchApp() {
               title="Verschieben"
               style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:viewsMode==="move"?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${viewsMode==="move"?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
               🔀
-            </button>
-            <button onClick={toggleMinimalView}
-              title="Minimal"
-              style={{flex:1,padding:"9px 0",borderRadius:8,fontSize:16,cursor:"pointer",background:minimalView?"rgba(14,165,233,0.15)":"rgba(255,255,255,0.05)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`}}>
-              {minimalView ? "🔤" : "🔡"}
             </button>
             <button onClick={()=>{ setViewsMode(m=>m==="edit"?"none":"edit"); setSavingViewName(null); setEditingView(null); }}
               title="Bearbeiten"
