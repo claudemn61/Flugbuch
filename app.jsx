@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.10.1";
+const APP_VERSION = "6.11";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.11", note: "Flugliste-Header: das grüne ➕ (Neuer Flug) leuchtet jetzt deutlich heller/stärker (hellgrün statt dunkler, mit Leuchteffekt). hilfe.jsx (Voll- und Kurzfassung) auf den neuen Header mit ➕/⚙️/🔡·🔤 statt der bisherigen \"+Flug\"/\"+Edit\"-Pillen nachgeführt." },
   { v: "6.10.1", note: "Flugliste-Header: \"+ Flug\" und \"+/-Edit\" durch gleich grosse Icon-Buttons wie 🏠 ersetzt (➕ Neuer Flug, ⚙️ Werkzeugleiste ein-/ausblenden), dazu neu das 🔡/🔤-Icon für die Minimal-Ansicht (zeigt den aktuellen Zustand) — dafür aus der Icon-Zeile im 💡-Menü entfernt, dort jetzt wieder 4 statt 5 Icons. Alle drei rechts im Header nebeneinander." },
   { v: "6.10", note: "Flugliste: neue \"Minimal\"-Listenansicht, über das 🔡/🔤-Icon in der Icon-Zeile des 💡-Menüs (\"Gespeicherte Darstellungen\", 3. von 5, zeigt den aktuellen Zustand) ein-/ausschaltbar — zeigt jeden Flug nur noch einzeilig mit Nr./Datum (kurz)/Startplatz/Passagier-Symbol (ohne Namen)/Hike-Symbol/Bewertung/Distanz/Dauer, Schrift und Farben identisch zur normalen Ansicht. Bleibt über Neustarts erhalten." },
   { v: "6.9.1", note: "Statistik, Graph, Modus Frei: der sichtbare Bereich (Min/Max) von X- und Y-Achse ist jetzt einzeln über \"Bereich\" im jeweiligen Achsen-Popup manuell editierbar, unabhängig vom Pinch-Zoom — beim Datum-Feld über einen Datums-Picker, sonst als Zahl." },
