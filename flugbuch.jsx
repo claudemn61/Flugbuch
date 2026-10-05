@@ -8452,8 +8452,7 @@ function FlugbuchApp() {
       </div>
       </div>
 
-      {(filterText.trim() || activeViewName) && (
-        <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
+      <div ref={statsBlockRef} style={{position:"sticky",top:titleBarHeight,zIndex:9,background:"#040e20",padding:"0 16px 8px"}}>
           <div onClick={()=>setShowSearchStats(s=>!s)}
             style={{display:"flex",alignItems:"center",gap:6,fontSize:14,fontWeight:700,color:"rgba(232,244,253,0.6)",cursor:"pointer"}}>
             <span>{activeViewName && activeViewName.trim().toLowerCase()!=="standard" && <span style={{color:"#f5a623"}}>{activeViewName}, </span>}<span style={filterText.trim()?{color:"#f87171"}:undefined}>{filteredFlights.length} Flüge</span>{filterText.trim() && <span style={{color:"#f87171"}}> · {formatFilterHuman(filterText)}</span>}</span>
@@ -8475,7 +8474,6 @@ function FlugbuchApp() {
             );
           })()}
         </div>
-      )}
 
       {/* Flight list — generic two-level grouping (Gr. 1° outer, Gr. 2°
           nested inside). Both levels independently optional ("Keine" =
