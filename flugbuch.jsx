@@ -7573,7 +7573,7 @@ function FlugbuchApp() {
         </span>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <button onClick={addNewFlight} title="Neuer Flug"
-            style={{background:"transparent",border:"none",color:"#86efac",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:900,cursor:"pointer",flexShrink:0}}>
+            style={{background:"transparent",border:"none",color:"#4ade80",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:900,cursor:"pointer",flexShrink:0}}>
             +
           </button>
           <button onClick={toggleIconRowOpen} title={iconRowOpen?"Werkzeugleiste ausblenden":"Werkzeugleiste einblenden"}
