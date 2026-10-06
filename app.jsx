@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.11";
+const APP_VERSION = "6.12";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.12", note: "Flugliste-Header grundlegend neu: statt fester Icon-Reihen jetzt nur noch der antippbare Titel \"Flugbuch\" — öffnet ein Klappmenü mit allen 9 Kacheln (Start/Gespeicherte Darstellungen/Minimal/Neuer Flug/Import/Backup/Auswahl/Suchen/Weltkarte). Start, Neuer Flug und Weltkarte lösen sofort ihre Aktion aus; die übrigen bleiben als angeheftete Icons rechts im Header sichtbar, auch mehrere gleichzeitig — Antippen irgendeines davon schliesst alle wieder. Minimal nur auf dem iPhone, nicht bei iPad/Mac." },
   { v: "6.11", note: "Flugliste-Header: das grüne ➕ (Neuer Flug) leuchtet jetzt deutlich heller/stärker (hellgrün statt dunkler, mit Leuchteffekt). hilfe.jsx (Voll- und Kurzfassung) auf den neuen Header mit ➕/⚙️/🔡·🔤 statt der bisherigen \"+Flug\"/\"+Edit\"-Pillen nachgeführt." },
   { v: "6.10.1", note: "Flugliste-Header: \"+ Flug\" und \"+/-Edit\" durch gleich grosse Icon-Buttons wie 🏠 ersetzt (➕ Neuer Flug, ⚙️ Werkzeugleiste ein-/ausblenden), dazu neu das 🔡/🔤-Icon für die Minimal-Ansicht (zeigt den aktuellen Zustand) — dafür aus der Icon-Zeile im 💡-Menü entfernt, dort jetzt wieder 4 statt 5 Icons. Alle drei rechts im Header nebeneinander." },
   { v: "6.10", note: "Flugliste: neue \"Minimal\"-Listenansicht, über das 🔡/🔤-Icon in der Icon-Zeile des 💡-Menüs (\"Gespeicherte Darstellungen\", 3. von 5, zeigt den aktuellen Zustand) ein-/ausschaltbar — zeigt jeden Flug nur noch einzeilig mit Nr./Datum (kurz)/Startplatz/Passagier-Symbol (ohne Namen)/Hike-Symbol/Bewertung/Distanz/Dauer, Schrift und Farben identisch zur normalen Ansicht. Bleibt über Neustarts erhalten." },
