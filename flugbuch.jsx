@@ -7625,7 +7625,7 @@ function FlugbuchApp() {
           </button>
           {!isWide && (
             <button onClick={()=>{ setFlyoutOpen(false); toggleMinimalView(); }} title="Minimal" style={flyoutTileStyle(minimalView)}>
-              🔤
+              {minimalView ? "🔡" : "🔤"}
             </button>
           )}
           <button onClick={()=>{ setFlyoutOpen(false); addNewFlight(); }} title="Neuer Flug" style={flyoutTileStyle(false,"#4ade80")}>
