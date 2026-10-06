@@ -7580,10 +7580,12 @@ function FlugbuchApp() {
             style={{background:"rgba(251,191,36,0.2)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:10,width:38,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
             ⚙️
           </button>
-          <button onClick={toggleMinimalView} title="Minimal"
-            style={{background:minimalView?"rgba(14,165,233,0.2)":"rgba(255,255,255,0.06)",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.8)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,width:38,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
-            {minimalView ? "🔤" : "🔡"}
-          </button>
+          {!isWide && (
+            <button onClick={toggleMinimalView} title="Minimal"
+              style={{background:minimalView?"rgba(14,165,233,0.2)":"rgba(255,255,255,0.06)",color:minimalView?"#7dd3fc":"rgba(232,244,253,0.8)",border:`1px solid ${minimalView?"rgba(14,165,233,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:10,width:38,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
+              {minimalView ? "🔤" : "🔡"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -8490,7 +8492,7 @@ function FlugbuchApp() {
         )}
         {(() => {
           const renderFlightRows = (list) => sortFlights(list, sortId, sortDir).map(f => (
-            minimalView ? (
+            (minimalView && !isWide) ? (
               <FlightRowMinimal key={f.id} f={f}
                 selectMode={selectMode} isSelected={selectedIds.has(f.id)}
                 onToggleSelect={id=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;})}
