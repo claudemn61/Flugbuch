@@ -7536,13 +7536,15 @@ function FlugbuchApp() {
 
   // Klappmenü-Kacheln auf iPad/Mac deutlich kleiner und in einer Reihe statt
   // im 3x3-Raster — bei der grösseren Fensterbreite (maxWidth 1400) wirkten
-  // die vollen, quadratischen Kacheln überdimensioniert.
+  // die vollen, quadratischen Kacheln überdimensioniert. Die Reihe nutzt die
+  // volle Breite aus (8 gleich breite Spalten statt fixer 40px-Kacheln mit
+  // Leerraum rechts).
   const flyoutTileStyle = (active, color) => ({
-    ...(isWide ? { width:40, height:40, flexShrink:0 } : { aspectRatio:"1/1" }),
+    ...(isWide ? { width:"100%", height:40 } : { aspectRatio:"1/1" }),
     display:"flex", alignItems:"center", justifyContent:"center",
     background: active ? "rgba(14,165,233,0.18)" : "rgba(255,255,255,0.05)",
     border: active ? "1px solid rgba(14,165,233,0.5)" : "1px solid rgba(255,255,255,0.1)",
-    borderRadius:10, color: color || "#fff", fontSize: isWide?18:26, cursor:"pointer",
+    borderRadius:10, color: color || "#fff", fontSize: isWide?20:26, cursor:"pointer",
   });
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
@@ -7616,7 +7618,7 @@ function FlugbuchApp() {
           Panel um und bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
       {flyoutOpen && (
       <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-        <div style={isWide?{display:"flex",flexWrap:"wrap",gap:8}:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+        <div style={isWide?{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:8}:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
           <button onClick={()=>{ setFlyoutOpen(false); goHome(); }} title="Start" style={flyoutTileStyle(false)}>
             🏠
           </button>
