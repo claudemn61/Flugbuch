@@ -7534,6 +7534,17 @@ function FlugbuchApp() {
     );
   }
 
+  // Klappmenü-Kacheln auf iPad/Mac deutlich kleiner und in einer Reihe statt
+  // im 3x3-Raster — bei der grösseren Fensterbreite (maxWidth 1400) wirkten
+  // die vollen, quadratischen Kacheln überdimensioniert.
+  const flyoutTileStyle = (active, color) => ({
+    ...(isWide ? { width:40, height:40, flexShrink:0 } : { aspectRatio:"1/1" }),
+    display:"flex", alignItems:"center", justifyContent:"center",
+    background: active ? "rgba(14,165,233,0.18)" : "rgba(255,255,255,0.05)",
+    border: active ? "1px solid rgba(14,165,233,0.5)" : "1px solid rgba(255,255,255,0.1)",
+    borderRadius:10, color: color || "#fff", fontSize: isWide?18:26, cursor:"pointer",
+  });
+
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   return (
     <div style={{maxWidth:isWide?1400:480,margin:"0 auto",minHeight:"100vh",background:"#040e20",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif"}}>
@@ -7605,47 +7616,38 @@ function FlugbuchApp() {
           Panel um und bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
       {flyoutOpen && (
       <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-          <button onClick={()=>{ setFlyoutOpen(false); goHome(); }} title="Start"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+        <div style={isWide?{display:"flex",flexWrap:"wrap",gap:8}:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+          <button onClick={()=>{ setFlyoutOpen(false); goHome(); }} title="Start" style={flyoutTileStyle(false)}>
             🏠
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:showViewsMenu?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:showViewsMenu?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen" style={flyoutTileStyle(showViewsMenu)}>
             💡
           </button>
           {!isWide && (
-            <button onClick={()=>{ setFlyoutOpen(false); toggleMinimalView(); }} title="Minimal"
-              style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:minimalView?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:minimalView?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+            <button onClick={()=>{ setFlyoutOpen(false); toggleMinimalView(); }} title="Minimal" style={flyoutTileStyle(minimalView)}>
               🔤
             </button>
           )}
-          <button onClick={()=>{ setFlyoutOpen(false); addNewFlight(); }} title="Neuer Flug"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#4ade80",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); addNewFlight(); }} title="Neuer Flug" style={flyoutTileStyle(false,"#4ade80")}>
             ➕
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setShowImportMenu(m=>!m); }} title="Import"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:showImportMenu?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:showImportMenu?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setShowImportMenu(m=>!m); }} title="Import" style={flyoutTileStyle(showImportMenu)}>
             📥
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setShowBackupMenu(m=>!m); }} title="Backup"
-            style={{position:"relative",aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:showBackupMenu?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:showBackupMenu?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setShowBackupMenu(m=>!m); }} title="Backup" style={{...flyoutTileStyle(showBackupMenu),position:"relative"}}>
             💾
             {backupDirty && (
               <span title="Ungesicherte Änderungen seit dem letzten Backup"
-                style={{position:"absolute",top:6,right:8,width:10,height:10,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
+                style={{position:"absolute",top:isWide?2:6,right:isWide?3:8,width:isWide?8:10,height:isWide?8:10,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
             )}
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:selectMode?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:selectMode?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl" style={flyoutTileStyle(selectMode)}>
             {selectMode?"✕":"☑️"}
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setSearchRowOpen(o=>!o); }} title="Suchen/Sortieren"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:searchRowOpen?"rgba(14,165,233,0.18)":"rgba(255,255,255,0.05)",border:searchRowOpen?"1px solid rgba(14,165,233,0.5)":"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setSearchRowOpen(o=>!o); }} title="Suchen/Sortieren" style={flyoutTileStyle(searchRowOpen)}>
             🔍
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setView("worldmap"); }} title="Weltkarte"
-            style={{aspectRatio:"1/1",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontSize:26,cursor:"pointer"}}>
+          <button onClick={()=>{ setFlyoutOpen(false); setView("worldmap"); }} title="Weltkarte" style={flyoutTileStyle(false)}>
             🌎
           </button>
         </div>
