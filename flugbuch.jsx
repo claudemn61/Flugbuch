@@ -6242,7 +6242,6 @@ function FlugbuchApp() {
     setSavingViewName(null);
     setEditingView(null);
     setSearchRowOpen(false);
-    if (minimalView) toggleMinimalView();
   };
   // "Minimal"-Listenansicht (🔤 im Klappmenü): zeigt jeden Flug nur noch
   // einzeilig mit Nr./Datum/Startplatz/Passagier-Symbol/Distanz/Dauer statt
@@ -7568,12 +7567,6 @@ function FlugbuchApp() {
             <button onClick={closeAllPinned} title="Gespeicherte Darstellungen — schliessen"
               style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
               💡
-            </button>
-          )}
-          {!isWide && minimalView && (
-            <button onClick={closeAllPinned} title="Minimal — schliessen"
-              style={{background:"rgba(14,165,233,0.2)",color:"#7dd3fc",border:"1px solid rgba(14,165,233,0.4)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer",flexShrink:0}}>
-              🔤
             </button>
           )}
           {showImportMenu && (
