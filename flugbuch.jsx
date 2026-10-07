@@ -6086,7 +6086,7 @@ function FlugbuchApp() {
   // derived, not real saved data.
   const flightsWithRanks = useMemo(() => attachComputedRanks(flights), [flights]);
   const [selected, setSelected] = useState(null);
-  const [showSearchStats, setShowSearchStats] = useState(true);
+  const [showSearchStats, setShowSearchStats] = useState(false);
   // Fixierte Kopfzeilen (Titel-Leiste, dann die "X Flüge"/Wertetabelle,
   // dann die Kategorie-Titel darunter) stapeln sich mit position:sticky —
   // da jede eigene Höhe hat und die Wertetabelle je nach Suche/Zustand
