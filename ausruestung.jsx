@@ -1902,13 +1902,13 @@ function AusruestungApp() {
       {/* Ausrüstung, Gewichte / Wartung — Design analog Wartungs eigenem
           Reserve/Schirm/Sitz-Umschalter (gleiche Optik, eine Ebene höher). */}
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
-        <button onClick={()=> tab==="gewichte" ? setGewichteToolbarOpen(o=>!o) : setTab("gewichte")}
-          style={{flex:1,background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
-          Ausrüstung, Gewichte
-        </button>
         <button onClick={()=>setTab("wartung")}
           style={{flex:1,background:tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           Wartung
+        </button>
+        <button onClick={()=> tab==="gewichte" ? setGewichteToolbarOpen(o=>!o) : setTab("gewichte")}
+          style={{flex:1,background:tab==="gewichte"?"rgba(125,211,252,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="gewichte"?"rgba(125,211,252,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="gewichte"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          Ausrüstung, Gewichte
         </button>
         <button onClick={()=>setTab("brevet")}
           style={{flex:1,background:tab==="brevet"?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="brevet"?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="brevet"?"#a78bfa":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
