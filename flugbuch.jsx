@@ -7627,6 +7627,9 @@ function FlugbuchApp() {
           <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen" style={flyoutTileStyle(showViewsMenu)}>
             💡
           </button>
+          <button onClick={()=>{ setFlyoutOpen(false); setView("worldmap"); }} title="Weltkarte" style={flyoutTileStyle(false)}>
+            🌎
+          </button>
           {!isWide && (
             <button onClick={()=>{ setFlyoutOpen(false); toggleMinimalView(); }} title="Minimal" style={flyoutTileStyle(minimalView)}>
               {minimalView ? "🔡" : "🔤"}
@@ -7634,6 +7637,9 @@ function FlugbuchApp() {
           )}
           <button onClick={()=>{ setFlyoutOpen(false); addNewFlight(); }} title="Neuer Flug" style={flyoutTileStyle(false,"#4ade80")}>
             ➕
+          </button>
+          <button onClick={()=>{ setFlyoutOpen(false); setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl" style={flyoutTileStyle(selectMode)}>
+            {selectMode?"✕":"☑️"}
           </button>
           <button onClick={()=>{ setFlyoutOpen(false); setShowImportMenu(m=>!m); }} title="Import" style={flyoutTileStyle(showImportMenu)}>
             📥
@@ -7645,14 +7651,8 @@ function FlugbuchApp() {
                 style={{position:"absolute",top:isWide?2:6,right:isWide?3:8,width:isWide?8:10,height:isWide?8:10,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
             )}
           </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl" style={flyoutTileStyle(selectMode)}>
-            {selectMode?"✕":"☑️"}
-          </button>
           <button onClick={()=>{ setFlyoutOpen(false); setSearchRowOpen(o=>!o); }} title="Suchen/Sortieren" style={flyoutTileStyle(searchRowOpen)}>
             🔍
-          </button>
-          <button onClick={()=>{ setFlyoutOpen(false); setView("worldmap"); }} title="Weltkarte" style={flyoutTileStyle(false)}>
-            🌎
           </button>
         </div>
       </div>
