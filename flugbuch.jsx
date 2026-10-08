@@ -7561,7 +7561,11 @@ function FlugbuchApp() {
           lösen stattdessen sofort ihre Aktion aus und heften nichts an. */}
       <div ref={titleBarRef} style={{position:"sticky",top:0,zIndex:10,background:"#040e20"}}>
       <div style={{background:"rgba(255,255,255,0.03)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"calc(28px + env(safe-area-inset-top, 0px)) 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(10px)"}}>
-        <div style={{width:32,flexShrink:0}}>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={goHome} title="Zur Startseite"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            🏠
+          </button>
           {listReturnTo && (
             <button onClick={()=>{ try{localStorage.setItem("fb_explicitHome","1");}catch(e){} window.location.href = listReturnTo; }} title="Zurück zu Statistik"
               style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
@@ -7613,15 +7617,13 @@ function FlugbuchApp() {
         </div>
       </div>
 
-      {/* Klappmenü: alle Kacheln zur Auswahl. 🏠/➕/🌎 lösen ihre Aktion
-          sofort aus (kein Anheften); die übrigen schalten ihr jeweiliges
-          Panel um und bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
+      {/* Klappmenü: alle übrigen Kacheln zur Auswahl (🏠 sitzt wieder fest
+          links im Header). ➕/🌎 lösen ihre Aktion sofort aus (kein
+          Anheften); die übrigen schalten ihr jeweiliges Panel um und
+          bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
       {flyoutOpen && (
       <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-        <div style={isWide?{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:8}:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-          <button onClick={()=>{ setFlyoutOpen(false); goHome(); }} title="Start" style={flyoutTileStyle(false)}>
-            🏠
-          </button>
+        <div style={{display:"grid",gridTemplateColumns:isWide?"repeat(7,1fr)":"repeat(4,1fr)",gap:8}}>
           <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen" style={flyoutTileStyle(showViewsMenu)}>
             💡
           </button>
