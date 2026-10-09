@@ -7534,9 +7534,9 @@ function FlugbuchApp() {
     );
   }
 
-  // Klappmenü-Kacheln immer in einer Reihe (iPhone wie iPad/Mac), die Reihe
-  // nutzt die volle Breite aus (N gleich breite Spalten statt quadratischer
-  // Kacheln mit Leerraum).
+  // Klappmenü-Kacheln: feste Höhe (40px), Breite füllt ihre Grid-Spalte aus
+  // (rechteckig statt quadratisch) — iPhone 4 Spalten/2 Reihen, iPad/Mac 7
+  // Spalten/1 Reihe (siehe gridTemplateColumns weiter unten).
   const flyoutTileStyle = (active, color) => ({
     width:"100%", height:40,
     display:"flex", alignItems:"center", justifyContent:"center",
@@ -7621,7 +7621,7 @@ function FlugbuchApp() {
           bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
       {flyoutOpen && (
       <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-        <div style={{display:"grid",gridTemplateColumns:isWide?"repeat(7,1fr)":"repeat(8,1fr)",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:isWide?"repeat(7,1fr)":"repeat(4,1fr)",gap:8}}>
           <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen" style={flyoutTileStyle(showViewsMenu)}>
             💡
           </button>
