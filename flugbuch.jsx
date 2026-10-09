@@ -7534,17 +7534,15 @@ function FlugbuchApp() {
     );
   }
 
-  // Klappmenü-Kacheln auf iPad/Mac deutlich kleiner und in einer Reihe statt
-  // im 3x3-Raster — bei der grösseren Fensterbreite (maxWidth 1400) wirkten
-  // die vollen, quadratischen Kacheln überdimensioniert. Die Reihe nutzt die
-  // volle Breite aus (8 gleich breite Spalten statt fixer 40px-Kacheln mit
-  // Leerraum rechts).
+  // Klappmenü-Kacheln immer in einer Reihe (iPhone wie iPad/Mac), die Reihe
+  // nutzt die volle Breite aus (N gleich breite Spalten statt quadratischer
+  // Kacheln mit Leerraum).
   const flyoutTileStyle = (active, color) => ({
-    ...(isWide ? { width:"100%", height:40 } : { aspectRatio:"1/1" }),
+    width:"100%", height:40,
     display:"flex", alignItems:"center", justifyContent:"center",
     background: active ? "rgba(14,165,233,0.18)" : "rgba(255,255,255,0.05)",
     border: active ? "1px solid rgba(14,165,233,0.5)" : "1px solid rgba(255,255,255,0.1)",
-    borderRadius:10, color: color || "#fff", fontSize: isWide?20:26, cursor:"pointer",
+    borderRadius:10, color: color || "#fff", fontSize:20, cursor:"pointer",
   });
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
@@ -7623,7 +7621,7 @@ function FlugbuchApp() {
           bleiben an-/abwählbar, auch mehrere gleichzeitig. */}
       {flyoutOpen && (
       <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
-        <div style={{display:"grid",gridTemplateColumns:isWide?"repeat(7,1fr)":"repeat(4,1fr)",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:isWide?"repeat(7,1fr)":"repeat(8,1fr)",gap:8}}>
           <button onClick={()=>{ setFlyoutOpen(false); setShowViewsMenu(m=>!m); }} title="Gespeicherte Darstellungen" style={flyoutTileStyle(showViewsMenu)}>
             💡
           </button>
@@ -7648,7 +7646,7 @@ function FlugbuchApp() {
             💾
             {backupDirty && (
               <span title="Ungesicherte Änderungen seit dem letzten Backup"
-                style={{position:"absolute",top:isWide?2:6,right:isWide?3:8,width:isWide?8:10,height:isWide?8:10,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
+                style={{position:"absolute",top:2,right:3,width:8,height:8,borderRadius:"50%",background:"#f87171",border:"1.5px solid #040e20"}} />
             )}
           </button>
           <button onClick={()=>{ setFlyoutOpen(false); setSearchRowOpen(o=>!o); }} title="Suchen/Sortieren" style={flyoutTileStyle(searchRowOpen)}>
