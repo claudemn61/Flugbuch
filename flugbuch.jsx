@@ -6199,6 +6199,10 @@ function FlugbuchApp() {
   const [pdfResult, setPdfResult] = useState(null);
   const [pendingDups, setPendingDups] = useState([]);
   const [dupWarning, setDupWarning] = useState(null);
+  // Nachfrage beim ➕-Antippen: IGC importieren oder Flug ohne IGC anlegen —
+  // beide Wege bleiben danach in der Flugliste statt ins Flugdetail zu
+  // springen (siehe addNewFlight, das dafür nicht mehr selbst navigiert).
+  const [showAddChoice, setShowAddChoice] = useState(false);
   // Queue of IGC files that matched no flight by filename, but matched
   // MULTIPLE existing (track-less) flights by date — resolved one at a
   // time via a picker rather than guessing which flight each belongs to.
@@ -6978,10 +6982,6 @@ function FlugbuchApp() {
     await saveFlight(newFlight);
     setFlights(prev => [newFlight, ...prev].sort((a,b)=>
       (parseInt((b.name||"").match(/\d+/)?.[0]||"0",10)) - (parseInt((a.name||"").match(/\d+/)?.[0]||"0",10))));
-    setSelected(newFlight);
-    setInlinePassagier("");
-    setDetailReturnView("list");
-    setView("detail");
   }, [flights, saveFlight]);
 
   const handleSaveFields = useCallback(async (defs) => {
@@ -7633,7 +7633,7 @@ function FlugbuchApp() {
               {minimalView ? "🔡" : "🔤"}
             </button>
           )}
-          <button onClick={()=>{ setFlyoutOpen(false); addNewFlight(); }} title="Neuer Flug" style={flyoutTileStyle(false,"#4ade80")}>
+          <button onClick={()=>{ setFlyoutOpen(false); setShowAddChoice(true); }} title="Neuer Flug" style={flyoutTileStyle(false,"#4ade80")}>
             ➕
           </button>
           <button onClick={()=>{ setFlyoutOpen(false); setSelectMode(m=>!m); setSelectedIds(new Set()); setCopyMsg(""); }} title="Auswahl" style={flyoutTileStyle(selectMode)}>
@@ -8237,6 +8237,22 @@ function FlugbuchApp() {
               "✅ "+( (pdfResult.created>0?pdfResult.created+" neu  ":"") + (pdfResult.matched-(pdfResult.created||0)>0?(pdfResult.matched-(pdfResult.created||0))+" aktualisiert":"") + " ("+pdfResult.total+" erkannt)" )}
           </span>
           {!pdfResult.loading&&<button onClick={()=>setPdfResult(null)} style={{background:"none",border:"none",color:"rgba(196,181,253,0.5)",cursor:"pointer",fontSize:16}}>✕</button>}
+        </div>
+      )}
+
+      {/* Nachfrage nach ➕: IGC importieren oder Flug ohne IGC anlegen —
+          beide bleiben danach in der Flugliste. */}
+      {showAddChoice && (
+        <div style={{margin:"10px 16px 0",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.25)",borderRadius:12,padding:"12px 14px"}}>
+          <div style={{fontSize:13,color:"#e8f4fd",marginBottom:8}}>Neuer Flug: IGC-Datei importieren oder ohne IGC anlegen?</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{ setShowAddChoice(false); fileRef.current?.click(); }}
+              style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"8px",color:"rgba(232,244,253,0.85)",fontSize:12,cursor:"pointer"}}>📥 IGC importieren</button>
+            <button onClick={()=>{ setShowAddChoice(false); addNewFlight(); }}
+              style={{flex:1,background:"rgba(74,222,128,0.2)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:10,padding:"8px",color:"#4ade80",fontSize:12,cursor:"pointer"}}>✈️ Ohne IGC anlegen</button>
+          </div>
+          <button onClick={()=>setShowAddChoice(false)}
+            style={{marginTop:6,background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:11,cursor:"pointer",padding:0}}>Abbrechen</button>
         </div>
       )}
 
