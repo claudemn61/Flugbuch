@@ -7319,7 +7319,7 @@ function FlugbuchApp() {
               distKm: igcData.distEstimate ? String(igcData.distEstimate) : "",
               routenTyp: igcData.routeType || "",
               kmh: (igcData.distEstimate > 0 && igcData.durationSec > 0) ? (igcData.distEstimate / (igcData.durationSec / 3600)).toFixed(1) : ""},
-            ...igcData, startPt:igcData.startPt, endPt:igcData.endPt, routePts:igcData.routePath };
+            ...igcData, track, startPt:igcData.startPt, endPt:igcData.endPt, routePts:igcData.routePath };
           await saveFlight(newF);
           newFlights.push(newF);
         }
@@ -7822,7 +7822,7 @@ function FlugbuchApp() {
                 distKm: item.igcData.distEstimate ? String(item.igcData.distEstimate) : "",
                 routenTyp: item.igcData.routeType || "",
                 kmh: (item.igcData.distEstimate > 0 && item.igcData.durationSec > 0) ? (item.igcData.distEstimate / (item.igcData.durationSec / 3600)).toFixed(1) : ""},
-              ...item.igcData, startPt:item.igcData.startPt, endPt:item.igcData.endPt, routePts:item.igcData.routePath };
+              ...item.igcData, track:item.track, startPt:item.igcData.startPt, endPt:item.igcData.endPt, routePts:item.igcData.routePath };
             await saveFlight(newF);
             setFlights(prev=>[newF,...prev]);
             setPendingDateAmbiguous(q=>q.slice(1));
