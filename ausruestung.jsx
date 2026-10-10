@@ -323,11 +323,12 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
           const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
           const isActive = activeSlot===slotId;
           const isEditing = editingSlot===slotId;
+          const isOverdue = computeDueStatus(slot).overdue;
           const tabStyle = {
             flex:1,minWidth:0,padding:tabPadding,borderRadius:9,border:"none",
             fontSize:tabFontSize,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
-            background: isActive ? tabActiveBg : "transparent",
-            color: isActive ? accentColor : "rgba(232,244,253,0.5)",
+            background: isOverdue ? "rgba(239,68,68,0.18)" : isActive ? tabActiveBg : "transparent",
+            color: isOverdue ? "#f87171" : isActive ? accentColor : "rgba(232,244,253,0.5)",
           };
           if (isEditing) {
             return (
@@ -452,7 +453,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
   );
 }
 
-function WartungApp() {
+function WartungApp({ onOverdueChange }) {
   const isWide = useIsWide();
   const [activeTab, setActiveTab] = useState("schirm"); // "schirm" | "reserve" | "gurtzeug" — always exactly one
   const [activeSlot, setActiveSlotState] = useState(() => {
@@ -543,6 +544,13 @@ function WartungApp() {
   const setActiveSlot = (kind, slotId) => setActiveSlotState(prev => ({ ...prev, [kind]: slotId }));
   const setEditingSlot = (kind, slotId) => setEditingSlotState(prev => ({ ...prev, [kind]: slotId }));
 
+  // Ist irgendein Slot einer Kategorie überfällig? Treibt die rote
+  // Einfärbung von Kategorie-Badge, Slot-Tab (SlotTabsView) und — über
+  // onOverdueChange — bis hoch zum "Wartung"-Tab in AusruestungApp.
+  const kindOverdue = (kind) => WARTUNG_KINDS[kind].slotIds.some(id => computeDueStatus(data[kind]?.[id] || WARTUNG_KINDS[kind].empty()).overdue);
+  const anyOverdue = Object.keys(WARTUNG_KINDS).some(kindOverdue);
+  useEffect(() => { if (onOverdueChange) onOverdueChange(anyOverdue); }, [anyOverdue, onOverdueChange]);
+
   // Pro Kategorie an die konkreten Slot-IDs gebundene CRUD-Funktionen, damit
   // die Aufrufe in SlotColumnsView/SlotTabsView unten schlank bleiben.
   const opsFor = (kind) => ({
@@ -559,15 +567,15 @@ function WartungApp() {
       {/* Top badges: Reserve / Schirm */}
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
         <button onClick={()=>setActiveTab("reserve")}
-          style={{flex:1,background:activeTab==="reserve"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="reserve"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="reserve"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          style={{flex:1,background:kindOverdue("reserve")?"rgba(239,68,68,0.18)":activeTab==="reserve"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${kindOverdue("reserve")?"rgba(239,68,68,0.4)":activeTab==="reserve"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:kindOverdue("reserve")?"#f87171":activeTab==="reserve"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           🪂 Reserve
         </button>
         <button onClick={()=>setActiveTab("schirm")}
-          style={{flex:1,background:activeTab==="schirm"?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="schirm"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="schirm"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          style={{flex:1,background:kindOverdue("schirm")?"rgba(239,68,68,0.18)":activeTab==="schirm"?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${kindOverdue("schirm")?"rgba(239,68,68,0.4)":activeTab==="schirm"?"rgba(56,189,248,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:kindOverdue("schirm")?"#f87171":activeTab==="schirm"?"#7dd3fc":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           ⛰️ Schirm
         </button>
         <button onClick={()=>setActiveTab("gurtzeug")}
-          style={{flex:1,background:activeTab==="gurtzeug"?"rgba(245,158,11,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${activeTab==="gurtzeug"?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:activeTab==="gurtzeug"?"#f59e0b":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          style={{flex:1,background:kindOverdue("gurtzeug")?"rgba(239,68,68,0.18)":activeTab==="gurtzeug"?"rgba(245,158,11,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${kindOverdue("gurtzeug")?"rgba(239,68,68,0.4)":activeTab==="gurtzeug"?"rgba(245,158,11,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:kindOverdue("gurtzeug")?"#f87171":activeTab==="gurtzeug"?"#f59e0b":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           💺 Sitz
         </button>
       </div>
@@ -1882,6 +1890,9 @@ function AusruestungApp() {
   // wechselt (wie bei Wartung/Brevet), ein weiterer Klick auf den bereits
   // aktiven Tab schaltet die Werkzeugleiste auf/zu.
   const [gewichteToolbarOpen, setGewichteToolbarOpen] = useState(false);
+  // Von WartungApp hochgereicht: irgendein Reserve-/Schirm-/Sitz-Slot
+  // überfällig — färbt den "Wartung"-Tab hier zusätzlich rot ein.
+  const [wartungOverdue, setWartungOverdue] = useState(false);
   return (
     <div style={{minHeight:"100vh",background:"#051d0e",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -1913,7 +1924,7 @@ function AusruestungApp() {
           Reserve/Schirm/Sitz-Umschalter (gleiche Optik, eine Ebene höher). */}
       <div style={{padding:"14px 16px 0",display:"flex",gap:10}}>
         <button onClick={()=>setTab("wartung")}
-          style={{flex:1,background:tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
+          style={{flex:1,background:wartungOverdue?"rgba(239,68,68,0.18)":tab==="wartung"?"rgba(34,197,94,0.18)":"rgba(255,255,255,0.05)",border:`1px solid ${wartungOverdue?"rgba(239,68,68,0.4)":tab==="wartung"?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"12px 10px",color:wartungOverdue?"#f87171":tab==="wartung"?"#4ade80":"rgba(232,244,253,0.8)",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"center"}}>
           Wartung
         </button>
         <button onClick={()=> tab==="gewichte" ? setGewichteToolbarOpen(o=>!o) : setTab("gewichte")}
@@ -1926,7 +1937,14 @@ function AusruestungApp() {
         </button>
       </div>
 
-      {tab==="gewichte" ? <GewichteApp toolbarOpen={gewichteToolbarOpen} setToolbarOpen={setGewichteToolbarOpen}/> : tab==="wartung" ? <WartungApp/> : <BrevetApp/>}
+      {tab==="gewichte" && <GewichteApp toolbarOpen={gewichteToolbarOpen} setToolbarOpen={setGewichteToolbarOpen}/>}
+      {tab==="brevet" && <BrevetApp/>}
+      {/* Bleibt immer gemountet (nur versteckt), damit der "Wartung"-Tab
+          oben auch dann rot anzeigt, wenn gerade ein anderer Tab offen ist —
+          nicht erst nachdem Wartung einmal angetippt wurde. */}
+      <div style={{display: tab==="wartung" ? "block" : "none"}}>
+        <WartungApp onOverdueChange={setWartungOverdue}/>
+      </div>
     </div>
   );
 }
