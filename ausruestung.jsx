@@ -329,21 +329,32 @@ const WARTUNG_KINDS = {
 // Schmale (iPhone-)Ansicht: Tab-Auswahl (Titel direkt editierbar) + Felder
 // für den jeweils aktiven Slot. Pendant zu SlotColumnsView für die breite
 // Ansicht, mit derselben Parametrisierung über "config".
-function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot, confirmedPairs, onConfirmPair }) {
-  const { slotIds, accentColor, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
-  const data = dataMap[activeSlot] || emptySchirmSlot();
+function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot, confirmedPairs, onConfirmPair, revealedSlots, onAddColumn }) {
+  const { slotIds, accentColor, accentBg, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
+  const visibleSlotIds = slotIds.filter(id => isSlotFilled(dataMap[id]||emptySchirmSlot()) || revealedSlots.includes(id));
+  // Ist der gerade aktive Slot (noch) nicht sichtbar — z.B. nach einem
+  // Neustart, wenn Slot 1 leer aber Slot 2 befüllt ist — auf den ersten
+  // sichtbaren ausweichen, statt leere Felder ohne markierten Tab zu zeigen.
+  const effectiveActiveSlot = visibleSlotIds.includes(activeSlot) ? activeSlot : visibleSlotIds[0];
+  useEffect(() => {
+    if (effectiveActiveSlot && effectiveActiveSlot !== activeSlot) setActiveSlot(effectiveActiveSlot);
+  }, [effectiveActiveSlot]);
+  const data = dataMap[effectiveActiveSlot] || emptySchirmSlot();
   const { nextDue, overdue, soonDue } = computeDueStatus(data);
-  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==activeSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
+  const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==effectiveActiveSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
   return (
     <div style={{padding:"12px 16px 0"}}>
       {/* Tabs: tap an inactive tab to switch to it; tap the already-
           active tab again to rename it (the only tap that couldn't
-          mean "switch", since it's already selected). */}
+          mean "switch", since it's already selected). Leere, noch nie
+          befüllte Tabs bleiben ausgeblendet — das kleine "+" am Ende
+          blendet die nächste leere ein bzw. legt eine neue an. */}
       <div style={{display:"flex",gap:6,marginBottom:14,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
-        {slotIds.map((slotId, i) => {
+        {visibleSlotIds.map((slotId) => {
+          const i = slotIds.indexOf(slotId);
           const slot = dataMap[slotId] || emptySchirmSlot();
           const displayTitle = slot.title || (slot.category && slot.category!=="–" ? slot.category : "");
-          const isActive = activeSlot===slotId;
+          const isActive = effectiveActiveSlot===slotId;
           const isEditing = editingSlot===slotId;
           const isOverdue = computeDueStatus(slot).overdue;
           const tabStyle = {
@@ -370,14 +381,19 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
             </button>
           );
         })}
+        <button onClick={onAddColumn} title="Weiteren Tab hinzufügen"
+          style={{flexShrink:0,width:32,padding:tabPadding,borderRadius:9,background:accentBg,border:`1px dashed ${accentColor}66`,color:accentColor,fontSize:tabFontSize+2,fontWeight:700,cursor:"pointer"}}>
+          +
+        </button>
       </div>
 
       {/* Fields for the currently selected tab */}
+      {effectiveActiveSlot ? (
       <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
         {/* Name */}
         <div>
           <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
-          <input value={data.name} onChange={e=>updateSlot(activeSlot,{name:e.target.value})}
+          <input value={data.name} onChange={e=>updateSlot(effectiveActiveSlot,{name:e.target.value})}
             placeholder={namePlaceholder}
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
           {similarName && (
@@ -394,7 +410,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
         {/* Serien-Nr. */}
         <div>
           <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Serien-Nr.</div>
-          <input value={data.serialNr} onChange={e=>updateSlot(activeSlot,{serialNr:e.target.value})}
+          <input value={data.serialNr} onChange={e=>updateSlot(effectiveActiveSlot,{serialNr:e.target.value})}
             placeholder="z.B. SN-123456"
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
         </div>
@@ -403,7 +419,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
         {hasZulassung && (
           <div>
             <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Zulassung</div>
-            <input value={data.zulassung||""} onChange={e=>updateSlot(activeSlot,{zulassung:e.target.value})}
+            <input value={data.zulassung||""} onChange={e=>updateSlot(effectiveActiveSlot,{zulassung:e.target.value})}
               placeholder="z.B. EN B"
               style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
           </div>
@@ -412,7 +428,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
         {/* Kauf */}
         <div>
           <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Kauf</div>
-          <input value={data.purchaseDate} onChange={e=>updateSlot(activeSlot,{purchaseDate:e.target.value})}
+          <input value={data.purchaseDate} onChange={e=>updateSlot(effectiveActiveSlot,{purchaseDate:e.target.value})}
             placeholder="TT.MM.JJJJ"
             style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
         </div>
@@ -427,9 +443,9 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
                 // löschen und neu eintippen lässt — ein sofortiges Klemmen
                 // auf Minimum 1 bei jedem Tastendruck machte es unmöglich,
                 // über die führende "1" hinauszukommen.
-                updateSlot(activeSlot,{intervalMonths: e.target.value});
+                updateSlot(effectiveActiveSlot,{intervalMonths: e.target.value});
               }}
-              onBlur={e=>updateSlot(activeSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
+              onBlur={e=>updateSlot(effectiveActiveSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
               style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
             <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
           </div>
@@ -444,7 +460,7 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
               color: overdue ? "#f87171" : soonDue ? "#fcd34d" : "#4ade80"}}>
               {overdue ? "Überfällig" : `Nächster Check ${fmtDate(nextDue)}`}
             </span>
-            <button onClick={()=>addCheck(activeSlot, todayStr())}
+            <button onClick={()=>addCheck(effectiveActiveSlot, todayStr())}
               style={{background:"rgba(34,197,94,0.15)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:20,padding:"4px 10px",color:"#4ade80",fontSize:11,fontWeight:700,cursor:"pointer"}}>
               + Check
             </button>
@@ -455,14 +471,14 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {(data.checks||[]).map((c, idx) => (
               <div key={idx} style={{display:"flex",gap:8,alignItems:"center"}}>
-                <input value={c.note} onChange={e=>updateCheck(activeSlot, idx, {note:e.target.value})}
+                <input value={c.note} onChange={e=>updateCheck(effectiveActiveSlot, idx, {note:e.target.value})}
                   placeholder="Text (z.B. Leinencheck)"
                   style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(activeSlot, idx, {date:e.target.value})}
-                  onBlur={e=>updateCheck(activeSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
+                <input value={normalizeCheckDate(c.date)} onChange={e=>updateCheck(effectiveActiveSlot, idx, {date:e.target.value})}
+                  onBlur={e=>updateCheck(effectiveActiveSlot, idx, {date:normalizeCheckDate(e.target.value)}, true)}
                   placeholder="TT.MM.JJJJ"
                   style={{width:110,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
-                <button onClick={()=>deleteCheck(activeSlot, idx)}
+                <button onClick={()=>deleteCheck(effectiveActiveSlot, idx)}
                   style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,width:30,height:30,color:"#f87171",fontSize:13,cursor:"pointer",flexShrink:0}}>
                   ✕
                 </button>
@@ -471,6 +487,11 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
           </div>
         </div>
       </div>
+      ) : (
+        <div style={{textAlign:"center",padding:"30px 16px",color:"rgba(232,244,253,0.3)",fontSize:13}}>
+          Noch nichts erfasst — mit „+" oben eine Spalte hinzufügen.
+        </div>
+      )}
     </div>
   );
 }
@@ -647,7 +668,8 @@ function WartungApp({ onOverdueChange }) {
         <SlotTabsView config={{...WARTUNG_KINDS.schirm, slotIds: effectiveSlotIds("schirm")}} dataMap={data.schirm} {...opsFor("schirm")}
           activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
           editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.schirm} onAddColumn={()=>addColumn("schirm")} />
       ))}
 
       {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
@@ -662,7 +684,8 @@ function WartungApp({ onOverdueChange }) {
         <SlotTabsView config={{...WARTUNG_KINDS.gurtzeug, slotIds: effectiveSlotIds("gurtzeug")}} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
           editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.gurtzeug} onAddColumn={()=>addColumn("gurtzeug")} />
       ))}
 
       {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
@@ -677,7 +700,8 @@ function WartungApp({ onOverdueChange }) {
         <SlotTabsView config={{...WARTUNG_KINDS.reserve, slotIds: effectiveSlotIds("reserve")}} dataMap={data.reserve} {...opsFor("reserve")}
           activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
           editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.reserve} onAddColumn={()=>addColumn("reserve")} />
       ))}
     </div>
   );
