@@ -193,9 +193,9 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
                 onBlur={()=>setEditingTab(null)}
                 onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
                 placeholder={defaultTitle(i)}
-                style={{background:accentBg,border:`1px solid ${accentColor}66`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
+                style={{background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"66"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
             ) : (
-              <div onClick={()=>setEditingTab(slotId)} style={{cursor:"text",background:accentBg,border:`1px solid ${accentColor}40`,borderRadius:8,padding:"7px 10px",color:accentColor,fontSize:14,fontWeight:700}}>
+              <div onClick={()=>setEditingTab(slotId)} style={{cursor:"text",background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"40"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700}}>
                 {displayTitle || defaultTitle(i)}
               </div>
             )}
