@@ -7578,6 +7578,22 @@ function FlugbuchApp() {
           <span style={{fontSize:11,color:"rgba(232,244,253,0.4)"}}>{flyoutOpen?"▴":"▾"}</span>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",justifyContent:"flex-end",flexShrink:0,minWidth:32}}>
+          {!(showViewsMenu||showImportMenu||showBackupMenu||selectMode||searchRowOpen) && (
+            <>
+              <button onClick={()=>window.location.href="statistik.html"} title="Statistik"
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+                📊
+              </button>
+              <button onClick={()=>window.location.href="ausruestung.html"} title="Ausrüstung"
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+                🎒
+              </button>
+              <button onClick={()=>window.location.href="reisen.html"} title="Reisen"
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+                🧭
+              </button>
+            </>
+          )}
           {showViewsMenu && (
             <button onClick={closeAllPinned} title="Gespeicherte Darstellungen — schliessen"
               style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>

@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.12.2";
+const APP_VERSION = "6.12.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.12.3", note: "Titelzeile von Flugbuch/Statistik/Ausrüstung/Reisen: das rote ❓ (Hilfe) rechts entfernt, stattdessen je 3 Icons zu den anderen Hauptkapiteln (direkte Querverlinkung). In Flugbuch blenden diese 3 Icons aus, solange eines der Funktions-Icons (💡📥💾☑️🔍) aktiv angezeigt wird." },
   { v: "6.12.2", note: "Neues App-Icon fürs Home-Bildschirm-Icon (PWA): dunkelblauer Hintergrund mit weissem Bogen (\"Flugkurve\"), kleinem Akzent-Viertelkreis und dem Schriftzug \"flugbuch\" (flug in Amber, buch in Weiss), in allen bisherigen Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.12.1", note: "Flugliste, ➕ Neuer Flug: fragt jetzt zuerst, ob eine IGC-Datei importiert oder ein leerer Flug ohne IGC angelegt werden soll — beide Wege bleiben danach in der Flugliste, statt direkt ins Flugdetail zu springen." },
   { v: "6.12", note: "Flugliste-Header grundlegend neu: statt fester Icon-Reihen jetzt nur noch der antippbare Titel \"Flugbuch\" — öffnet ein Klappmenü mit allen 9 Kacheln (Start/Gespeicherte Darstellungen/Minimal/Neuer Flug/Import/Backup/Auswahl/Suchen/Weltkarte). Start, Neuer Flug und Weltkarte lösen sofort ihre Aktion aus; die übrigen bleiben als angeheftete Icons rechts im Header sichtbar, auch mehrere gleichzeitig — Antippen irgendeines davon schliesst alle wieder. Minimal nur auf dem iPhone, nicht bei iPad/Mac." },
