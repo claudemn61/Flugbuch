@@ -186,7 +186,7 @@ function emptySchirmSlot() {
 // gehalten) oder legt — wenn keine solche mehr übrig ist — per
 // onAddColumn gleich eine ganz neue, zusätzliche Spalte an (über die fest
 // eingebaute Anzahl Reserve/Schirm/Sitz hinaus).
-function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung, confirmedPairs, onConfirmPair, revealedSlots, onAddColumn }) {
+function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung, confirmedPairs, onConfirmPair, revealedSlots, onAddColumn, onRequestDelete }) {
   const visibleSlotIds = slotIds.filter(id => isSlotFilled(dataMap[id]||emptySchirmSlot()) || revealedSlots.includes(id));
   return (
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 16px 20px"}}>
@@ -202,18 +202,24 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
         const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==slotId).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
         return (
           <div key={slotId} style={{flex:"1 1 0",minWidth:0,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}}>
-            {isEditing ? (
-              <input autoFocus value={displayTitle}
-                onChange={e=>updateSlot(slotId,{title:e.target.value})}
-                onBlur={()=>setEditingTab(null)}
-                onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                placeholder={defaultTitle(i)}
-                style={{background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"66"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
-            ) : (
-              <div onClick={()=>setEditingTab(slotId)} style={{cursor:"text",background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"40"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700}}>
-                {displayTitle || defaultTitle(i)}
-              </div>
-            )}
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              {isEditing ? (
+                <input autoFocus value={displayTitle}
+                  onChange={e=>updateSlot(slotId,{title:e.target.value})}
+                  onBlur={()=>setEditingTab(null)}
+                  onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                  placeholder={defaultTitle(i)}
+                  style={{flex:1,minWidth:0,background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"66"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700,outline:"none"}} />
+              ) : (
+                <div onClick={()=>setEditingTab(slotId)} style={{flex:1,minWidth:0,cursor:"text",background:overdue?"rgba(239,68,68,0.18)":accentBg,border:`1px solid ${overdue?"rgba(239,68,68,0.4)":accentColor+"40"}`,borderRadius:8,padding:"7px 10px",color:overdue?"#f87171":accentColor,fontSize:14,fontWeight:700}}>
+                  {displayTitle || defaultTitle(i)}
+                </div>
+              )}
+              <button onClick={()=>onRequestDelete(slotId, displayTitle||defaultTitle(i))} title="Spalte löschen"
+                style={{flexShrink:0,width:28,height:28,borderRadius:"50%",background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",fontSize:16,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                −
+              </button>
+            </div>
             <div>
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
               <input value={data.name} onChange={e=>updateSlot(slotId,{name:e.target.value})}
@@ -329,7 +335,7 @@ const WARTUNG_KINDS = {
 // Schmale (iPhone-)Ansicht: Tab-Auswahl (Titel direkt editierbar) + Felder
 // für den jeweils aktiven Slot. Pendant zu SlotColumnsView für die breite
 // Ansicht, mit derselben Parametrisierung über "config".
-function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot, confirmedPairs, onConfirmPair, revealedSlots, onAddColumn }) {
+function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, activeSlot, setActiveSlot, editingSlot, setEditingSlot, confirmedPairs, onConfirmPair, revealedSlots, onAddColumn, onRequestDelete }) {
   const { slotIds, accentColor, accentBg, tabActiveBg, defaultTitle, hasZulassung, namePlaceholder, noChecksText, tabFontSize, tabPadding } = config;
   const visibleSlotIds = slotIds.filter(id => isSlotFilled(dataMap[id]||emptySchirmSlot()) || revealedSlots.includes(id));
   // Ist der gerade aktive Slot (noch) nicht sichtbar — z.B. nach einem
@@ -390,6 +396,10 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
       {/* Fields for the currently selected tab */}
       {effectiveActiveSlot ? (
       <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
+        <button onClick={()=>onRequestDelete(effectiveActiveSlot, (dataMap[effectiveActiveSlot]?.title)||defaultTitle(slotIds.indexOf(effectiveActiveSlot)))}
+          style={{alignSelf:"flex-end",background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:20,padding:"4px 10px",color:"#f87171",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+          − Spalte löschen
+        </button>
         {/* Name */}
         <div>
           <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
@@ -517,6 +527,9 @@ function WartungApp({ onOverdueChange }) {
   // zusätzliche Spalten auf dem iPhone nicht erreichbar.
   const [extraIds, setExtraIds] = useState({ reserve: [], schirm: [], gurtzeug: [] });
   const effectiveSlotIds = (kind) => [...WARTUNG_KINDS[kind].slotIds, ...extraIds[kind]];
+  // Bestätigung vor dem Löschen einer bereits befüllten Spalte (leere
+  // verschwinden ohne Rückfrage) — {kind, slotId, label} oder null.
+  const [confirmDeleteSlot, setConfirmDeleteSlot] = useState(null);
   // Als "kein Tippfehler" bestätigte Namenspaare (siehe findSimilarName) —
   // "service:"-Präfix, damit im Backup erfasst.
   const [confirmedPairs, setConfirmedPairs] = useState(new Set());
@@ -592,6 +605,33 @@ function WartungApp({ onOverdueChange }) {
     try { await window.storage.set(WARTUNG_KINDS[kind].storageKey, JSON.stringify(next)); } catch (e) { console.error("Save error:", e); }
   }, []);
 
+  // "−": leert die Spalte wieder (fällt dadurch unter isSlotFilled zurück)
+  // und blendet sie aus; war es eine über "+" angelegte zusätzliche Spalte
+  // (nicht eine der fest eingebauten), wird sie zusätzlich aus extraIds
+  // entfernt, verschwindet also wirklich ganz statt nur leer zu bleiben.
+  const deleteColumn = (kind, slotId) => {
+    const next = { ...data[kind] };
+    delete next[slotId];
+    saveKind(kind, next);
+    setRevealedSlots(prev => ({ ...prev, [kind]: prev[kind].filter(id => id!==slotId) }));
+    if (extraIds[kind].includes(slotId)) {
+      const nextExtra = extraIds[kind].filter(id => id!==slotId);
+      setExtraIds(prev => ({ ...prev, [kind]: nextExtra }));
+      try { window.storage.set(WARTUNG_KINDS[kind].extraKey, JSON.stringify(nextExtra)); } catch (e) { console.error("Save error (extraIds):", e); }
+    }
+    setConfirmDeleteSlot(null);
+  };
+
+  // Leere Spalten verschwinden sofort ohne Rückfrage, befüllte erst nach
+  // Bestätigung (siehe confirmDeleteSlot-Dialog unten).
+  const requestDeleteColumn = (kind, slotId, label) => {
+    if (isSlotFilled(data[kind][slotId]||WARTUNG_KINDS[kind].empty())) {
+      setConfirmDeleteSlot({ kind, slotId, label });
+    } else {
+      deleteColumn(kind, slotId);
+    }
+  };
+
   const updateSlot = (kind, slotId, patch) => {
     const next = { ...data[kind], [slotId]: { ...data[kind][slotId], ...patch } };
     saveKind(kind, next);
@@ -663,13 +703,15 @@ function WartungApp({ onOverdueChange }) {
           accentColor={WARTUNG_KINDS.schirm.accentColor} accentBg={WARTUNG_KINDS.schirm.accentBg}
           hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.schirm} onAddColumn={()=>addColumn("schirm")} />
+          revealedSlots={revealedSlots.schirm} onAddColumn={()=>addColumn("schirm")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("schirm",slotId,label)} />
       ) : (
         <SlotTabsView config={{...WARTUNG_KINDS.schirm, slotIds: effectiveSlotIds("schirm")}} dataMap={data.schirm} {...opsFor("schirm")}
           activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
           editingSlot={editingSlot.schirm} setEditingSlot={slotId=>setEditingSlot("schirm",slotId)}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.schirm} onAddColumn={()=>addColumn("schirm")} />
+          revealedSlots={revealedSlots.schirm} onAddColumn={()=>addColumn("schirm")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("schirm",slotId,label)} />
       ))}
 
       {/* Gurtzeug/Sitz section: 5 tab positions, identical structure to Schirm */}
@@ -679,13 +721,15 @@ function WartungApp({ onOverdueChange }) {
           accentColor={WARTUNG_KINDS.gurtzeug.accentColor} accentBg={WARTUNG_KINDS.gurtzeug.accentBg}
           hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.gurtzeug} onAddColumn={()=>addColumn("gurtzeug")} />
+          revealedSlots={revealedSlots.gurtzeug} onAddColumn={()=>addColumn("gurtzeug")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("gurtzeug",slotId,label)} />
       ) : (
         <SlotTabsView config={{...WARTUNG_KINDS.gurtzeug, slotIds: effectiveSlotIds("gurtzeug")}} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
           editingSlot={editingSlot.gurtzeug} setEditingSlot={slotId=>setEditingSlot("gurtzeug",slotId)}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.gurtzeug} onAddColumn={()=>addColumn("gurtzeug")} />
+          revealedSlots={revealedSlots.gurtzeug} onAddColumn={()=>addColumn("gurtzeug")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("gurtzeug",slotId,label)} />
       ))}
 
       {/* Reserve section: Tab-Auswahl (direkt editierbarer Titel) + Felder für den aktiven Slot */}
@@ -695,14 +739,35 @@ function WartungApp({ onOverdueChange }) {
           accentColor={WARTUNG_KINDS.reserve.accentColor} accentBg={WARTUNG_KINDS.reserve.accentBg}
           hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.reserve} onAddColumn={()=>addColumn("reserve")} />
+          revealedSlots={revealedSlots.reserve} onAddColumn={()=>addColumn("reserve")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("reserve",slotId,label)} />
       ) : (
         <SlotTabsView config={{...WARTUNG_KINDS.reserve, slotIds: effectiveSlotIds("reserve")}} dataMap={data.reserve} {...opsFor("reserve")}
           activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
           editingSlot={editingSlot.reserve} setEditingSlot={slotId=>setEditingSlot("reserve",slotId)}
           confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
-          revealedSlots={revealedSlots.reserve} onAddColumn={()=>addColumn("reserve")} />
+          revealedSlots={revealedSlots.reserve} onAddColumn={()=>addColumn("reserve")}
+          onRequestDelete={(slotId,label)=>requestDeleteColumn("reserve",slotId,label)} />
       ))}
+
+      {confirmDeleteSlot && (
+        <div onClick={()=>setConfirmDeleteSlot(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:24}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#0d2a17",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Spalte löschen?</div>
+            <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+              „{confirmDeleteSlot.label}" wird mit allen Angaben (Name, Checks, Kauf-Datum, …) entfernt.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDeleteSlot(null)}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+              <button onClick={()=>deleteColumn(confirmDeleteSlot.kind, confirmDeleteSlot.slotId)}
+                style={{flex:1,background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:10,padding:"10px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer"}}>Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
