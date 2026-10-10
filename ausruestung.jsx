@@ -111,6 +111,13 @@ function computeDueStatus(slotData) {
   return { nextDue, overdue: dueDays !== null && dueDays < 0, soonDue: dueDays !== null && dueDays >= 0 && dueDays <= 30 };
 }
 
+// Hat dieser Slot (Reserve/Schirm/Sitz) irgendwelche echten Daten, oder ist
+// er noch komplett unberührt (Default aus emptyReserve/emptySchirmSlot)?
+// Steuert in SlotColumnsView, ob die Spalte angezeigt wird.
+function isSlotFilled(slotData) {
+  return !!(slotData.title || slotData.name || slotData.serialNr || slotData.zulassung || slotData.purchaseDate || (slotData.checks && slotData.checks.length));
+}
+
 // Einfache Levenshtein-Distanz für die Tippfehler-Warnung unten — erkennt
 // nahe Duplikate (einzelne falsche Ziffer, fehlendes/zusätzliches
 // Leerzeichen usw.), ohne exakte Gleichheit zu verlangen.
@@ -173,10 +180,17 @@ function emptySchirmSlot() {
 // open column instead of switching between them via tabs — "spaltenartig
 // fix offen". Used for all three chapters (Reserve/Schirm/Sitz); Reserve
 // has no Zulassung field, the others do.
-function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung, confirmedPairs, onConfirmPair }) {
+// Leere, noch nie befüllte Spalten bleiben ausgeblendet (isSlotFilled) —
+// "+" rechts blendet die jeweils nächste leere Spalte ein (revealedSlots,
+// pro Kategorie in WartungApp gehalten, damit sie beim Tab-Wechsel nicht
+// wieder verschwindet).
+function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, deleteCheck, editingTab, setEditingTab, accentColor, accentBg, defaultTitle, hasZulassung, confirmedPairs, onConfirmPair, revealedSlots, onReveal }) {
+  const visibleSlotIds = slotIds.filter(id => isSlotFilled(dataMap[id]||emptySchirmSlot()) || revealedSlots.includes(id));
+  const nextHiddenId = slotIds.find(id => !visibleSlotIds.includes(id));
   return (
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"12px 16px 20px"}}>
-      {slotIds.map((slotId, i) => {
+      {visibleSlotIds.map((slotId) => {
+        const i = slotIds.indexOf(slotId);
         const data = dataMap[slotId] || emptySchirmSlot();
         const isEditing = editingTab===slotId;
         const displayTitle = data.title || (data.category && data.category!=="–" ? data.category : "");
@@ -271,6 +285,12 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
           </div>
         );
       })}
+      {nextHiddenId && (
+        <button onClick={()=>onReveal(nextHiddenId)} title="Weitere Spalte hinzufügen"
+          style={{alignSelf:"flex-start",flexShrink:0,width:64,minHeight:120,background:accentBg,border:`1px dashed ${accentColor}66`,borderRadius:14,color:accentColor,fontSize:28,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          +
+        </button>
+      )}
     </div>
   );
 }
@@ -462,6 +482,11 @@ function WartungApp({ onOverdueChange }) {
     return obj;
   });
   const [editingSlot, setEditingSlotState] = useState({ reserve: null, schirm: null, gurtzeug: null }); // slotId currently being renamed, or null, per Kategorie
+  // Per "+" manuell eingeblendete, noch leere Spalten (SlotColumnsView,
+  // iPad/Mac) — pro Kategorie, bleibt beim Wechsel zwischen den drei
+  // Kategorie-Tabs erhalten.
+  const [revealedSlots, setRevealedSlots] = useState({ reserve: [], schirm: [], gurtzeug: [] });
+  const revealSlot = (kind, slotId) => setRevealedSlots(prev => prev[kind].includes(slotId) ? prev : { ...prev, [kind]: [...prev[kind], slotId] });
   // Als "kein Tippfehler" bestätigte Namenspaare (siehe findSimilarName) —
   // "service:"-Präfix, damit im Backup erfasst.
   const [confirmedPairs, setConfirmedPairs] = useState(new Set());
@@ -586,7 +611,8 @@ function WartungApp({ onOverdueChange }) {
           editingTab={editingSlot.schirm} setEditingTab={slotId=>setEditingSlot("schirm",slotId)}
           accentColor={WARTUNG_KINDS.schirm.accentColor} accentBg={WARTUNG_KINDS.schirm.accentBg}
           hasZulassung={WARTUNG_KINDS.schirm.hasZulassung} defaultTitle={WARTUNG_KINDS.schirm.defaultTitle}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.schirm} onReveal={slotId=>revealSlot("schirm",slotId)} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.schirm} dataMap={data.schirm} {...opsFor("schirm")}
           activeSlot={activeSlot.schirm} setActiveSlot={slotId=>setActiveSlot("schirm",slotId)}
@@ -600,7 +626,8 @@ function WartungApp({ onOverdueChange }) {
           editingTab={editingSlot.gurtzeug} setEditingTab={slotId=>setEditingSlot("gurtzeug",slotId)}
           accentColor={WARTUNG_KINDS.gurtzeug.accentColor} accentBg={WARTUNG_KINDS.gurtzeug.accentBg}
           hasZulassung={WARTUNG_KINDS.gurtzeug.hasZulassung} defaultTitle={WARTUNG_KINDS.gurtzeug.defaultTitle}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.gurtzeug} onReveal={slotId=>revealSlot("gurtzeug",slotId)} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.gurtzeug} dataMap={data.gurtzeug} {...opsFor("gurtzeug")}
           activeSlot={activeSlot.gurtzeug} setActiveSlot={slotId=>setActiveSlot("gurtzeug",slotId)}
@@ -614,7 +641,8 @@ function WartungApp({ onOverdueChange }) {
           editingTab={editingSlot.reserve} setEditingTab={slotId=>setEditingSlot("reserve",slotId)}
           accentColor={WARTUNG_KINDS.reserve.accentColor} accentBg={WARTUNG_KINDS.reserve.accentBg}
           hasZulassung={WARTUNG_KINDS.reserve.hasZulassung} defaultTitle={WARTUNG_KINDS.reserve.defaultTitle}
-          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair} />
+          confirmedPairs={confirmedPairs} onConfirmPair={confirmPair}
+          revealedSlots={revealedSlots.reserve} onReveal={slotId=>revealSlot("reserve",slotId)} />
       ) : (
         <SlotTabsView config={WARTUNG_KINDS.reserve} dataMap={data.reserve} {...opsFor("reserve")}
           activeSlot={activeSlot.reserve} setActiveSlot={slotId=>setActiveSlot("reserve",slotId)}
