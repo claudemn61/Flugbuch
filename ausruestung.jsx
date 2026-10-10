@@ -1893,10 +1893,20 @@ function AusruestungApp() {
         <span style={{fontWeight:900,fontSize:18,letterSpacing:-0.5,flex:1,textAlign:"center"}}>
           🎒 Ausrüstung
         </span>
-        <button onClick={()=>window.location.href="hilfe.html"} title="Hilfe"
-          style={{width:32,height:32,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",color:"#ef4444",fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-          ?
-        </button>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={()=>window.location.href="flugbuch.html"} title="Flugbuch"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            ✈️
+          </button>
+          <button onClick={()=>window.location.href="statistik.html"} title="Statistik"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            📊
+          </button>
+          <button onClick={()=>window.location.href="reisen.html"} title="Reisen"
+            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:"rgba(232,244,253,0.8)",cursor:"pointer",flexShrink:0}}>
+            🧭
+          </button>
+        </div>
       </div>
 
       {/* Ausrüstung, Gewichte / Wartung — Design analog Wartungs eigenem
