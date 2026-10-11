@@ -129,6 +129,7 @@ function isSlotFilled(slotData) {
 // automatisch im Backup-Export/Import (siehe exportBackup/importBackup in
 // flugbuch.jsx) — ohne dortige Sonderbehandlung nötig.
 const ANLEITUNG_ICON = { mp4: "🎬", jpg: "🖼️", pdf: "📄" };
+const ANLEITUNG_MIME = { mp4: "video/mp4", jpg: "image/jpeg", pdf: "application/pdf" };
 function anleitungFileKey(id) { return `service:anleitung_file_${id}`; }
 function anleitungTypeFor(file) {
   const ext = (file.name.split(".").pop()||"").toLowerCase();
@@ -166,15 +167,56 @@ function compressJpegDataUrl(dataUrl) {
     img.src = dataUrl;
   });
 }
+// Kleine Vorschau fürs Listen-Icon (ca. 100px, stärker komprimiert) — wird
+// direkt in den Metadaten gespeichert (also im selben service:*-Blob wie
+// Name/Checks), da so klein, dass das unproblematisch ist. null, wenn das
+// Quellbild sich nicht decodieren liess (z.B. ein von Safari aus nicht
+// unterstütztes heic in einem anderen Browser) — dann bleibt es beim Icon.
+function makeThumbnailDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      resolve(canvasToCompressed(canvas, 120, 0.6));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+// data:-URL → Blob-URL: iOS Safari zeigt PDFs (und grosse mp4s) in einem
+// <iframe>/<video> mit data:-URL als src oft einfach nicht an (stiller
+// Fehlschlag, kein Error) — mit einer echten Blob-URL funktioniert es
+// zuverlässig, ausserdem lässt sie sich als "↗ Öffnen"-Link anbieten, der
+// den systemeigenen Betrachter aufruft, falls die Inline-Vorschau trotzdem
+// leer bleibt.
+function dataUrlToBlobUrl(dataUrl, mime) {
+  const comma = dataUrl.indexOf(",");
+  const base64 = dataUrl.slice(comma+1);
+  const byteStr = atob(base64);
+  const bytes = new Uint8Array(byteStr.length);
+  for (let i=0;i<byteStr.length;i++) bytes[i] = byteStr.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: mime || "application/octet-stream" }));
+}
 
 function AnleitungButton({ attachments, onChange }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [preview, setPreview] = useState(null); // {type, name, dataUrl} | null
+  const [preview, setPreview] = useState(null); // {type, name, blobUrl} | null
+  // Navigations-Pfad in Unterordner — Array von Ordner-IDs, [] = Wurzel.
+  const [folderStack, setFolderStack] = useState([]);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState(null); // {id, name, count} | null
   const fileRef = useRef(null);
   const list = attachments || [];
+  const currentFolder = folderStack.length ? folderStack[folderStack.length-1] : null;
+  const visibleList = list.filter(a => (a.parentId||null) === currentFolder);
+  const fileCount = list.filter(a => !a.isFolder).length;
+
+  const enterFolder = (id) => { setFolderStack(s => [...s, id]); setEditingId(null); };
+  const goToStackIndex = (i) => { setFolderStack(s => i<0 ? [] : s.slice(0, i+1)); setEditingId(null); };
 
   const addFiles = async (files) => {
     setErr("");
@@ -190,12 +232,16 @@ function AnleitungButton({ attachments, onChange }) {
       if (!type) { setErr(`Nicht unterstützter Dateityp: ${file.name}`); continue; }
       try {
         let dataUrl = await readFileAsDataUrl(file);
-        if (type === "jpg") dataUrl = await compressJpegDataUrl(dataUrl);
+        let thumb = null;
+        if (type === "jpg") {
+          dataUrl = await compressJpegDataUrl(dataUrl);
+          thumb = await makeThumbnailDataUrl(dataUrl);
+        }
         const id = `anl_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
         const saved = await window.storage.set(anleitungFileKey(id), JSON.stringify(dataUrl));
         if (!saved) { setErr(`„${file.name}" konnte nicht gespeichert werden (evtl. zu gross).`); continue; }
         const name = file.name.replace(/\.[^.]+$/, "");
-        acc = [...acc, { id, name, type, mime: file.type, addedAt: todayStr() }];
+        acc = [...acc, { id, name, type, mime: file.type, thumb, parentId: currentFolder, addedAt: todayStr() }];
         onChange(acc);
       } catch (e) {
         console.error("Anleitung-Upload error:", e);
@@ -205,27 +251,79 @@ function AnleitungButton({ attachments, onChange }) {
     setBusy(false);
   };
 
-  const removeFile = async (id) => {
-    try { await window.storage.delete(anleitungFileKey(id)); } catch (e) { console.error("Anleitung delete error:", e); }
-    onChange(list.filter(a => a.id !== id));
+  const addFolder = () => {
+    const id = `anlf_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    onChange([...list, { id, name: "Neuer Ordner", isFolder: true, parentId: currentFolder, addedAt: todayStr() }]);
+    setEditingId(id);
   };
 
-  const renameFile = (id, name) => onChange(list.map(a => a.id===id ? {...a, name} : a));
+  // Alle Nachfahren (Dateien UND Unterordner, beliebig tief) eines Ordners —
+  // bestimmt, ob "−" sofort löscht (leer) oder erst eine Bestätigung zeigt.
+  const collectDescendantIds = (id) => {
+    const result = [];
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const a of list) {
+        if (a.parentId === cur) { result.push(a.id); if (a.isFolder) stack.push(a.id); }
+      }
+    }
+    return result;
+  };
 
-  const move = (idx, dir) => {
+  const deleteEntries = async (ids) => {
+    const idSet = new Set(ids);
+    for (const a of list) {
+      if (idSet.has(a.id) && !a.isFolder) {
+        try { await window.storage.delete(anleitungFileKey(a.id)); } catch (e) { console.error("Anleitung delete error:", e); }
+      }
+    }
+    onChange(list.filter(a => !idSet.has(a.id)));
+  };
+
+  const requestDelete = (att) => {
+    if (!att.isFolder) { deleteEntries([att.id]); return; }
+    const desc = collectDescendantIds(att.id);
+    if (desc.length === 0) { deleteEntries([att.id]); return; }
+    setConfirmDeleteFolder({ id: att.id, name: att.name, count: desc.length });
+  };
+
+  const confirmDeleteFolderNow = () => {
+    if (!confirmDeleteFolder) return;
+    deleteEntries([confirmDeleteFolder.id, ...collectDescendantIds(confirmDeleteFolder.id)]);
+    setConfirmDeleteFolder(null);
+  };
+
+  const renameEntry = (id, name) => onChange(list.map(a => a.id===id ? {...a, name} : a));
+
+  // Sortiert nur innerhalb derselben Ebene (Geschwister mit gleichem
+  // parentId) — sonst würde "hoch/runter" bei geöffnetem Unterordner
+  // versehentlich Einträge einer anderen Ebene vertauschen.
+  const move = (att, dir) => {
+    const siblings = list.filter(a => (a.parentId||null) === (att.parentId||null));
+    const idx = siblings.findIndex(a => a.id===att.id);
     const j = idx + dir;
-    if (j < 0 || j >= list.length) return;
+    if (j < 0 || j >= siblings.length) return;
+    const iFull = list.findIndex(a => a.id===att.id);
+    const jFull = list.findIndex(a => a.id===siblings[j].id);
     const next = [...list];
-    [next[idx], next[j]] = [next[j], next[idx]];
+    [next[iFull], next[jFull]] = [next[jFull], next[iFull]];
     onChange(next);
+  };
+
+  const closePreview = () => {
+    if (preview?.blobUrl) { try { URL.revokeObjectURL(preview.blobUrl); } catch {} }
+    setPreview(null);
   };
 
   const openPreview = async (att) => {
     setBusy(true); setErr("");
     try {
       const r = await window.storage.get(anleitungFileKey(att.id));
-      if (r) setPreview({ type: att.type, name: att.name, dataUrl: JSON.parse(r.value) });
-      else setErr("Datei nicht gefunden.");
+      if (!r) { setErr("Datei nicht gefunden."); setBusy(false); return; }
+      const dataUrl = JSON.parse(r.value);
+      const blobUrl = dataUrlToBlobUrl(dataUrl, att.mime || ANLEITUNG_MIME[att.type]);
+      setPreview({ type: att.type, name: att.name, blobUrl });
     } catch (e) { console.error("Anleitung preview error:", e); setErr("Datei konnte nicht geladen werden."); }
     setBusy(false);
   };
@@ -234,7 +332,7 @@ function AnleitungButton({ attachments, onChange }) {
     <>
       <button onClick={()=>setOpen(true)} title="Anleitung"
         style={{flexShrink:0,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:8,padding:"0 10px",color:"#c4b5fd",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
-        📎 Anleitung{list.length>0 ? ` (${list.length})` : ""}
+        📎 Anleitung{fileCount>0 ? ` (${fileCount})` : ""}
       </button>
 
       {open && (
@@ -243,35 +341,59 @@ function AnleitungButton({ attachments, onChange }) {
           <div onClick={e=>e.stopPropagation()}
             style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
             <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>📎 Anleitung</div>
-            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>mp4, jpg, heic, pdf — importieren, umbenennen, per ▲▼ sortieren.</div>
+            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:10}}>mp4, jpg, heic, pdf — importieren, umbenennen, per ▲▼ sortieren, in Ordnern organisieren.</div>
 
-            {list.length===0 && (
-              <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>Noch keine Datei hinterlegt.</div>
+            <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginBottom:10,fontSize:12}}>
+              <span onClick={()=>goToStackIndex(-1)}
+                style={{cursor: currentFolder ? "pointer" : "default",color: currentFolder ? "#c4b5fd" : "#e8f4fd",textDecoration: currentFolder ? "underline" : "none"}}>
+                📎 Anleitung
+              </span>
+              {folderStack.map((id,i) => {
+                const f = list.find(a=>a.id===id);
+                const isLast = i===folderStack.length-1;
+                return (
+                  <React.Fragment key={id}>
+                    <span style={{color:"rgba(232,244,253,0.3)"}}>›</span>
+                    <span onClick={()=>!isLast && goToStackIndex(i)}
+                      style={{cursor:isLast?"default":"pointer",color:isLast?"#e8f4fd":"#c4b5fd",textDecoration:isLast?"none":"underline"}}>
+                      📁 {f?.name||"Ordner"}
+                    </span>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {visibleList.length===0 && (
+              <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>{currentFolder ? "Dieser Ordner ist leer." : "Noch keine Datei hinterlegt."}</div>
             )}
 
             <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
-              {list.map((att, idx) => (
+              {visibleList.map((att, idx) => (
                 <div key={att.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
-                  <span style={{fontSize:16,flexShrink:0}}>{ANLEITUNG_ICON[att.type]}</span>
+                  {att.type==="jpg" && att.thumb ? (
+                    <img src={att.thumb} alt="" style={{width:26,height:26,borderRadius:5,objectFit:"cover",flexShrink:0}} />
+                  ) : (
+                    <span style={{fontSize:16,flexShrink:0}}>{att.isFolder ? "📁" : ANLEITUNG_ICON[att.type]}</span>
+                  )}
                   {editingId===att.id ? (
                     <input autoFocus value={att.name}
-                      onChange={e=>renameFile(att.id, e.target.value)}
+                      onChange={e=>renameEntry(att.id, e.target.value)}
                       onBlur={()=>setEditingId(null)}
                       onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
                       style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",color:"#e8f4fd",fontSize:13}} />
                   ) : (
-                    <span onClick={()=>openPreview(att)}
+                    <span onClick={()=> att.isFolder ? enterFolder(att.id) : openPreview(att)}
                       style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,color:"#e8f4fd",cursor:"pointer"}}>
                       {att.name}
                     </span>
                   )}
                   <button onClick={()=>setEditingId(att.id)} title="Umbenennen"
                     style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:"#e8f4fd",fontSize:12,cursor:"pointer",flexShrink:0}}>✎</button>
-                  <button onClick={()=>move(idx,-1)} disabled={idx===0}
+                  <button onClick={()=>move(att,-1)} disabled={idx===0}
                     style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
-                  <button onClick={()=>move(idx,1)} disabled={idx===list.length-1}
-                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===list.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
-                  <button onClick={()=>removeFile(att.id)} title="Löschen"
+                  <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
+                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===visibleList.length-1?"default":"pointer",flexShrink:0}}>▼</button>
+                  <button onClick={()=>requestDelete(att)} title="Löschen"
                     style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:26,height:26,color:"#f87171",fontSize:12,cursor:"pointer",flexShrink:0}}>✕</button>
                 </div>
               ))}
@@ -284,7 +406,11 @@ function AnleitungButton({ attachments, onChange }) {
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>fileRef.current?.click()} disabled={busy}
                 style={{flex:1,background:"rgba(167,139,250,0.15)",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,padding:"10px",color:"#c4b5fd",fontSize:13,fontWeight:700,cursor:busy?"default":"pointer",opacity:busy?0.6:1}}>
-                {busy ? "⏳ …" : "+ Datei hinzufügen"}
+                {busy ? "⏳ …" : "+ Datei"}
+              </button>
+              <button onClick={addFolder}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                + Ordner
               </button>
               <button onClick={()=>setOpen(false)}
                 style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
@@ -295,17 +421,40 @@ function AnleitungButton({ attachments, onChange }) {
         </div>
       )}
 
+      {confirmDeleteFolder && (
+        <div onClick={()=>setConfirmDeleteFolder(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#0d2a17",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Ordner löschen?</div>
+            <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+              „{confirmDeleteFolder.name}" enthält {confirmDeleteFolder.count} Element{confirmDeleteFolder.count===1?"":"e"} — werden mit gelöscht.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDeleteFolder(null)}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+              <button onClick={confirmDeleteFolderNow}
+                style={{flex:1,background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:10,padding:"10px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer"}}>Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {preview && (
-        <div onClick={()=>setPreview(null)} style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
-          <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-            <span style={{color:"#fff",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{preview.name}</span>
-            <button onClick={()=>setPreview(null)} title="Vorschau schliessen"
+        <div onClick={closePreview} style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,gap:10}}>
+            <span style={{color:"#fff",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{preview.name}</span>
+            <a onClick={e=>e.stopPropagation()} href={preview.blobUrl} target="_blank" rel="noopener noreferrer"
+              style={{background:"rgba(255,255,255,0.15)",borderRadius:20,padding:"7px 12px",color:"#fff",fontSize:12,fontWeight:700,textDecoration:"none",flexShrink:0}}>
+              ↗ Öffnen
+            </a>
+            <button onClick={closePreview} title="Vorschau schliessen"
               style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0}}>✕</button>
           </div>
           <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:preview.type==="pdf"?0:16}}>
-            {preview.type==="jpg" && <img src={preview.dataUrl} alt={preview.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />}
-            {preview.type==="mp4" && <video src={preview.dataUrl} controls autoPlay style={{maxWidth:"100%",maxHeight:"100%"}} />}
-            {preview.type==="pdf" && <iframe src={preview.dataUrl} title={preview.name} style={{width:"100%",height:"100%",border:"none",background:"#fff"}} />}
+            {preview.type==="jpg" && <img src={preview.blobUrl} alt={preview.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />}
+            {preview.type==="mp4" && <video src={preview.blobUrl} controls autoPlay style={{maxWidth:"100%",maxHeight:"100%"}} />}
+            {preview.type==="pdf" && <iframe src={preview.blobUrl} title={preview.name} style={{width:"100%",height:"100%",border:"none",background:"#fff"}} />}
           </div>
         </div>
       )}
