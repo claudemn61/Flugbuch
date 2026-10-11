@@ -118,6 +118,196 @@ function isSlotFilled(slotData) {
   return !!(slotData.title || slotData.name || slotData.serialNr || slotData.zulassung || slotData.purchaseDate || (slotData.checks && slotData.checks.length));
 }
 
+// ── Anleitung (Wartung, Reserve/Schirm/Sitz) ────────────────────────────
+// Pro Slot ablegbare Dateien (mp4/jpg/pdf) — Metadaten (Name, Typ,
+// Reihenfolge) stecken direkt im Slot selbst (data.anleitung, landet also
+// automatisch im selben service:*-Blob wie Name/Checks/etc.), der eigentliche
+// Dateiinhalt liegt separat unter einem eigenen "service:anleitung_file_*"-
+// Key — sonst würde jede Texteingabe (z.B. ein Buchstabe im Namen) bei
+// jedem Speichern den kompletten, womöglich grossen Dateiinhalt neu
+// schreiben. Beide Teile tragen das "service:"-Präfix, landen also
+// automatisch im Backup-Export/Import (siehe exportBackup/importBackup in
+// flugbuch.jsx) — ohne dortige Sonderbehandlung nötig.
+const ANLEITUNG_ICON = { mp4: "🎬", jpg: "🖼️", pdf: "📄" };
+function anleitungFileKey(id) { return `service:anleitung_file_${id}`; }
+function anleitungTypeFor(file) {
+  const ext = (file.name.split(".").pop()||"").toLowerCase();
+  if (file.type==="application/pdf" || ext==="pdf") return "pdf";
+  if (file.type==="video/mp4" || ext==="mp4") return "mp4";
+  if (file.type==="image/jpeg" || ext==="jpg" || ext==="jpeg") return "jpg";
+  return null;
+}
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+// Verkleinert ein frisch importiertes jpg genauso wie die Brevet-Fotos
+// (canvasToCompressed, weiter unten definiert) — mp4/pdf lassen sich so
+// nicht verkleinern und werden unverändert abgelegt.
+function compressJpegDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      resolve(canvasToCompressed(canvas, 1600, 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+function AnleitungButton({ attachments, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [preview, setPreview] = useState(null); // {type, name, dataUrl} | null
+  const fileRef = useRef(null);
+  const list = attachments || [];
+
+  const addFiles = async (files) => {
+    setErr("");
+    setBusy(true);
+    // Läuft über eine lokale Kopie statt über das "attachments"-Prop, das
+    // sich während dieser Schleife nicht aktualisiert (erst beim nächsten
+    // Render) — sonst würde bei mehreren gleichzeitig gewählten Dateien
+    // jeder onChange-Aufruf wieder vom selben alten Stand ausgehen und nur
+    // die zuletzt verarbeitete Datei überleben.
+    let acc = attachments || [];
+    for (const file of Array.from(files)) {
+      const type = anleitungTypeFor(file);
+      if (!type) { setErr(`Nicht unterstützter Dateityp: ${file.name}`); continue; }
+      try {
+        let dataUrl = await readFileAsDataUrl(file);
+        if (type === "jpg") dataUrl = await compressJpegDataUrl(dataUrl);
+        const id = `anl_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+        const saved = await window.storage.set(anleitungFileKey(id), JSON.stringify(dataUrl));
+        if (!saved) { setErr(`„${file.name}" konnte nicht gespeichert werden (evtl. zu gross).`); continue; }
+        const name = file.name.replace(/\.[^.]+$/, "");
+        acc = [...acc, { id, name, type, mime: file.type, addedAt: todayStr() }];
+        onChange(acc);
+      } catch (e) {
+        console.error("Anleitung-Upload error:", e);
+        setErr(`„${file.name}" konnte nicht gelesen werden.`);
+      }
+    }
+    setBusy(false);
+  };
+
+  const removeFile = async (id) => {
+    try { await window.storage.delete(anleitungFileKey(id)); } catch (e) { console.error("Anleitung delete error:", e); }
+    onChange(list.filter(a => a.id !== id));
+  };
+
+  const renameFile = (id, name) => onChange(list.map(a => a.id===id ? {...a, name} : a));
+
+  const move = (idx, dir) => {
+    const j = idx + dir;
+    if (j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    onChange(next);
+  };
+
+  const openPreview = async (att) => {
+    setBusy(true); setErr("");
+    try {
+      const r = await window.storage.get(anleitungFileKey(att.id));
+      if (r) setPreview({ type: att.type, name: att.name, dataUrl: JSON.parse(r.value) });
+      else setErr("Datei nicht gefunden.");
+    } catch (e) { console.error("Anleitung preview error:", e); setErr("Datei konnte nicht geladen werden."); }
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <button onClick={()=>setOpen(true)} title="Anleitung"
+        style={{flexShrink:0,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:8,padding:"0 10px",color:"#c4b5fd",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+        📎 Anleitung{list.length>0 ? ` (${list.length})` : ""}
+      </button>
+
+      {open && (
+        <div onClick={()=>setOpen(false)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>📎 Anleitung</div>
+            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>mp4, jpg, pdf — importieren, umbenennen, per ▲▼ sortieren.</div>
+
+            {list.length===0 && (
+              <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>Noch keine Datei hinterlegt.</div>
+            )}
+
+            <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
+              {list.map((att, idx) => (
+                <div key={att.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
+                  <span style={{fontSize:16,flexShrink:0}}>{ANLEITUNG_ICON[att.type]}</span>
+                  {editingId===att.id ? (
+                    <input autoFocus value={att.name}
+                      onChange={e=>renameFile(att.id, e.target.value)}
+                      onBlur={()=>setEditingId(null)}
+                      onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",color:"#e8f4fd",fontSize:13}} />
+                  ) : (
+                    <span onClick={()=>openPreview(att)}
+                      style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,color:"#e8f4fd",cursor:"pointer"}}>
+                      {att.name}
+                    </span>
+                  )}
+                  <button onClick={()=>setEditingId(att.id)} title="Umbenennen"
+                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:"#e8f4fd",fontSize:12,cursor:"pointer",flexShrink:0}}>✎</button>
+                  <button onClick={()=>move(idx,-1)} disabled={idx===0}
+                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
+                  <button onClick={()=>move(idx,1)} disabled={idx===list.length-1}
+                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===list.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===list.length-1?"default":"pointer",flexShrink:0}}>▼</button>
+                  <button onClick={()=>removeFile(att.id)} title="Löschen"
+                    style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:26,height:26,color:"#f87171",fontSize:12,cursor:"pointer",flexShrink:0}}>✕</button>
+                </div>
+              ))}
+            </div>
+
+            {err && <div style={{fontSize:12,color:"#fcd34d",marginBottom:10}}>{err}</div>}
+
+            <input ref={fileRef} type="file" accept=".mp4,.jpg,.jpeg,.pdf" multiple style={{display:"none"}}
+              onChange={e=>{ if (e.target.files.length) addFiles(e.target.files); e.target.value=""; }} />
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>fileRef.current?.click()} disabled={busy}
+                style={{flex:1,background:"rgba(167,139,250,0.15)",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,padding:"10px",color:"#c4b5fd",fontSize:13,fontWeight:700,cursor:busy?"default":"pointer",opacity:busy?0.6:1}}>
+                {busy ? "⏳ …" : "+ Datei hinzufügen"}
+              </button>
+              <button onClick={()=>setOpen(false)}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
+                Schliessen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {preview && (
+        <div onClick={()=>setPreview(null)} style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+            <span style={{color:"#fff",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{preview.name}</span>
+            <button onClick={()=>setPreview(null)} title="Vorschau schliessen"
+              style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0}}>✕</button>
+          </div>
+          <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:preview.type==="pdf"?0:16}}>
+            {preview.type==="jpg" && <img src={preview.dataUrl} alt={preview.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />}
+            {preview.type==="mp4" && <video src={preview.dataUrl} controls autoPlay style={{maxWidth:"100%",maxHeight:"100%"}} />}
+            {preview.type==="pdf" && <iframe src={preview.dataUrl} title={preview.name} style={{width:"100%",height:"100%",border:"none",background:"#fff"}} />}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Einfache Levenshtein-Distanz für die Tippfehler-Warnung unten — erkennt
 // nahe Duplikate (einzelne falsche Ziffer, fehlendes/zusätzliches
 // Leerzeichen usw.), ohne exakte Gleichheit zu verlangen.
@@ -254,10 +444,13 @@ function SlotColumnsView({ slotIds, dataMap, updateSlot, addCheck, updateCheck, 
             </div>
             <div>
               <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5}}>Intervall (Monate)</div>
-              <input type="number" min="1" value={data.intervalMonths}
-                onChange={e=>updateSlot(slotId,{intervalMonths:e.target.value})}
-                onBlur={e=>updateSlot(slotId,{intervalMonths:Math.max(1,parseInt(e.target.value)||1)})}
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+              <div style={{display:"flex",gap:6,alignItems:"stretch"}}>
+                <input type="number" min="1" value={data.intervalMonths}
+                  onChange={e=>updateSlot(slotId,{intervalMonths:e.target.value})}
+                  onBlur={e=>updateSlot(slotId,{intervalMonths:Math.max(1,parseInt(e.target.value)||1)})}
+                  style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"7px 9px",color:"#e8f4fd",fontSize:13,boxSizing:"border-box"}} />
+                <AnleitungButton attachments={data.anleitung} onChange={next=>updateSlot(slotId,{anleitung:next})} />
+              </div>
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -479,6 +672,9 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
               onBlur={e=>updateSlot(effectiveActiveSlot,{intervalMonths: Math.max(1, parseInt(e.target.value)||1)})}
               style={{width:70,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"9px 10px",color:"#e8f4fd",fontSize:14,boxSizing:"border-box"}} />
             <span style={{fontSize:13,color:"rgba(232,244,253,0.6)"}}>Monate</span>
+            <div style={{marginLeft:"auto"}}>
+              <AnleitungButton attachments={data.anleitung} onChange={next=>updateSlot(effectiveActiveSlot,{anleitung:next})} />
+            </div>
           </div>
         </div>
 
