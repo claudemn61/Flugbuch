@@ -348,6 +348,11 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
   const data = dataMap[effectiveActiveSlot] || emptySchirmSlot();
   const { nextDue, overdue, soonDue } = computeDueStatus(data);
   const similarName = findSimilarName(data.name, slotIds.filter(id=>id!==effectiveActiveSlot).map(id=>(dataMap[id]||emptySchirmSlot()).name), confirmedPairs);
+  // Aus Platzgründen ein einzelner "+/-"-Knopf statt separatem "+" in der
+  // Tab-Reihe und eigener "− Spalte löschen"-Kachel darunter — Tap öffnet
+  // die Auswahl (hinzufügen / aktive Spalte löschen).
+  const [showAddDeleteMenu, setShowAddDeleteMenu] = useState(false);
+  const activeLabel = effectiveActiveSlot ? ((dataMap[effectiveActiveSlot]?.title) || defaultTitle(slotIds.indexOf(effectiveActiveSlot))) : "";
   return (
     <div style={{padding:"12px 16px 0"}}>
       {/* Tabs: tap an inactive tab to switch to it; tap the already-
@@ -387,19 +392,35 @@ function SlotTabsView({ config, dataMap, updateSlot, addCheck, updateCheck, dele
             </button>
           );
         })}
-        <button onClick={onAddColumn} title="Weiteren Tab hinzufügen"
-          style={{flexShrink:0,width:32,padding:tabPadding,borderRadius:9,background:accentBg,border:`1px dashed ${accentColor}66`,color:accentColor,fontSize:tabFontSize+2,fontWeight:700,cursor:"pointer"}}>
-          +
-        </button>
+        <div style={{position:"relative",flexShrink:0}}>
+          <button onClick={()=>setShowAddDeleteMenu(s=>!s)} title="Spalte hinzufügen/löschen"
+            style={{width:36,padding:tabPadding,borderRadius:9,background:accentBg,border:`1px dashed ${accentColor}66`,color:accentColor,fontSize:tabFontSize-1,fontWeight:700,cursor:"pointer"}}>
+            +/−
+          </button>
+          {showAddDeleteMenu && (
+            <>
+              <div onClick={()=>setShowAddDeleteMenu(false)} style={{position:"fixed",inset:0,zIndex:99}} />
+              <div onClick={e=>e.stopPropagation()}
+                style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:190,zIndex:100}}>
+                <button onClick={()=>{ setShowAddDeleteMenu(false); onAddColumn(); }}
+                  style={{background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#e8f4fd",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                  ➕ Spalte hinzufügen
+                </button>
+                {effectiveActiveSlot && (
+                  <button onClick={()=>{ setShowAddDeleteMenu(false); onRequestDelete(effectiveActiveSlot, activeLabel); }}
+                    style={{background:"transparent",border:"none",borderRadius:6,padding:"8px 10px",color:"#f87171",fontSize:13,cursor:"pointer",textAlign:"left"}}>
+                    ➖ Aktive Spalte löschen
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Fields for the currently selected tab */}
       {effectiveActiveSlot ? (
       <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:14}}>
-        <button onClick={()=>onRequestDelete(effectiveActiveSlot, (dataMap[effectiveActiveSlot]?.title)||defaultTitle(slotIds.indexOf(effectiveActiveSlot)))}
-          style={{alignSelf:"flex-end",background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:20,padding:"4px 10px",color:"#f87171",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-          − Spalte löschen
-        </button>
         {/* Name */}
         <div>
           <div style={{fontSize:11,color:"rgba(232,244,253,0.4)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>Name</div>
