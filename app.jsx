@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.12.3";
+const APP_VERSION = "6.13";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.13", note: "Ausrüstung ▸ Wartung (Reserve/Schirm/Sitz): neue Kachel \"📎 Anleitung\" neben Check-Intervall — pro Position lassen sich mp4/jpg/pdf-Dateien importieren, umbenennen und per ▲▼ sortieren, mit Vorschau direkt in der App. Wird wie die übrigen Wartungsdaten automatisch vom Backup-Export/Import erfasst." },
   { v: "6.12.3", note: "Titelzeile von Flugbuch/Statistik/Ausrüstung/Reisen: das rote ❓ (Hilfe) rechts entfernt, stattdessen je 3 Icons zu den anderen Hauptkapiteln (direkte Querverlinkung). In Flugbuch blenden diese 3 Icons aus, solange eines der Funktions-Icons (💡📥💾☑️🔍) aktiv angezeigt wird." },
   { v: "6.12.2", note: "Neues App-Icon fürs Home-Bildschirm-Icon (PWA): dunkelblauer Hintergrund mit weissem Bogen (\"Flugkurve\"), kleinem Akzent-Viertelkreis und dem Schriftzug \"flugbuch\" (flug in Amber, buch in Weiss), in allen bisherigen Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.12.1", note: "Flugliste, ➕ Neuer Flug: fragt jetzt zuerst, ob eine IGC-Datei importiert oder ein leerer Flug ohne IGC angelegt werden soll — beide Wege bleiben danach in der Flugliste, statt direkt ins Flugdetail zu springen." },
