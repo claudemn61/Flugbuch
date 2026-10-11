@@ -323,9 +323,42 @@ function AnleitungButton({ attachments, onChange }) {
       if (!r) { setErr("Datei nicht gefunden."); setBusy(false); return; }
       const dataUrl = JSON.parse(r.value);
       const blobUrl = dataUrlToBlobUrl(dataUrl, att.mime || ANLEITUNG_MIME[att.type]);
-      setPreview({ type: att.type, name: att.name, blobUrl });
+      // Alte Blob-URL erst jetzt freigeben (nicht in closePreview/vorher),
+      // damit ein Wisch-Wechsel zum nächsten Element nicht kurz das Bild
+      // des vorherigen verliert, während die neue Datei noch lädt.
+      setPreview(prev => {
+        if (prev?.blobUrl) { try { URL.revokeObjectURL(prev.blobUrl); } catch {} }
+        return { id: att.id, type: att.type, name: att.name, blobUrl };
+      });
     } catch (e) { console.error("Anleitung preview error:", e); setErr("Datei konnte nicht geladen werden."); }
     setBusy(false);
+  };
+
+  // Wischen zwischen den Dateien derselben Ordner-Ebene (Ordner selbst
+  // werden dabei übersprungen) — ersetzt Schliessen+erneutes Antippen.
+  const previewableList = visibleList.filter(a => !a.isFolder);
+  const goToPreview = (delta) => {
+    if (!preview) return;
+    const idx = previewableList.findIndex(a => a.id===preview.id);
+    const next = previewableList[idx+delta];
+    if (next) openPreview(next);
+  };
+  const previewTouchStart = useRef(null);
+  const onPreviewTouchStart = (e) => {
+    if (e.touches.length !== 1) { previewTouchStart.current = null; return; }
+    const t = e.touches[0];
+    previewTouchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onPreviewTouchEnd = (e) => {
+    if (!previewTouchStart.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - previewTouchStart.current.x;
+    const dy = t.clientY - previewTouchStart.current.y;
+    previewTouchStart.current = null;
+    const SWIPE_THRESHOLD = 60;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) goToPreview(1);  // nach links wischen -> nächste Datei
+    else goToPreview(-1);        // nach rechts wischen -> vorherige Datei
   };
 
   return (
@@ -441,7 +474,8 @@ function AnleitungButton({ attachments, onChange }) {
       )}
 
       {preview && (
-        <div onClick={closePreview} style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
+        <div onClick={closePreview} onTouchStart={onPreviewTouchStart} onTouchEnd={onPreviewTouchEnd}
+          style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
           <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,gap:10}}>
             <span style={{color:"#fff",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{preview.name}</span>
             <a onClick={e=>e.stopPropagation()} href={preview.blobUrl} target="_blank" rel="noopener noreferrer"
@@ -451,6 +485,9 @@ function AnleitungButton({ attachments, onChange }) {
             <button onClick={closePreview} title="Vorschau schliessen"
               style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0}}>✕</button>
           </div>
+          {previewableList.length>1 && (
+            <div style={{textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.4)",flexShrink:0}}>‹ wischen ›</div>
+          )}
           <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:preview.type==="pdf"?0:16}}>
             {preview.type==="jpg" && <img src={preview.blobUrl} alt={preview.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />}
             {preview.type==="mp4" && <video src={preview.blobUrl} controls autoPlay style={{maxWidth:"100%",maxHeight:"100%"}} />}
