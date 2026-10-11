@@ -135,6 +135,11 @@ function anleitungTypeFor(file) {
   if (file.type==="application/pdf" || ext==="pdf") return "pdf";
   if (file.type==="video/mp4" || ext==="mp4") return "mp4";
   if (file.type==="image/jpeg" || ext==="jpg" || ext==="jpeg") return "jpg";
+  // .heic/.heif (iPhone-Kamera-Standardformat) läuft über denselben
+  // jpg-Pfad: compressJpegDataUrl versucht die Umwandlung nach JPEG (klappt
+  // v.a. in Safari, das HEIC nativ decodieren kann); scheitert es, greift
+  // dessen eigener Fallback (Originaldatei unverändert übernehmen).
+  if (file.type==="image/heic" || file.type==="image/heif" || ext==="heic" || ext==="heif") return "jpg";
   return null;
 }
 function readFileAsDataUrl(file) {
@@ -238,7 +243,7 @@ function AnleitungButton({ attachments, onChange }) {
           <div onClick={e=>e.stopPropagation()}
             style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
             <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>📎 Anleitung</div>
-            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>mp4, jpg, pdf — importieren, umbenennen, per ▲▼ sortieren.</div>
+            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>mp4, jpg, heic, pdf — importieren, umbenennen, per ▲▼ sortieren.</div>
 
             {list.length===0 && (
               <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>Noch keine Datei hinterlegt.</div>
@@ -274,7 +279,7 @@ function AnleitungButton({ attachments, onChange }) {
 
             {err && <div style={{fontSize:12,color:"#fcd34d",marginBottom:10}}>{err}</div>}
 
-            <input ref={fileRef} type="file" accept=".mp4,.jpg,.jpeg,.pdf" multiple style={{display:"none"}}
+            <input ref={fileRef} type="file" accept=".mp4,.jpg,.jpeg,.heic,.heif,.pdf" multiple style={{display:"none"}}
               onChange={e=>{ if (e.target.files.length) addFiles(e.target.files); e.target.value=""; }} />
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>fileRef.current?.click()} disabled={busy}
