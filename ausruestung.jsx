@@ -409,7 +409,7 @@ function AnleitungButton({ attachments, onChange }) {
 
             <div style={{overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
               {visibleList.map((att, idx) => (
-                <div key={att.id} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                <div key={att.id} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>
                   {editMode && (
                     <button onClick={()=>requestDelete(att)} title="Löschen"
                       style={{position:"absolute",top:-6,right:-6,zIndex:2,background:"#ef4444",border:"2px solid #0a1628",borderRadius:"50%",width:20,height:20,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>✕</button>
