@@ -407,36 +407,41 @@ function AnleitungButton({ attachments, onChange }) {
               <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>{currentFolder ? "Dieser Ordner ist leer." : "Noch keine Datei hinterlegt."}</div>
             )}
 
-            <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
+            <div style={{overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
               {visibleList.map((att, idx) => (
-                <div key={att.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
-                  {att.type==="jpg" && att.thumb ? (
-                    <img src={att.thumb} alt="" style={{width:52,height:52,borderRadius:8,objectFit:"cover",flexShrink:0}} />
-                  ) : (
-                    <span style={{fontSize:32,flexShrink:0,lineHeight:1}}>{att.isFolder ? "📁" : ANLEITUNG_ICON[att.type]}</span>
+                <div key={att.id} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                  {editMode && (
+                    <button onClick={()=>requestDelete(att)} title="Löschen"
+                      style={{position:"absolute",top:-6,right:-6,zIndex:2,background:"#ef4444",border:"2px solid #0a1628",borderRadius:"50%",width:20,height:20,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>✕</button>
                   )}
+                  <div onClick={()=> !editMode && (att.isFolder ? enterFolder(att.id) : openPreview(att))}
+                    style={{width:"100%",aspectRatio:"1",borderRadius:10,background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:editMode?"default":"pointer"}}>
+                    {att.type==="jpg" && att.thumb ? (
+                      <img src={att.thumb} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                    ) : (
+                      <span style={{fontSize:32,lineHeight:1}}>{att.isFolder ? "📁" : ANLEITUNG_ICON[att.type]}</span>
+                    )}
+                  </div>
                   {editingId===att.id ? (
                     <input autoFocus value={att.name}
                       onChange={e=>renameEntry(att.id, e.target.value)}
                       onBlur={()=>setEditingId(null)}
                       onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
-                      style={{flex:1,minWidth:0,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",color:"#e8f4fd",fontSize:13}} />
+                      style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:5,padding:"3px 4px",color:"#e8f4fd",fontSize:10,textAlign:"center",boxSizing:"border-box"}} />
                   ) : (
-                    <span onClick={()=> att.isFolder ? enterFolder(att.id) : openPreview(att)}
-                      style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,color:"#e8f4fd",cursor:"pointer"}}>
+                    <span onClick={()=> editMode && setEditingId(att.id)}
+                      style={{width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:10,color:"#e8f4fd",textAlign:"center",cursor:editMode?"text":"default"}}>
                       {att.name}
                     </span>
                   )}
-                  {editMode && (<>
-                    <button onClick={()=>setEditingId(att.id)} title="Umbenennen"
-                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:"#e8f4fd",fontSize:12,cursor:"pointer",flexShrink:0}}>✎</button>
-                    <button onClick={()=>move(att,-1)} disabled={idx===0}
-                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
-                    <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
-                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===visibleList.length-1?"default":"pointer",flexShrink:0}}>▼</button>
-                    <button onClick={()=>requestDelete(att)} title="Löschen"
-                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:26,height:26,color:"#f87171",fontSize:12,cursor:"pointer",flexShrink:0}}>✕</button>
-                  </>)}
+                  {editMode && (
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>move(att,-1)} disabled={idx===0}
+                        style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:4,width:20,height:16,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:9,cursor:idx===0?"default":"pointer",padding:0}}>▲</button>
+                      <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
+                        style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:4,width:20,height:16,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:9,cursor:idx===visibleList.length-1?"default":"pointer",padding:0}}>▼</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
