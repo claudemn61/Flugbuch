@@ -6515,6 +6515,7 @@ function FlugbuchApp() {
   const [rowImportError, setRowImportError] = useState("");
   const [backupMsg, setBackupMsg] = useState("");
   const backupFileRef = useRef(null);
+  const maintenanceFileRef = useRef(null);
   const fileRef = useRef(null);
   const pdfFileRef = useRef(null);
   // Backup-Hinweis: zeigt einen Punkt am 💾-Button, sobald sich Flüge oder
@@ -6790,7 +6791,15 @@ function FlugbuchApp() {
     try {
       const keys = await window.storage.list("");
       for (const k of (keys?.keys || [])) {
-        if (k.startsWith("service:")) {
+        if (k.startsWith("service:anleitung_file_")) {
+          // Bewusst nicht im normalen Backup: der eigentliche Dateiinhalt der
+          // Anleitung-Anhänge (Fotos/PDFs) kann gross werden und bläht jedes
+          // Backup unnötig auf — landet stattdessen im separaten
+          // Wartungs-Dateien-Backup (exportMaintenanceFiles). Die Metadaten
+          // (Name, Typ, Reihenfolge) stecken in service:schirme/service:reserve
+          // etc. und bleiben hier erfasst.
+          continue;
+        } else if (k.startsWith("service:")) {
           const r = await window.storage.get(k);
           if (r) { try { serviceData[k] = JSON.parse(r.value); } catch {} }
         } else if (k.startsWith("reisen:")) {
@@ -6948,6 +6957,95 @@ function FlugbuchApp() {
       // ältere Backups ohne exportedAt fallen auf "jetzt" zurück.
       try { window.storage.set("settings:lastBackupAt", data.exportedAt || new Date().toISOString()); } catch {}
       setBackupMsg(`✓ ${data.flights.length} Flüge${restoredExtras?` + Service/Reisen-Daten`:""} wiederhergestellt.`);
+    } catch (e) {
+      setBackupMsg("Fehler beim Import: " + e.message);
+    }
+  }, []);
+
+  // Separates, auf Anfrage erstelltes Backup nur für die Anleitung-Anhänge
+  // (Fotos/PDFs) aus Ausrüstung ▸ Wartung — die werden im normalen Backup
+  // bewusst ausgelassen (siehe exportBackup), da sie dessen Grösse sonst
+  // stark aufblähen, obwohl sie sich seltener ändern als Flüge/Einstellungen.
+  const exportMaintenanceFiles = useCallback(async () => {
+    let filesData = {};
+    try {
+      const keys = await window.storage.list("");
+      for (const k of (keys?.keys || [])) {
+        if (k.startsWith("service:anleitung_file_")) {
+          const r = await window.storage.get(k);
+          if (r) { try { filesData[k] = JSON.parse(r.value); } catch {} }
+        }
+      }
+    } catch (e) { console.error("Wartungs-Dateien-Backup: error collecting files:", e); }
+
+    const count = Object.keys(filesData).length;
+    if (!count) { setBackupMsg("Keine Wartungs-Dateien (Anleitung) vorhanden."); return; }
+
+    const payload = { exportedAt: new Date().toISOString(), files: filesData };
+    const json = JSON.stringify(payload, null, 0);
+    const dateStamp = new Date().toISOString().slice(0,10);
+
+    let blob, filename;
+    try {
+      if (typeof CompressionStream !== "undefined") {
+        const gzStream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+        blob = await new Response(gzStream).blob();
+        filename = `flugbuch-wartungsdateien-${dateStamp}.json.gz`;
+      }
+    } catch (e) { console.error("Wartungs-Dateien-Backup: gzip compression failed, falling back to plain JSON:", e); }
+    if (!blob) {
+      blob = new Blob([json], { type: "application/json" });
+      filename = `flugbuch-wartungsdateien-${dateStamp}.json`;
+    }
+
+    if (navigator.share && navigator.canShare) {
+      try {
+        const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+          setBackupMsg(`✓ ${count} Wartungs-Datei(en) geteilt.`);
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === "AbortError") { return; }
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setBackupMsg(`✓ ${count} Wartungs-Datei(en) gesichert.`);
+  }, []);
+
+  const importMaintenanceFiles = useCallback(async (file) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const isGzip = bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+      let text;
+      if (isGzip) {
+        if (typeof DecompressionStream === "undefined") {
+          throw new Error("Dieses gzip-komprimierte Backup kann auf diesem Browser nicht gelesen werden (Decompression Streams API fehlt).");
+        }
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        text = await new Response(stream).text();
+      } else {
+        text = new TextDecoder("utf-8").decode(bytes);
+      }
+      const data = JSON.parse(text);
+      if (!data.files || typeof data.files !== "object") throw new Error("Ungültiges Wartungs-Dateien-Backup (kein 'files'-Objekt).");
+      let restored = 0;
+      for (const [key, value] of Object.entries(data.files)) {
+        if (!key.startsWith("service:anleitung_file_")) continue; // Sicherheitsnetz gegen falsch zugeordnete Dateien
+        await window.storage.set(key, JSON.stringify(value));
+        restored++;
+      }
+      setBackupMsg(`✓ ${restored} Wartungs-Datei(en) wiederhergestellt.`);
     } catch (e) {
       setBackupMsg("Fehler beim Import: " + e.message);
     }
@@ -7799,6 +7897,8 @@ function FlugbuchApp() {
       {/* Backup + selection: badges collapse into menus, shown together with Import badge below */}
       <input ref={backupFileRef} type="file" accept=".json,.gz,.json.gz" style={{display:"none"}}
         onChange={e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=""; }} />
+      <input ref={maintenanceFileRef} type="file" accept=".json,.gz,.json.gz" style={{display:"none"}}
+        onChange={e=>{ if(e.target.files[0]) importMaintenanceFiles(e.target.files[0]); e.target.value=""; }} />
 
       {showCsvColumnConfig && (
         <ColumnConfigModal title={'Spalten für "Kopieren"'} hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen, passend zur Ziel-Tabelle."
@@ -7873,15 +7973,30 @@ function FlugbuchApp() {
       )}
 
       {showBackupMenu && (
-        <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10,display:"flex",gap:8}}>
-          <button onClick={exportBackup}
-            style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-            ☁️ Backup sichern
-          </button>
-          <button onClick={()=>backupFileRef.current?.click()}
-            style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
-            ⬆ Backup importieren
-          </button>
+        <div style={{margin:"8px 16px 0",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:10}}>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={exportBackup}
+              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+              ☁️ Backup sichern
+            </button>
+            <button onClick={()=>backupFileRef.current?.click()}
+              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+              ⬆ Backup importieren
+            </button>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <button onClick={exportMaintenanceFiles}
+              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+              📎 Wartungs-Dateien sichern
+            </button>
+            <button onClick={()=>maintenanceFileRef.current?.click()}
+              style={{flex:1,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 6px",color:"rgba(232,244,253,0.8)",fontSize:12,cursor:"pointer",textAlign:"center"}}>
+              ⬆ Wartungs-Dateien importieren
+            </button>
+          </div>
+          <div style={{fontSize:10,color:"rgba(232,244,253,0.4)",marginTop:8,lineHeight:1.4}}>
+            Fotos/PDFs aus Ausrüstung ▸ Wartung ▸ Anleitung — separat, nicht im normalen Backup enthalten.
+          </div>
         </div>
       )}
 
