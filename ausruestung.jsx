@@ -205,6 +205,7 @@ function AnleitungButton({ attachments, onChange }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [editMode, setEditMode] = useState(false); // zeigt ✎/▲▼/✕ pro Zeile erst bei Bedarf (wie ✏️/✓ in Ausrüstung, Gewichte)
   const [preview, setPreview] = useState(null); // {type, name, blobUrl} | null
   // Navigations-Pfad in Unterordner — Array von Ordner-IDs, [] = Wurzel.
   const [folderStack, setFolderStack] = useState([]);
@@ -373,7 +374,13 @@ function AnleitungButton({ attachments, onChange }) {
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div onClick={e=>e.stopPropagation()}
             style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>📎 Anleitung</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontSize:15,fontWeight:800}}>📎 Anleitung</div>
+              <button onClick={()=>{ setEditMode(e=>!e); setEditingId(null); }}
+                style={{background: editMode ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.08)",border:`1px solid ${editMode?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.12)"}`,borderRadius:8,padding:"4px 10px",color: editMode ? "#4ade80" : "rgba(232,244,253,0.7)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                {editMode ? "✓ Fertig" : "✏️ Bearbeiten"}
+              </button>
+            </div>
             <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:10}}>mp4, jpg, heic, pdf — importieren, umbenennen, per ▲▼ sortieren, in Ordnern organisieren.</div>
 
             <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginBottom:10,fontSize:12}}>
@@ -402,11 +409,11 @@ function AnleitungButton({ attachments, onChange }) {
 
             <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
               {visibleList.map((att, idx) => (
-                <div key={att.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
+                <div key={att.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:"rgba(255,255,255,0.04)"}}>
                   {att.type==="jpg" && att.thumb ? (
-                    <img src={att.thumb} alt="" style={{width:26,height:26,borderRadius:5,objectFit:"cover",flexShrink:0}} />
+                    <img src={att.thumb} alt="" style={{width:52,height:52,borderRadius:8,objectFit:"cover",flexShrink:0}} />
                   ) : (
-                    <span style={{fontSize:16,flexShrink:0}}>{att.isFolder ? "📁" : ANLEITUNG_ICON[att.type]}</span>
+                    <span style={{fontSize:32,flexShrink:0,lineHeight:1}}>{att.isFolder ? "📁" : ANLEITUNG_ICON[att.type]}</span>
                   )}
                   {editingId===att.id ? (
                     <input autoFocus value={att.name}
@@ -420,14 +427,16 @@ function AnleitungButton({ attachments, onChange }) {
                       {att.name}
                     </span>
                   )}
-                  <button onClick={()=>setEditingId(att.id)} title="Umbenennen"
-                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:"#e8f4fd",fontSize:12,cursor:"pointer",flexShrink:0}}>✎</button>
-                  <button onClick={()=>move(att,-1)} disabled={idx===0}
-                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
-                  <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
-                    style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===visibleList.length-1?"default":"pointer",flexShrink:0}}>▼</button>
-                  <button onClick={()=>requestDelete(att)} title="Löschen"
-                    style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:26,height:26,color:"#f87171",fontSize:12,cursor:"pointer",flexShrink:0}}>✕</button>
+                  {editMode && (<>
+                    <button onClick={()=>setEditingId(att.id)} title="Umbenennen"
+                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:"#e8f4fd",fontSize:12,cursor:"pointer",flexShrink:0}}>✎</button>
+                    <button onClick={()=>move(att,-1)} disabled={idx===0}
+                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===0?"default":"pointer",flexShrink:0}}>▲</button>
+                    <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
+                      style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:12,cursor:idx===visibleList.length-1?"default":"pointer",flexShrink:0}}>▼</button>
+                    <button onClick={()=>requestDelete(att)} title="Löschen"
+                      style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:6,width:26,height:26,color:"#f87171",fontSize:12,cursor:"pointer",flexShrink:0}}>✕</button>
+                  </>)}
                 </div>
               ))}
             </div>
