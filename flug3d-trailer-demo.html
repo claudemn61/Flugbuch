@@ -81,6 +81,45 @@ function fmtClock(totalSec) {
   return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 }
 
+// ── Geometrie-Helfer für den schwebenden 3D-Track (reine Flughöhe, kein
+// Bodenkontakt) — MapLibre-Linien werden sonst immer flach aufs Gelände
+// projiziert; eine sehr dünne fill-extrusion-"Röhre" exakt auf Flughöhe
+// (Basis/Höhe beide nahe der echten Flughöhe, nicht beim Boden) umgeht das.
+function metersToDeg(lat, meters) {
+  const mPerDegLat = 111320;
+  const mPerDegLon = 111320 * Math.cos(lat*Math.PI/180);
+  return { dLon: meters/mPerDegLon, dLat: meters/mPerDegLat };
+}
+function wallRing(lonA, latA, lonB, latB, halfWidthM) {
+  const midLat = (latA+latB)/2;
+  const mPerDegLat = 111320, mPerDegLon = 111320*Math.cos(midLat*Math.PI/180);
+  const dx = (lonB-lonA)*mPerDegLon, dy = (latB-latA)*mPerDegLat;
+  const len = Math.hypot(dx,dy) || 1;
+  const nx = -dy/len, ny = dx/len;
+  const offLon = (nx*halfWidthM)/mPerDegLon, offLat = (ny*halfWidthM)/mPerDegLat;
+  return [
+    [lonA-offLon, latA-offLat], [lonB-offLon, latB-offLat],
+    [lonB+offLon, latB+offLat], [lonA+offLon, latA+offLat],
+    [lonA-offLon, latA-offLat],
+  ];
+}
+function squareRing(lon, lat, halfWidthM) {
+  const { dLon, dLat } = metersToDeg(lat, halfWidthM);
+  return [[lon-dLon,lat-dLat],[lon+dLon,lat-dLat],[lon+dLon,lat+dLat],[lon-dLon,lat+dLat],[lon-dLon,lat-dLat]];
+}
+// Vorberechnete Vorhang-losen Track-Segmente: jedes Stück schwebt für sich
+// bei seiner eigenen Flughöhe (±2.5m dick), ohne jeden Bezug zum Gelände.
+function buildTrack3d(track) {
+  const feats = [];
+  for (let i=0;i<track.length-1;i++) {
+    const a = track[i], b = track[i+1];
+    const base = Math.min(a[3],b[3])-2.5, height = Math.max(a[3],b[3])+2.5;
+    feats.push({ type:"Feature", properties:{ base, height },
+      geometry:{ type:"Polygon", coordinates:[wallRing(a[2],a[1],b[2],b[1],1.2)] } });
+  }
+  return { type:"FeatureCollection", features: feats };
+}
+
 // Korrekte Grosskreis-Peilung zwischen zwei lat/lon-Punkten (Grad).
 function bearingDeg(aLat, aLon, bLat, bLon) {
   const toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
@@ -290,16 +329,17 @@ if (map) {
       });
     } catch (e) { /* ältere SDK-Version ohne Sky-API */ }
 
-    // Ganze Route dezent als Referenzlinie, plus hervorgehobene Marker für
-    // Boden-Position und aktuelle Position (schwebt nicht, Trailer ist kein
-    // Flughöhen-Demo wie der andere Prototyp — hier zählt die Kamera-Regie).
-    map.addSource("fullroute", { type:"geojson", data:{ type:"Feature", geometry:{ type:"LineString", coordinates: TRACK.map(p=>[p[2],p[1]]) } } });
-    map.addLayer({ id:"fullroute-line", type:"line", source:"fullroute",
-      layout:{ "line-cap":"round","line-join":"round" },
-      paint:{ "line-color":"#fbbf24","line-width":2,"line-opacity":0.35 } });
-    map.addSource("pos", { type:"geojson", data:{ type:"Feature", geometry:{ type:"Point", coordinates:[TRACK[0][2],TRACK[0][1]] } } });
-    map.addLayer({ id:"pos-dot", type:"circle", source:"pos",
-      paint:{ "circle-radius":7,"circle-color":"#ffffff","circle-stroke-color":"#1e5fd6","circle-stroke-width":3 } });
+    // Ganze Route als dünne, schwebende 3D-Spur auf echter Flughöhe (kein
+    // Bodenkontakt — siehe buildTrack3d), plus ein ebenso schwebender
+    // Positions-Marker an der aktuellen Stelle.
+    map.addSource("track3d", { type:"geojson", data: buildTrack3d(TRACK) });
+    map.addLayer({ id:"track3d-line", type:"fill-extrusion", source:"track3d",
+      paint:{ "fill-extrusion-color":"#fbbf24","fill-extrusion-opacity":0.75,
+        "fill-extrusion-base":["get","base"],"fill-extrusion-height":["get","height"] } });
+    map.addSource("pos", { type:"geojson", data:{ type:"Feature", properties:{ base:TRACK[0][3]-3, height:TRACK[0][3]+3 }, geometry:{ type:"Polygon", coordinates:[squareRing(TRACK[0][2],TRACK[0][1],1.6)] } } });
+    map.addLayer({ id:"pos-dot", type:"fill-extrusion", source:"pos",
+      paint:{ "fill-extrusion-color":"#ffffff","fill-extrusion-opacity":0.95,
+        "fill-extrusion-base":["get","base"],"fill-extrusion-height":["get","height"] } });
 
     statusEl.style.display = "none";
     document.getElementById("intro").style.display = "flex";
@@ -337,7 +377,8 @@ function renderFrame(trailerT) {
   if (map) {
     map.jumpTo({ center:[cur.lon,cur.lat], bearing, pitch: entry.pitch, zoom: entry.zoom });
     const posSrc = map.getSource("pos");
-    if (posSrc) posSrc.setData({ type:"Feature", geometry:{ type:"Point", coordinates:[cur.lon,cur.lat] } });
+    if (posSrc) posSrc.setData({ type:"Feature", properties:{ base:cur.alt-3, height:cur.alt+3 },
+      geometry:{ type:"Polygon", coordinates:[squareRing(cur.lon,cur.lat,1.6)] } });
   }
   document.getElementById("hudPhase").textContent = PHASE_NAMES[entry.label] || "—";
   document.getElementById("hudAlt").textContent = cur.alt + " m";
