@@ -41,7 +41,7 @@
 <div id="intro">
   <div class="card">
     <h1>✈️ 3D-Flythrough — Prototyp</h1>
-    <p>Kamera bleibt fix zum Gelände stehen (bewegt sich nicht mit jeder Kursänderung mit) — per Wischen und Drehen frei einstellbar. Der echte Flugpfad schwebt auf tatsächlicher Höhe, kein Bodenkontakt. Geschwindigkeit unten einstellbar.</p>
+    <p>Kamera bleibt fix zum Gelände stehen und rückt nur sanft nach, wenn die Spur den sichtbaren Ausschnitt verlässt — per Wischen und Drehen frei einstellbar. Der echte Flugpfad schwebt auf tatsächlicher Höhe, kein Bodenkontakt. Geschwindigkeit unten einstellbar.</p>
     <p style="color:rgba(252,211,77,0.9)">Braucht eine Internetverbindung (lädt Satelliten-/Geländekacheln live von MapTiler) — Prototyp, noch kein Teil der App.</p>
     <button onclick="document.getElementById('intro').style.display='none'; window.__startDemo && window.__startDemo();">▶ Flythrough starten</button>
   </div>
@@ -160,6 +160,9 @@ try {
 if (map) {
   let loaded = false;
   const showError = (msg) => { statusEl.className = "err"; statusEl.innerHTML = msg; };
+  // Für die Nachführ-Logik in renderFrame: solange eine sanfte Kamera-
+  // Korrektur noch läuft, nicht erneut auslösen.
+  map.on("moveend", () => { camMoving = false; });
   map.on("error", (e) => {
     console.error("MapTiler error:", e && e.error);
     if (!loaded) {
@@ -262,6 +265,7 @@ const tEnd = TRACK[TRACK.length-1][0];
 const realDurationSec = tEnd - t0;
 let playbackSec = 25; // per Dropdown veränderbar
 let playing = false;
+let camMoving = false; // true während einer sanften Nachführ-Korrektur (siehe renderFrame)
 let elapsedReal = 0; // Sekunden seit Abspielstart (Wall-Clock, nicht Flugzeit)
 let lastFrameTs = null;
 let rafId = null;
@@ -316,6 +320,25 @@ function renderFrame(fracTime) {
         geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 4)] },
       });
     }
+
+    // Nachführ-Kamera mit "Totzone": die Kamera bleibt stehen, solange die
+    // aktuelle Position gut im Bild ist — läuft sie near den Rand des
+    // sichtbaren Ausschnitts hinaus, rückt die Kamera sanft nach (statt bei
+    // jeder kleinen Bewegung mitzuschwenken, wie zuvor bemängelt). Zoom/
+    // Pitch/Bearing bleiben dabei unangetastet, inkl. manueller
+    // Wisch-/Dreh-Anpassungen des Nutzers.
+    if (!camMoving) {
+      const rect = map.getContainer().getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const pt = map.project([cur.lon, cur.lat]);
+        const marginX = rect.width * 0.2, marginY = rect.height * 0.2;
+        const outside = pt.x < marginX || pt.x > rect.width - marginX || pt.y < marginY || pt.y > rect.height - marginY;
+        if (outside) {
+          camMoving = true;
+          map.easeTo({ center: [cur.lon, cur.lat], duration: 1200 });
+        }
+      }
+    }
   }
 
   document.getElementById("hudTime").textContent = fmtClock(fracTime);
@@ -357,6 +380,7 @@ function pause() {
 function restart() {
   pause();
   elapsedReal = 0;
+  camMoving = false;
   setInitialView(); // Kamera auch zurücksetzen, falls per Wischen/Drehen verstellt
   renderFrame(0);
   play();
