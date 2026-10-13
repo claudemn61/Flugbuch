@@ -128,9 +128,9 @@ function buildTrack3d(track) {
   const feats = [];
   for (let i=0;i<track.length-1;i++) {
     const a = track[i], b = track[i+1];
-    const base = Math.min(a[3],b[3])-2.5, height = Math.max(a[3],b[3])+2.5;
+    const base = Math.min(a[3],b[3])-8, height = Math.max(a[3],b[3])+8;
     feats.push({ type:"Feature", properties:{ base, height },
-      geometry:{ type:"Polygon", coordinates:[wallRing(a[2],a[1],b[2],b[1],1.5)] } });
+      geometry:{ type:"Polygon", coordinates:[wallRing(a[2],a[1],b[2],b[1],9)] } });
   }
   return feats;
 }
@@ -207,8 +207,8 @@ if (map) {
     // Schwebender Positions-Marker an der aktuellen Stelle, ebenfalls ohne
     // jeden Bezug zum Boden.
     map.addSource("pos", { type: "geojson", data: { type: "Feature",
-      properties: { base: TRACK[0][3]-3, height: TRACK[0][3]+3 },
-      geometry: { type: "Polygon", coordinates: [squareRing(TRACK[0][2], TRACK[0][1], 1.6)] } } });
+      properties: { base: TRACK[0][3]-10, height: TRACK[0][3]+10 },
+      geometry: { type: "Polygon", coordinates: [squareRing(TRACK[0][2], TRACK[0][1], 11)] } } });
     map.addLayer({
       id: "pos-dot", type: "fill-extrusion", source: "pos",
       paint: {
@@ -248,7 +248,12 @@ if (map) {
 
 function setInitialView() {
   if (!map) return;
-  map.fitBounds(trackBounds(), { padding: 60, pitch: 70, bearing: 0, duration: 0 });
+  try {
+    map.fitBounds(trackBounds(), { padding: 60, pitch: 70, bearing: 0, duration: 0 });
+  } catch (e) {
+    console.error("setInitialView fitBounds failed, falling back to jumpTo:", e);
+    map.jumpTo({ center: [TRACK[0][2], TRACK[0][1]], zoom: 12.6, pitch: 70, bearing: 0 });
+  }
 }
 
 // ── Wiedergabe ───────────────────────────────────────────────────────
@@ -292,8 +297,8 @@ function renderFrame(fracTime) {
     const posSrc = map.getSource("pos");
     if (posSrc) posSrc.setData({
       type: "Feature",
-      properties: { base: cur.alt-3, height: cur.alt+3 },
-      geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 1.6)] },
+      properties: { base: cur.alt-10, height: cur.alt+10 },
+      geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 11)] },
     });
 
     const shadowSrc = map.getSource("shadow");
@@ -307,8 +312,8 @@ function renderFrame(fracTime) {
       } catch (e) {}
       shadowSrc.setData({
         type: "Feature",
-        properties: { base: ground, height: Math.max(ground+1, cur.alt-3) },
-        geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 0.6)] },
+        properties: { base: ground, height: Math.max(ground+1, cur.alt-10) },
+        geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 4)] },
       });
     }
   }
