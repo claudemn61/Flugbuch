@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.14.2";
+const APP_VERSION = "6.14.3";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.14.3", note: "App-Icon nochmals überarbeitet (Home-Bildschirm-Icon der PWA): Akzentform rechts (Dreieck/Viertelkreis) entfernt, jetzt nur noch Bogen + Schriftzug \"flugbuch\" auf dunkelblauem Hintergrund. Alle Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.14.2", note: "App-Icon aktualisiert (Home-Bildschirm-Icon der PWA), gleicher Look (dunkelblauer Hintergrund, weisser Bogen, Schriftzug \"flugbuch\"), Akzentform rechts jetzt ein schlichtes Dreieck statt Viertelkreis. Alle Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.14.1", note: "Anleitung-Kacheln (Ausrüstung ▸ Wartung): Bugfix — eine einzelne Kachel mit ungewöhnlich grossem Vorschaubild oder langem Dateinamen sprengte die ganze Grid-Spalte und machte dabei auch andere Kacheln in derselben Spalte (andere Zeile) übergross." },
   { v: "6.14", note: "Backup: die Dateiinhalte der Anleitung-Anhänge (Fotos/PDFs aus Ausrüstung ▸ Wartung) sind nicht mehr im normalen Backup enthalten — die konnten es stark aufblähen. Stattdessen neues, separates \"📎 Wartungs-Dateien sichern/importieren\" im Backup-Menü (Flugliste ▸ 💾), das nur diese Anhänge auf Anfrage sichert." },
