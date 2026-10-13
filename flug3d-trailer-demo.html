@@ -120,6 +120,26 @@ function buildTrack3d(track) {
   return { type:"FeatureCollection", features: feats };
 }
 
+function trackBounds() {
+  let minLon=Infinity,minLat=Infinity,maxLon=-Infinity,maxLat=-Infinity;
+  for (const p of TRACK) {
+    minLon=Math.min(minLon,p[2]); maxLon=Math.max(maxLon,p[2]);
+    minLat=Math.min(minLat,p[1]); maxLat=Math.max(maxLat,p[1]);
+  }
+  return [[minLon,minLat],[maxLon,maxLat]];
+}
+// Punkt, der um `distanceM` Meter in Kompassrichtung `bearingCompassDeg`
+// von (lat,lon) verschoben ist — genutzt, um das Kamera-Ziel von der
+// Boden-Projektion weg auf die Luftlinie zu verschieben (siehe renderFrame).
+function offsetLatLon(lat, lon, bearingCompassDeg, distanceM) {
+  const rad = bearingCompassDeg*Math.PI/180;
+  const mPerDegLat = 111320, mPerDegLon = 111320*Math.cos(lat*Math.PI/180);
+  return {
+    lat: lat + (distanceM*Math.cos(rad))/mPerDegLat,
+    lon: lon + (distanceM*Math.sin(rad))/mPerDegLon,
+  };
+}
+
 // Korrekte Grosskreis-Peilung zwischen zwei lat/lon-Punkten (Grad).
 function bearingDeg(aLat, aLon, bLat, bLon) {
   const toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
@@ -263,13 +283,34 @@ function buildTrailerPlan(highlights) {
 
 const PHASE_NAMES = { launch:"🛫 Start", glide:"➡️ Gleitstrecke", thermal:"🌀 Thermik", landing:"🛬 Landung" };
 
+let groundElevArr = null; // Bodenhöhe (m ü.M.) pro TRACK-Punkt, via queryTerrainElevation
+function computeGroundElevations(map) {
+  groundElevArr = new Array(TRACK.length);
+  let lastGood = TRACK[0][3] - 250;
+  const canQuery = map && typeof map.queryTerrainElevation === "function";
+  for (let i=0;i<TRACK.length;i++) {
+    let g = null;
+    if (canQuery) {
+      try { g = map.queryTerrainElevation([TRACK[i][2], TRACK[i][1]]); } catch (e) { g = null; }
+    }
+    if (typeof g === "number" && isFinite(g)) lastGood = g;
+    groundElevArr[i] = lastGood;
+  }
+}
+
 function pointAtRealTime(targetT) {
   let i = 0;
   while (i < TRACK.length-1 && TRACK[i+1][0] <= targetT) i++;
-  const a = TRACK[i], b = TRACK[Math.min(i+1, TRACK.length-1)];
+  const bIdx = Math.min(i+1, TRACK.length-1);
+  const a = TRACK[i], b = TRACK[bIdx];
   const span = Math.max(1, b[0]-a[0]);
   const f = Math.min(1, Math.max(0, (targetT - a[0]) / span));
-  return { lat: a[1]+(b[1]-a[1])*f, lon: a[2]+(b[2]-a[2])*f, alt: Math.round(a[3]+(b[3]-a[3])*f) };
+  const groundA = groundElevArr ? groundElevArr[i] : a[3]-250;
+  const groundB = groundElevArr ? groundElevArr[bIdx] : b[3]-250;
+  return {
+    lat: a[1]+(b[1]-a[1])*f, lon: a[2]+(b[2]-a[2])*f, alt: Math.round(a[3]+(b[3]-a[3])*f),
+    ground: groundA + (groundB-groundA)*f,
+  };
 }
 
 const sdk = window.maptilersdk;
@@ -341,8 +382,17 @@ if (map) {
       paint:{ "fill-extrusion-color":"#ffffff","fill-extrusion-opacity":0.95,
         "fill-extrusion-base":["get","base"],"fill-extrusion-height":["get","height"] } });
 
-    statusEl.style.display = "none";
-    document.getElementById("intro").style.display = "flex";
+    // Bodenhöhe pro Punkt ermitteln (für die Kamera-Ziel-Korrektur unten),
+    // dafür kurz über die ganze Route zoomen, damit die Terrain-Kacheln
+    // geladen sind, dann zurück auf die Startposition.
+    statusEl.innerHTML = '<div class="spinner"></div><div style="font-size:12px;color:rgba(232,244,253,0.6)">Berechne Höhenprofil…</div>';
+    map.fitBounds(trackBounds(), { padding: 60, duration: 0, pitch: 0, bearing: 0 });
+    map.once("idle", () => {
+      computeGroundElevations(map);
+      map.jumpTo({ center:[TRACK[0][2],TRACK[0][1]], bearing:0, pitch:60, zoom:14 });
+      statusEl.style.display = "none";
+      document.getElementById("intro").style.display = "flex";
+    });
   });
 }
 }
@@ -355,10 +405,11 @@ const trailerDuration = plan.length ? plan[plan.length-1].trailerEnd : TRAILER_T
 
 // Kamera "schwebt" in konstanter Distanz um die Route statt am Schirm zu
 // kleben: bearing dreht während des ganzen Trailers gleichmässig weiter
-// (eigene Umlaufgeschwindigkeit, unabhängig vom Flugkurs) — center bleibt
-// auf der aktuellen Flugposition, Zoom/Pitch pro Phase sorgen für mehr/
-// weniger Distanz bzw. Blickwinkel; das 3D-Gelände selbst übernimmt die
-// "passt sich dem Gelände an"-Wirkung, da die Karte echtes Terrain ist.
+// (eigene Umlaufgeschwindigkeit, unabhängig vom Flugkurs) — center zielt
+// (mit AGL-Korrektur, siehe renderFrame) auf die echte Flugposition, Zoom/
+// Pitch pro Phase sorgen für mehr/weniger Distanz bzw. Blickwinkel; das
+// 3D-Gelände selbst übernimmt die "passt sich dem Gelände an"-Wirkung, da
+// die Karte echtes Terrain ist.
 const ORBIT_DEG_PER_SEC = 14;
 
 function findPlanEntry(trailerT) {
@@ -374,8 +425,24 @@ function renderFrame(trailerT) {
   const cur = pointAtRealTime(realT);
   const bearing = (ORBIT_DEG_PER_SEC * trailerT) % 360;
 
+  // Die Karte visiert mit `center` immer einen Punkt auf dem Gelände an —
+  // zeigt man geradewegs auf die lon/lat-Projektion des Schirms, blickt die
+  // (schräg geneigte) Kamera an dessen echter Flughöhe vorbei, Richtung
+  // Boden darunter ("folgt dem Bodentrack"). Korrektur: das Kamera-Ziel wird
+  // um die Höhe über Grund (AGL) × tan(Neigungswinkel) entgegen der
+  // Blickrichtung verschoben, damit derselbe Blickstrahl stattdessen durch
+  // die tatsächliche, schwebende Position läuft.
+  let centerLon = cur.lon, centerLat = cur.lat;
+  if (typeof cur.ground === "number") {
+    const agl = Math.max(0, cur.alt - cur.ground);
+    const offsetDist = agl * Math.tan(entry.pitch * Math.PI/180);
+    const away = (bearing + 180) % 360;
+    const shifted = offsetLatLon(cur.lat, cur.lon, away, offsetDist);
+    centerLon = shifted.lon; centerLat = shifted.lat;
+  }
+
   if (map) {
-    map.jumpTo({ center:[cur.lon,cur.lat], bearing, pitch: entry.pitch, zoom: entry.zoom });
+    map.jumpTo({ center:[centerLon,centerLat], bearing, pitch: entry.pitch, zoom: entry.zoom });
     const posSrc = map.getSource("pos");
     if (posSrc) posSrc.setData({ type:"Feature", properties:{ base:cur.alt-3, height:cur.alt+3 },
       geometry:{ type:"Polygon", coordinates:[squareRing(cur.lon,cur.lat,1.6)] } });
