@@ -41,7 +41,7 @@
 <div id="intro">
   <div class="card">
     <h1>✈️ 3D-Flythrough — Prototyp</h1>
-    <p>Kamera verfolgt den echten Flugpfad (schwebt auf tatsächlicher Höhe, kein Bodenkontakt) in fester Sicht hinter dem Schirm — Geschwindigkeit unten einstellbar.</p>
+    <p>Kamera bleibt in Distanz und überblickt das Gelände, während sie dem echten Flugpfad folgt (schwebt auf tatsächlicher Höhe, kein Bodenkontakt) — Geschwindigkeit unten einstellbar.</p>
     <p style="color:rgba(252,211,77,0.9)">Braucht eine Internetverbindung (lädt Satelliten-/Geländekacheln live von MapTiler) — Prototyp, noch kein Teil der App.</p>
     <button onclick="document.getElementById('intro').style.display='none'; window.__startDemo && window.__startDemo();">▶ Flythrough starten</button>
   </div>
@@ -150,7 +150,7 @@ try {
   sdk.config.apiKey = MAPTILER_API_KEY;
   map = new sdk.Map({
     container: "map", style: sdk.MapStyle.SATELLITE,
-    center: [TRACK[0][2], TRACK[0][1]], zoom: 15.5, pitch: 66, bearing: 0, antialias: true,
+    center: [TRACK[0][2], TRACK[0][1]], zoom: 12.6, pitch: 70, bearing: 0, antialias: true,
   });
 } catch (e) {
   statusEl.className = "err";
@@ -218,6 +218,20 @@ if (map) {
         "fill-extrusion-height": ["get", "height"],
       },
     });
+    // Dünner "Schatten"-Strich nur unter dem Positions-Marker, runter bis
+    // zum Gelände — wie ein Pin, der auf den Boden zeigt (siehe Referenz-
+    // Screenshot). Betrifft nur den Marker, nicht den Track selbst (der
+    // bleibt komplett ohne Bodenkontakt).
+    map.addSource("shadow", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "shadow-line", type: "fill-extrusion", source: "shadow",
+      paint: {
+        "fill-extrusion-color": "#9fb4c9",
+        "fill-extrusion-opacity": 0.5,
+        "fill-extrusion-base": ["get", "base"],
+        "fill-extrusion-height": ["get", "height"],
+      },
+    });
 
     statusEl.style.display = "none";
     document.getElementById("intro").style.display = "flex";
@@ -262,10 +276,12 @@ function renderFrame(fracTime) {
   const a = TRACK[lookBackIdx], b = TRACK[lookAheadIdx];
   let targetBearing = bearingDeg(a[1], a[2], b[1], b[2]);
   let diff = ((targetBearing - smoothedBearing + 540) % 360) - 180;
-  smoothedBearing += diff * 0.15;
+  // Deutlich trägere Nachführung als vorher — die Kamera soll ruhig aus der
+  // Distanz überblicken, nicht nervös jeder Kursänderung hinterherschwenken.
+  smoothedBearing += diff * 0.05;
 
   if (map) {
-    map.jumpTo({ center: [cur.lon, cur.lat], bearing: smoothedBearing, pitch: 66, zoom: 15.5 });
+    map.jumpTo({ center: [cur.lon, cur.lat], bearing: smoothedBearing, pitch: 70, zoom: 12.6 });
 
     const track3dSrc = map.getSource("track3d");
     if (track3dSrc) track3dSrc.setData({ type: "FeatureCollection", features: track3dFeatures.slice(0, cur.idx) });
@@ -276,6 +292,22 @@ function renderFrame(fracTime) {
       properties: { base: cur.alt-3, height: cur.alt+3 },
       geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 1.6)] },
     });
+
+    const shadowSrc = map.getSource("shadow");
+    if (shadowSrc) {
+      let ground = cur.alt - 150; // Schätzung, falls Terrain-Abfrage nichts liefert
+      try {
+        if (typeof map.queryTerrainElevation === "function") {
+          const g = map.queryTerrainElevation([cur.lon, cur.lat]);
+          if (typeof g === "number" && isFinite(g)) ground = g;
+        }
+      } catch (e) {}
+      shadowSrc.setData({
+        type: "Feature",
+        properties: { base: ground, height: Math.max(ground+1, cur.alt-3) },
+        geometry: { type: "Polygon", coordinates: [squareRing(cur.lon, cur.lat, 0.6)] },
+      });
+    }
   }
 
   document.getElementById("hudTime").textContent = fmtClock(fracTime);
