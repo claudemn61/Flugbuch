@@ -41,7 +41,7 @@
 <div id="intro">
   <div class="card">
     <h1>✈️ 3D-Flythrough — Prototyp</h1>
-    <p>Kamera bleibt in Distanz und überblickt das Gelände, während sie dem echten Flugpfad folgt (schwebt auf tatsächlicher Höhe, kein Bodenkontakt) — Geschwindigkeit unten einstellbar.</p>
+    <p>Kamera bleibt fix zum Gelände stehen (bewegt sich nicht mit jeder Kursänderung mit) — per Wischen und Drehen frei einstellbar. Der echte Flugpfad schwebt auf tatsächlicher Höhe, kein Bodenkontakt. Geschwindigkeit unten einstellbar.</p>
     <p style="color:rgba(252,211,77,0.9)">Braucht eine Internetverbindung (lädt Satelliten-/Geländekacheln live von MapTiler) — Prototyp, noch kein Teil der App.</p>
     <button onclick="document.getElementById('intro').style.display='none'; window.__startDemo && window.__startDemo();">▶ Flythrough starten</button>
   </div>
@@ -87,14 +87,6 @@ function fmtClock(totalSec) {
   return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 }
 
-// Korrekte Grosskreis-Peilung zwischen zwei lat/lon-Punkten (Grad).
-function bearingDeg(aLat, aLon, bLat, bLon) {
-  const toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
-  const y = Math.sin(toRad(bLon-aLon)) * Math.cos(toRad(bLat));
-  const x = Math.cos(toRad(aLat))*Math.sin(toRad(bLat)) - Math.sin(toRad(aLat))*Math.cos(toRad(bLat))*Math.cos(toRad(bLon-aLon));
-  return (toDeg(Math.atan2(y,x))+360)%360;
-}
-
 // ── Schwebender 3D-Track (reine Flughöhe, kein Bodenkontakt) ───────────────
 // MapLibre-Linien werden sonst immer flach aufs Gelände projiziert; eine
 // sehr dünne fill-extrusion-"Röhre" exakt auf Flughöhe (Basis/Höhe beide
@@ -120,6 +112,14 @@ function wallRing(lonA, latA, lonB, latB, halfWidthM) {
 function squareRing(lon, lat, halfWidthM) {
   const { dLon, dLat } = metersToDeg(lat, halfWidthM);
   return [[lon-dLon,lat-dLat],[lon+dLon,lat-dLat],[lon+dLon,lat+dLat],[lon-dLon,lat+dLat],[lon-dLon,lat-dLat]];
+}
+function trackBounds() {
+  let minLon=Infinity,minLat=Infinity,maxLon=-Infinity,maxLat=-Infinity;
+  for (const p of TRACK) {
+    minLon=Math.min(minLon,p[2]); maxLon=Math.max(maxLon,p[2]);
+    minLat=Math.min(minLat,p[1]); maxLat=Math.max(maxLat,p[1]);
+  }
+  return [[minLon,minLat],[maxLon,maxLat]];
 }
 // Vorberechnete Track-Segmente, jedes für sich auf eigener Flughöhe
 // schwebend (±2.5m dick) — kein Bezug zum Gelände darunter.
@@ -233,10 +233,22 @@ if (map) {
       },
     });
 
+    // Kamera bleibt fix relativ zum Gelände (einmal auf die ganze Route
+    // ausgerichtet) statt jeden Frame auf den Schirm zu zentrieren — sonst
+    // bewegt/dreht sich die ganze Landschaft bei jeder Kursänderung mit,
+    // was sehr unruhig wirkt. Per Wischen (schwenken) und Drehen (zwei
+    // Finger) bleibt die Kamera-Position frei einstellbar — map.jumpTo()
+    // wird darum während der Wiedergabe nicht mehr aufgerufen.
+    setInitialView();
     statusEl.style.display = "none";
     document.getElementById("intro").style.display = "flex";
   });
 }
+}
+
+function setInitialView() {
+  if (!map) return;
+  map.fitBounds(trackBounds(), { padding: 60, pitch: 70, bearing: 0, duration: 0 });
 }
 
 // ── Wiedergabe ───────────────────────────────────────────────────────
@@ -266,23 +278,14 @@ function pointAt(fracTime) {
   };
 }
 
-let smoothedBearing = 0;
 function renderFrame(fracTime) {
   const cur = pointAt(fracTime);
-  // Bearing über ein kleines Fenster voraus/zurück glätten, damit die Kamera
-  // nicht bei jedem einzelnen (teils leicht verrauschten) GPS-Punkt ruckelt.
-  const lookAheadIdx = Math.min(TRACK.length-1, cur.idx + 4);
-  const lookBackIdx = Math.max(0, cur.idx - 4);
-  const a = TRACK[lookBackIdx], b = TRACK[lookAheadIdx];
-  let targetBearing = bearingDeg(a[1], a[2], b[1], b[2]);
-  let diff = ((targetBearing - smoothedBearing + 540) % 360) - 180;
-  // Deutlich trägere Nachführung als vorher — die Kamera soll ruhig aus der
-  // Distanz überblicken, nicht nervös jeder Kursänderung hinterherschwenken.
-  smoothedBearing += diff * 0.05;
 
+  // Die Kamera selbst wird hier absichtlich NICHT mehr bewegt (kein
+  // map.jumpTo mehr pro Frame) — sie bleibt fix relativ zum Gelände, wie
+  // einmal in setInitialView() gesetzt bzw. vom Nutzer per Wischen/Drehen
+  // selbst eingestellt. Nur die Daten (Spur/Marker) wandern mit dem Flug.
   if (map) {
-    map.jumpTo({ center: [cur.lon, cur.lat], bearing: smoothedBearing, pitch: 70, zoom: 12.6 });
-
     const track3dSrc = map.getSource("track3d");
     if (track3dSrc) track3dSrc.setData({ type: "FeatureCollection", features: track3dFeatures.slice(0, cur.idx) });
 
@@ -349,6 +352,7 @@ function pause() {
 function restart() {
   pause();
   elapsedReal = 0;
+  setInitialView(); // Kamera auch zurücksetzen, falls per Wischen/Drehen verstellt
   renderFrame(0);
   play();
 }
