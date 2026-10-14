@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.14.7";
+const APP_VERSION = "6.15";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.15", note: "IGC-Import: Startzeit/-höhe/-ort werden jetzt per echter Abhebe-Erkennung ermittelt (erste Bodengeschwindigkeit über 15 km/h, mehrere Sekunden am Stück), statt einfach den allerersten Track-Punkt zu nehmen — der lag oft schon vor dem eigentlichen Start, je nachdem wann die Flugsoftware zu loggen beginnt. Flugdauer passt sich entsprechend an; bringt die Startzeit näher an XContests eigene Erkennung (exakte Übereinstimmung aber nicht garantiert, da andere Algorithmen)." },
   { v: "6.14.7", note: "XContest-Link im Flugdetail: Startzeit wurde auf die Minute abgeschnitten statt gerundet (z.B. 12:17:41 → 12:17 statt korrekt 12:18) — traf dadurch nicht immer den Flug bei XContest. Rundet jetzt korrekt." },
   { v: "6.14.6", note: "XContest-Link im Flugdetail: die Oktober-Jahrgang-Anpassung aus v6.14.5 war falsch (ein Flug vom 12.10.2026 braucht nachweislich weiterhin Jahr 2026, nicht 2027) und wurde zurückgenommen — Jahreszahl im Link entspricht wieder einfach dem Flugdatum." },
   { v: "6.14.5", note: "XContest-Link im Flugdetail: Flüge ab 1. Oktober verweisen jetzt auf den Jahrgang des Folgejahres (XContest eröffnet jeweils um diese Zeit die neue Saison) statt auf den Jahrgang des Kalenderjahres." },

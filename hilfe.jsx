@@ -83,7 +83,7 @@ const SECTIONS = [
       <p>💡/📥/💾/☑️/🔍 bleiben nach Auswahl als Icon rechts im Header angeheftet, auch mehrere gleichzeitig — Antippen irgendeines davon schliesst alle gerade offenen wieder. 🔤/➕/🌎 lösen stattdessen sofort ihre Aktion aus, ohne etwas anzuheften.</p>
       <h3>3.4 IGC-Import — was automatisch ausgefüllt wird</h3>
       <ul>
-        <li>Datum, Startzeit, Landezeit (inkl. Zeitzonen-Umrechnung)</li>
+        <li>Datum, Startzeit, Landezeit (inkl. Zeitzonen-Umrechnung) — Startzeit/-höhe/-ort per echter Abhebe-Erkennung (erste Bodengeschwindigkeit über 15 km/h, mehrere Sekunden am Stück) statt einfach dem allerersten Track-Punkt, der oft schon vor dem eigentlichen Start liegt</li>
         <li>Startplatz-Name, Start-/Landekoordinaten</li>
         <li>Schirm-Modell und Passagier, falls im Logger hinterlegt</li>
         <li>Dauer, Höhengewinn, max./min. Höhe, max. Steigen/Sinken</li>
@@ -171,7 +171,7 @@ function KurzContent() {
         <li>Suche: <code>feld:wert</code>, <code>feld=wert</code>, <code>feld&gt;wert</code>, <code>+wort</code> (muss), <code>-wort</code> (darf nicht)</li>
         <li>🏠 fest links im Header. Titel "Flugbuch" antippen öffnet daneben Klappmenü (iPhone 4 Spalten/2 Reihen, iPad/Mac vollbreite 1-Reihe ohne 🔤): 💡 Darstellungen · 🌎 Weltkarte · 🔤 Minimal, nur iPhone · ➕ Neuer Flug (fragt zuerst: IGC importieren oder ohne IGC anlegen? — beides bleibt in der Flugliste) · ☑️ Auswahl · 📥 Import, IGC/CSV · 💾 Backup, gzip, roter Punkt = ungesichert (Anleitung-Dateiinhalte separat, siehe 📎 Wartungs-Dateien-Backup) · 🔍 Suchen/Sortieren — 🔤/➕/🌎 sofort ausgeführt, ohne etwas anzuheften; 💡/📥/💾/☑️/🔍 bleiben als Icon rechts im Header angeheftet, auch mehrere gleichzeitig; Antippen eines angehefteten Icons schliesst alle wieder</li>
         <li>CSV-Import erkennt Kopfzeilen und ordnet Spalten flexibel zu, unabhängig von Reihenfolge/Sprache</li>
-        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen (Steigen/Sinken über Druckhöhe + 30s-Gleitmittel) automatisch — Distanz und Routenart (Freie Strecke/Flaches Dreieck/FAI-Dreieck) werden als überschreibbarer Vorschlag vorausgefüllt, massgeblich bleibt der XContest-Wert (Button neben IGC-Badge); bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
+        <li>IGC-Import füllt Zeiten, Ort, Schirm, Höhen (Steigen/Sinken über Druckhöhe + 30s-Gleitmittel) automatisch — Startzeit/-höhe/-ort per Abhebe-Erkennung (erste Bodengeschwindigkeit >15 km/h über mehrere Sekunden), nicht einfach der erste Track-Punkt — Distanz und Routenart (Freie Strecke/Flaches Dreieck/FAI-Dreieck) werden als überschreibbarer Vorschlag vorausgefüllt, massgeblich bleibt der XContest-Wert (Button neben IGC-Badge); bei fehlendem Dateiname-Treffer zusätzlich Datumsabgleich, bei mehreren Kandidaten Nachfrage</li>
         <li>Flugdetail zeigt unter Distanz zusätzlich Max. Freie Strecke/Flaches Dreieck/FAI-Dreieck je mit Punktzahl; Routenart manuell umstellen passt Distanz und Karten-Route automatisch mit an (beides bleibt weiterhin überschreibbar); in der Flugliste erscheint bei bekannter Routenart ein kleines Symbol vor der Distanz (▲ Dreieck, grün bei FAI, ↗ Freie Strecke)</li>
         <li>Feld "Typ" nach Schirm (nur bei Inhalt sichtbar), 📋 Kopieren mit konfigurierbarer Spaltenauswahl (⚙️)</li>
         <li>Suchen/Sortieren-Panel: Suchen · Sortieren (⇅, alle Datenfelder) · Reihenfolge (↑↓)</li>
