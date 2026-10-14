@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.15.1";
+const APP_VERSION = "6.15.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.15.2", note: "XContest-Button im Flugdetail verlinkt jetzt wieder auf die eigene Flugliste statt auf einen Direktlink zum Flug — XContest braucht dafür die exakte Startminute, die sich nicht zuverlässig genug vorhersagen lässt (sonst \"Invalid flight ident\"). Flug in der kurzen Liste selbst antippen ist zuverlässiger." },
   { v: "6.15.1", note: "IGC-Import: Abhebe-Erkennung aus v6.15 wieder zurückgenommen — bei zwei Testflügen schätzte sie den Startzeitpunkt mal zu früh, mal (bei schnellen Wettkampf-Starts) 26 Sekunden zu spät, was den XContest-Link mal in die eine, mal in die andere Richtung verfehlte. Startzeit/-höhe/-ort kommen wieder vom allerersten Track-Punkt, wie vor v6.15." },
   { v: "6.15", note: "IGC-Import: Startzeit/-höhe/-ort werden jetzt per echter Abhebe-Erkennung ermittelt (erste Bodengeschwindigkeit über 15 km/h, mehrere Sekunden am Stück), statt einfach den allerersten Track-Punkt zu nehmen — der lag oft schon vor dem eigentlichen Start, je nachdem wann die Flugsoftware zu loggen beginnt. Flugdauer passt sich entsprechend an; bringt die Startzeit näher an XContests eigene Erkennung (exakte Übereinstimmung aber nicht garantiert, da andere Algorithmen)." },
   { v: "6.14.7", note: "XContest-Link im Flugdetail: Startzeit wurde auf die Minute abgeschnitten statt gerundet (z.B. 12:17:41 → 12:17 statt korrekt 12:18) — traf dadurch nicht immer den Flug bei XContest. Rundet jetzt korrekt." },
