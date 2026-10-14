@@ -129,10 +129,14 @@ function estimateTzOffset(firstPt, dateStr) {
 const XCONTEST_USERNAME = "claudemn";
 function buildXContestLink(fl) {
   const dm = String(fl.date||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  const tm = String(fl.startTime||"").match(/^(\d{1,2}):(\d{2})/);
+  const tm = String(fl.startTime||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (!dm || !tm) return "https://www.xcontest.org/world/en/my-flights/";
   const tz = estimateTzOffset(fl.startPt, fl.date);
-  const localMin = (+tm[1])*60 + (+tm[2]);
+  // Sekunden auf die nächste Minute runden statt abschneiden — XContest
+  // selbst rundet beim Anzeigen der Startzeit auch (z.B. 12:17:41 → 12:18),
+  // ein abgeschnittenes 12:17 trifft den Flug im Direktlink dann nicht mehr.
+  const sec = tm[3] ? +tm[3] : 0;
+  const localMin = (+tm[1])*60 + (+tm[2]) + (sec >= 30 ? 1 : 0);
   const utcMin = ((Math.round(localMin - tz*60) % 1440) + 1440) % 1440;
   const uh = Math.floor(utcMin/60), um = utcMin%60;
   const day = +dm[1], month = +dm[2], year = dm[3];

@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.14.6";
+const APP_VERSION = "6.14.7";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.14.7", note: "XContest-Link im Flugdetail: Startzeit wurde auf die Minute abgeschnitten statt gerundet (z.B. 12:17:41 → 12:17 statt korrekt 12:18) — traf dadurch nicht immer den Flug bei XContest. Rundet jetzt korrekt." },
   { v: "6.14.6", note: "XContest-Link im Flugdetail: die Oktober-Jahrgang-Anpassung aus v6.14.5 war falsch (ein Flug vom 12.10.2026 braucht nachweislich weiterhin Jahr 2026, nicht 2027) und wurde zurückgenommen — Jahreszahl im Link entspricht wieder einfach dem Flugdatum." },
   { v: "6.14.5", note: "XContest-Link im Flugdetail: Flüge ab 1. Oktober verweisen jetzt auf den Jahrgang des Folgejahres (XContest eröffnet jeweils um diese Zeit die neue Saison) statt auf den Jahrgang des Kalenderjahres." },
   { v: "6.14.4", note: "App-Icon erneut überarbeitet (Home-Bildschirm-Icon der PWA): Schriftzug \"flugbuch\" jetzt zweizeilig (flug/buch) und grösser. Alle Auflösungen (1024, 180, 167, 152, 120)." },
