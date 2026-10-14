@@ -135,7 +135,11 @@ function buildXContestLink(fl) {
   const localMin = (+tm[1])*60 + (+tm[2]);
   const utcMin = ((Math.round(localMin - tz*60) % 1440) + 1440) % 1440;
   const uh = Math.floor(utcMin/60), um = utcMin%60;
-  const day = +dm[1], month = +dm[2], year = dm[3];
+  const day = +dm[1], month = +dm[2];
+  // XContest eröffnet jeweils etwa am 1. Oktober den nächsten Jahrgang —
+  // ein Flug ab Oktober läuft dort schon unter dem Jahrgang des Folgejahres,
+  // auch wenn das Kalenderdatum noch im laufenden Jahr liegt.
+  const year = (+dm[3]) + (month >= 10 ? 1 : 0);
   return `https://www.xcontest.org/world/en/flights/detail:${XCONTEST_USERNAME}/${day}.${month}.${year}/${String(uh).padStart(2,"0")}:${String(um).padStart(2,"0")}`;
 }
 
