@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.14.4";
+const APP_VERSION = "6.14.5";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.14.5", note: "XContest-Link im Flugdetail: Flüge ab 1. Oktober verweisen jetzt auf den Jahrgang des Folgejahres (XContest eröffnet jeweils um diese Zeit die neue Saison) statt auf den Jahrgang des Kalenderjahres." },
   { v: "6.14.4", note: "App-Icon erneut überarbeitet (Home-Bildschirm-Icon der PWA): Schriftzug \"flugbuch\" jetzt zweizeilig (flug/buch) und grösser. Alle Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.14.3", note: "App-Icon nochmals überarbeitet (Home-Bildschirm-Icon der PWA): Akzentform rechts (Dreieck/Viertelkreis) entfernt, jetzt nur noch Bogen + Schriftzug \"flugbuch\" auf dunkelblauem Hintergrund. Alle Auflösungen (1024, 180, 167, 152, 120)." },
   { v: "6.14.2", note: "App-Icon aktualisiert (Home-Bildschirm-Icon der PWA), gleicher Look (dunkelblauer Hintergrund, weisser Bogen, Schriftzug \"flugbuch\"), Akzentform rechts jetzt ein schlichtes Dreieck statt Viertelkreis. Alle Auflösungen (1024, 180, 167, 152, 120)." },
