@@ -360,13 +360,45 @@ function estimateTriangleDistance(track, targetPoints = 400) {
   return { length: overall.length, points: overall.points, category: overallIsFai ? "fai" : "flach", path: overall.path, flach, fai };
 }
 
+// Erkennt den tatsächlichen Abhebe-Zeitpunkt im Track, statt einfach den
+// allerersten aufgezeichneten Punkt zu nehmen — der liegt oft schon ein
+// Stück vor dem eigentlichen Start, je nachdem wann die Flugsoftware des
+// Piloten den Flug "erkennt" und zu loggen beginnt. Sucht den ersten
+// Punkt, ab dem die Bodengeschwindigkeit mehrere Sekunden am Stück über
+// einem Schwellwert bleibt (einzelne GPS-Ausreisser lösen noch nichts
+// aus) — ähnliches Prinzip wie XContest es für die eigene Start-Erkennung
+// nutzt, exakt deckungsgleich ist das aber nicht garantiert, da XContest
+// seinen eigenen Algorithmus hat. Fällt auf den allerersten Punkt zurück,
+// wenn im ganzen Track nie ein klarer Beschleunigungs-Übergang erkennbar
+// ist (z.B. sehr kurzer/lückenhafter Track).
+const LAUNCH_SPEED_KMH = 15;
+const LAUNCH_SUSTAIN_SEC = 3;
+function detectLaunchIndex(track) {
+  let streakStartIdx = -1, streakSec = 0;
+  for (let i=1; i<track.length; i++) {
+    const dt = track[i].timeSec - track[i-1].timeSec;
+    if (dt <= 0) { streakStartIdx = -1; streakSec = 0; continue; }
+    const dkm = haversineKm(track[i-1].lat, track[i-1].lon, track[i].lat, track[i].lon);
+    const kmh = (dkm / dt) * 3600;
+    if (kmh >= LAUNCH_SPEED_KMH) {
+      if (streakStartIdx === -1) streakStartIdx = i;
+      streakSec += dt;
+      if (streakSec >= LAUNCH_SUSTAIN_SEC) return streakStartIdx;
+    } else {
+      streakStartIdx = -1; streakSec = 0;
+    }
+  }
+  return 0;
+}
+
 function analyzeIGC(track, tzOffsetHours, dateStr) {
   const tz = tzOffsetHours != null ? tzOffsetHours : estimateTzOffset(track[0], dateStr);
   if (!track.length) return {};
+  const launchIdx = detectLaunchIndex(track);
   const alts = track.map(p=>p.gpsAlt);
   const maxAlt = Math.max(...alts), minAlt = Math.min(...alts);
-  const startAlt = track[0].gpsAlt, endAlt = track[track.length-1].gpsAlt;
-  const startPt = track[0], endPt = track[track.length-1];
+  const startAlt = track[launchIdx].gpsAlt, endAlt = track[track.length-1].gpsAlt;
+  const startPt = track[launchIdx], endPt = track[track.length-1];
   // Max.Steigen / Max.Sinken: take the raw second-to-second climb rate and
   // smooth it with a simple moving average over the last 30 samples (~30s),
   // then take the best/worst smoothed value found anywhere in the flight.
@@ -432,9 +464,9 @@ function analyzeIGC(track, tzOffsetHours, dateStr) {
     const h = Math.floor(local/3600), m = Math.floor((local%3600)/60), s = Math.floor(local%60);
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
   };
-  const startTime = fmtClock(track[0].timeSec);
+  const startTime = fmtClock(track[launchIdx].timeSec);
   const endTime = fmtClock(track[track.length-1].timeSec);
-  let durationSec = track[track.length-1].timeSec - track[0].timeSec;
+  let durationSec = track[track.length-1].timeSec - track[launchIdx].timeSec;
   if (durationSec < 0) durationSec += 24*3600; // landing past midnight
   const durH = Math.floor(durationSec/3600), durM = Math.floor((durationSec%3600)/60), durS = durationSec%60;
   const durationStr = `${durH}h ${String(durM).padStart(2,"0")}m`;
