@@ -117,30 +117,17 @@ function estimateTzOffset(firstPt, dateStr) {
   return Math.round((firstPt.lon || 0) / 15);
 }
 
-// Baut den XContest-Deep-Link zu genau diesem Flug statt nur zur eigenen
-// "Meine Flüge"-Übersicht. XContest erwartet im Pfad das Datum ohne
-// führende Nullen (z.B. "6.9.2026") und die Startzeit in UTC (nicht die
-// hier im Flug gespeicherte Lokalzeit) — der Zeitzonen-Offset wird dafür
-// wie beim IGC-Import über Startkoordinate + Datum neu bestimmt (wird
-// selbst nicht auf dem Flug gespeichert). Fehlt Startkoordinate oder
-// Startzeit (z.B. bei alten, manuell erfassten Flügen ohne GPS-Track),
-// fällt der Link auf die allgemeine Übersicht zurück statt einen falschen
-// Zeitpunkt zu raten.
-const XCONTEST_USERNAME = "claudemn";
+// Baute früher einen XContest-Deep-Link zu genau diesem Flug
+// (flights/detail:user/datum/zeit) — XContest verlangt dafür aber die
+// exakte Startminute, exakt wie XContest selbst sie intern führt. Weder
+// der allererste Track-Punkt noch eine eigene Abhebe-Erkennung treffen
+// die zuverlässig genug (an echten Flügen beobachtet: mal zu früh, mal
+// über 20s zu spät) — und ohne Zeit funktioniert der Deep-Link bei
+// XContest gar nicht erst ("Invalid flight ident"). Verlinkt darum
+// bewusst nur noch auf die eigene Flugliste, in der sich der Flug (meist
+// eh nur einer pro Tag) selbst zuverlässig antippen lässt.
 function buildXContestLink(fl) {
-  const dm = String(fl.date||"").match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  const tm = String(fl.startTime||"").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (!dm || !tm) return "https://www.xcontest.org/world/en/my-flights/";
-  const tz = estimateTzOffset(fl.startPt, fl.date);
-  // Sekunden auf die nächste Minute runden statt abschneiden — XContest
-  // selbst rundet beim Anzeigen der Startzeit auch (z.B. 12:17:41 → 12:18),
-  // ein abgeschnittenes 12:17 trifft den Flug im Direktlink dann nicht mehr.
-  const sec = tm[3] ? +tm[3] : 0;
-  const localMin = (+tm[1])*60 + (+tm[2]) + (sec >= 30 ? 1 : 0);
-  const utcMin = ((Math.round(localMin - tz*60) % 1440) + 1440) % 1440;
-  const uh = Math.floor(utcMin/60), um = utcMin%60;
-  const day = +dm[1], month = +dm[2], year = dm[3];
-  return `https://www.xcontest.org/world/en/flights/detail:${XCONTEST_USERNAME}/${day}.${month}.${year}/${String(uh).padStart(2,"0")}:${String(um).padStart(2,"0")}`;
+  return "https://www.xcontest.org/world/en/my-flights/";
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
