@@ -368,6 +368,178 @@ function getFlightAlt(f) {
   if (f.maxAlt > 0) return f.maxAlt;
   return +(f.customFields?.hMax || 0);
 }
+function parseFlightDurSec(s) {
+  if (!s) return 0;
+  const dm = s.match(/(\d+):(\d{2}):(\d{2})/);
+  if (dm) return +dm[1]*3600 + +dm[2]*60 + +dm[3];
+  const dm2 = s.match(/(\d+):(\d{2})/);
+  if (dm2) return +dm2[1]*60 + +dm2[2];
+  const dm3 = s.match(/(\d+)h\s*(\d+)m/);
+  if (dm3) return +dm3[1]*3600 + +dm3[2]*60;
+  const dm4 = s.match(/(\d+)m/);
+  if (dm4) return +dm4[1]*60;
+  return 0;
+}
+function getFlightDur(f) {
+  return f.durationSec > 0 ? f.durationSec : (f.durationStr ? parseFlightDurSec(f.durationStr) : 0);
+}
+function fmtDurHM(sec) {
+  return `${Math.floor(sec/3600)}h ${String(Math.floor((sec%3600)/60)).padStart(2,"0")}m`;
+}
+
+// Feste Reihenfolge/Beschriftung der frei wählbaren Saison-Hauptkacheln —
+// eigene Liste (statt nur inline berechnet), damit die Auswahl-/Reihenfolge-
+// Kachel (⚙️) dieselben Keys/Labels wie computeSeasonTiles verwendet. Die
+// ursprünglichen 4 bleiben standardmässig aktiv, alles weitere lässt sich
+// über ⚙️ dazuwählen.
+const SEASON_TILE_DEFS = [
+  { key: "fluege",       label: "Flüge" },
+  { key: "flugzeit",     label: "Total Flugzeit" },
+  { key: "flugtage",     label: "Flugtage" },
+  { key: "avgDistanz",   label: "Ø Distanz / Flug" },
+  { key: "gesDistanz",   label: "Ges. Distanz",      defaultEnabled: false },
+  { key: "maxDistanz",   label: "Weiteste Strecke",  defaultEnabled: false },
+  { key: "maxHoehe",     label: "Höchster Punkt",    defaultEnabled: false },
+  { key: "maxDauer",     label: "Längster Flug",     defaultEnabled: false },
+  { key: "avgDauer",     label: "Ø Flugzeit / Flug", defaultEnabled: false },
+  { key: "hoehengewinn", label: "Total Höhengewinn", defaultEnabled: false },
+  { key: "maxSteigen",   label: "Max. Steigen",      defaultEnabled: false },
+  { key: "avgSpeed",     label: "Ø Geschwindigkeit", defaultEnabled: false },
+  { key: "maxSpeed",     label: "Schnellster Flug",  defaultEnabled: false },
+  { key: "schirme",      label: "Schirme",           defaultEnabled: false },
+  { key: "startplaetze", label: "Startplätze",       defaultEnabled: false },
+  { key: "landeplaetze", label: "Landeplätze",       defaultEnabled: false },
+  { key: "biplace",      label: "Biplace-Flüge",     defaultEnabled: false },
+  { key: "fuenfSterne",  label: "5★-Flüge",          defaultEnabled: false },
+];
+// Dieselben Rekorde wie bisher (Längster/Weitester/Höchster Flug) plus
+// Schnellster Flug / Meister Höhengewinn — alle 5 jetzt per ⚙️ frei
+// wählbar, gleiches Muster wie SEASON_TILE_DEFS.
+const SEASON_RECORD_DEFS = [
+  { key: "laengsterFlug",       label: "Längster Flug" },
+  { key: "weitesterFlug",       label: "Weitester Flug" },
+  { key: "hoechsterFlug",       label: "Höchster Flug" },
+  { key: "schnellsterFlug",     label: "Schnellster Flug" },
+  { key: "meisterHoehengewinn", label: "Meister Höhengewinn" },
+  { key: "bestesSteigen",       label: "Bestes Steigen", defaultEnabled: false },
+];
+function computeSeasonTiles(yf) {
+  const totalSec = yf.reduce((s,f)=>s+getFlightDur(f),0);
+  const totalDist = yf.reduce((s,f)=>s+getFlightDist(f),0);
+  const flugtage = new Set(yf.map(f=>f.date).filter(Boolean)).size;
+  const durVals = yf.map(f=>({f,v:getFlightDur(f)})).filter(x=>x.v>0);
+  const maxDur = durVals.length ? durVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const distVals = yf.map(f=>({f,v:getFlightDist(f)})).filter(x=>x.v>0);
+  const maxDist = distVals.length ? distVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const altVals = yf.map(f=>({f,v:getFlightAlt(f)})).filter(x=>x.v>0);
+  const maxAlt = altVals.length ? altVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const hgewVals = yf.map(f=>({f,v:parseFloat(f.customFields?.hGew)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
+  const totalHgew = hgewVals.reduce((s,x)=>s+x.v,0);
+  const steigenVals = yf.map(f=>({f,v:parseFloat(f.customFields?.maxSteigen)})).filter(x=>Number.isFinite(x.v));
+  const bestSteigen = steigenVals.length ? steigenVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const speedVals = yf.map(f=>({f,v:parseFloat(f.customFields?.kmh)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
+  const maxSpeed = speedVals.length ? speedVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const avgSpeed = speedVals.length ? speedVals.reduce((s,x)=>s+x.v,0)/speedVals.length : 0;
+  const schirme = new Set(yf.map(f=>f.glider).filter(Boolean)).size;
+  const startplaetze = new Set(yf.map(f=>f.site).filter(Boolean)).size;
+  const landeplaetze = new Set(yf.map(f=>f.customFields?.landung).filter(Boolean)).size;
+  const biplace = yf.filter(f=>(f.customFields?.passagier||"").trim()).length;
+  const fuenfSterne = yf.filter(f=>f.rating===5).length;
+  const values = {
+    fluege: String(yf.length),
+    flugzeit: fmtDurHM(totalSec),
+    flugtage: String(flugtage),
+    avgDistanz: (yf.length ? totalDist/yf.length : 0).toFixed(1)+" km",
+    gesDistanz: totalDist.toFixed(1)+" km",
+    maxDistanz: maxDist ? maxDist.v.toFixed(1)+" km" : "—",
+    maxHoehe: maxAlt ? maxAlt.v+" m ü.M." : "—",
+    maxDauer: maxDur ? fmtDurHM(maxDur.v) : "—",
+    avgDauer: fmtDurHM(yf.length ? Math.round(totalSec/yf.length) : 0),
+    hoehengewinn: totalHgew>0 ? Math.round(totalHgew)+" m" : "—",
+    maxSteigen: bestSteigen ? bestSteigen.v+" m/s" : "—",
+    avgSpeed: speedVals.length ? avgSpeed.toFixed(1)+" km/h" : "—",
+    maxSpeed: maxSpeed ? maxSpeed.v.toFixed(1)+" km/h" : "—",
+    schirme: String(schirme),
+    startplaetze: String(startplaetze),
+    landeplaetze: String(landeplaetze),
+    biplace: String(biplace),
+    fuenfSterne: String(fuenfSterne),
+  };
+  return new Map(SEASON_TILE_DEFS.map(d => [d.key, { label: d.label, value: values[d.key] }]));
+}
+function computeSeasonRecords(yf) {
+  const prDur  = yf.length ? Math.max(...yf.map(getFlightDur))  : 0;
+  const prDist = yf.length ? Math.max(...yf.map(getFlightDist)) : 0;
+  const prAlt  = yf.length ? Math.max(...yf.map(getFlightAlt))  : 0;
+  const prFlightDur  = yf.find(f=>getFlightDur(f)===prDur);
+  const prFlightDist = yf.find(f=>getFlightDist(f)===prDist);
+  const prFlightAlt  = yf.find(f=>getFlightAlt(f)===prAlt);
+  const speedVals = yf.map(f=>({f,v:parseFloat(f.customFields?.kmh)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
+  const bestSpeed = speedVals.length ? speedVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const hgewVals = yf.map(f=>({f,v:parseFloat(f.customFields?.hGew)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
+  const bestHgew = hgewVals.length ? hgewVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const steigenVals = yf.map(f=>({f,v:parseFloat(f.customFields?.maxSteigen)})).filter(x=>Number.isFinite(x.v));
+  const bestSteigen = steigenVals.length ? steigenVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  const rows = {
+    laengsterFlug:       { name: prFlightDur?.name,   value: prDur  ? fmtDurHM(prDur) : "—" },
+    weitesterFlug:       { name: prFlightDist?.name,  value: prDist ? prDist+" km" : "—" },
+    hoechsterFlug:       { name: prFlightAlt?.name,   value: prAlt  ? prAlt+" m ü.M." : "—" },
+    schnellsterFlug:     { name: bestSpeed?.f.name,   value: bestSpeed ? bestSpeed.v.toFixed(1)+" km/h" : "—" },
+    meisterHoehengewinn: { name: bestHgew?.f.name,    value: bestHgew ? Math.round(bestHgew.v)+" m" : "—" },
+    bestesSteigen:       { name: bestSteigen?.f.name, value: bestSteigen ? bestSteigen.v+" m/s" : "—" },
+  };
+  return new Map(SEASON_RECORD_DEFS.map(d => [d.key, { label: d.label, ...rows[d.key] }]));
+}
+// Auswahl-/Reihenfolge-Kachel für Saison-Hauptkacheln & -Rekorde — identisch
+// zur ⚙️-Kachel in flugbuch.jsx (dort ColumnConfigModal), hier dupliziert,
+// da statistik.html/.jsx als eigenständige Seite keinen Code mit
+// flugbuch.jsx teilt.
+function ColumnConfigModal({ title, hint, defs, columns, onSave, onClose }) {
+  const [local, setLocal] = useState(columns);
+  const toggle = (key) => setLocal(cols => cols.map(c => c.key===key ? {...c, enabled: !c.enabled} : c));
+  const move = (idx, dir) => setLocal(cols => {
+    const next = [...cols];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return cols;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    return next;
+  });
+  const labelFor = key => defs.find(c=>c.key===key)?.label || key;
+  return (
+    <div onClick={()=>{ onSave(local); onClose(); }} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:400,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{title}</div>
+        <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:14}}>{hint}</div>
+        <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+          {local.map((c, idx) => (
+            <div key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,background:c.enabled?"rgba(34,197,94,0.08)":"rgba(255,255,255,0.03)"}}>
+              <div onClick={()=>toggle(c.key)}
+                style={{width:20,height:20,borderRadius:6,border:`2px solid ${c.enabled?"#4ade80":"rgba(232,244,253,0.3)"}`,background:c.enabled?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                {c.enabled && <span style={{color:"#0a1628",fontSize:13,fontWeight:900}}>✓</span>}
+              </div>
+              <span style={{flex:1,fontSize:13,color:c.enabled?"#e8f4fd":"rgba(232,244,253,0.4)"}}>{labelFor(c.key)}</span>
+              <button onClick={()=>move(idx,-1)} disabled={idx===0}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===0?"default":"pointer"}}>▲</button>
+              <button onClick={()=>move(idx,1)} disabled={idx===local.length-1}
+                style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:6,width:26,height:26,color:idx===local.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:13,cursor:idx===local.length-1?"default":"pointer"}}>▼</button>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:16}}>
+          <button onClick={()=>setLocal(defs.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false })))}
+            style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"9px",color:"rgba(232,244,253,0.7)",fontSize:13,cursor:"pointer"}}>
+            Zurücksetzen
+          </button>
+          <button onClick={()=>{ onSave(local); onClose(); }}
+            style={{flex:1,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:10,padding:9,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+            Schliessen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function aggregate(flights, keyFn) {
   const groups = new Map();
@@ -442,42 +614,58 @@ function SeasonSection({ flights }) {
     try { window.storage.set("statistikYearFilter", y); } catch (e) {}
   };
   const yf = yr==="alle" ? flights : flights.filter(f=>f.year===yr);
-  const parseDurStr = s => {
-    if (!s) return 0;
-    const dm = s.match(/(\d+):(\d{2}):(\d{2})/);
-    if (dm) return +dm[1]*3600 + +dm[2]*60 + +dm[3];
-    const dm2 = s.match(/(\d+):(\d{2})/);
-    if (dm2) return +dm2[1]*60 + +dm2[2];
-    const dm3 = s.match(/(\d+)h\s*(\d+)m/);
-    if (dm3) return +dm3[1]*3600 + +dm3[2]*60;
-    const dm4 = s.match(/(\d+)m/);
-    if (dm4) return +dm4[1]*60;
-    return 0;
+
+  // Welche Kacheln/Rekorde angezeigt werden und in welcher Reihenfolge —
+  // gleiches Muster wie searchStatsColumns in flugbuch.jsx, "service:"-
+  // Präfix, damit es vom Backup-Export/Import erfasst wird.
+  const [tileColumns, setTileColumns] = useState(
+    SEASON_TILE_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
+  );
+  const [recordColumns, setRecordColumns] = useState(
+    SEASON_RECORD_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
+  );
+  const [showTileConfig, setShowTileConfig] = useState(false);
+  const [showRecordConfig, setShowRecordConfig] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:seasonTileColumns");
+        if (r) {
+          const saved = JSON.parse(r.value);
+          const savedKeys = new Set(saved.map(c => c.key));
+          setTileColumns([...saved, ...SEASON_TILE_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))]);
+        }
+      } catch (e) { console.error("Load error (seasonTileColumns):", e); }
+      try {
+        const r = await window.storage.get("service:seasonRecordColumns");
+        if (r) {
+          const saved = JSON.parse(r.value);
+          const savedKeys = new Set(saved.map(c => c.key));
+          setRecordColumns([...saved, ...SEASON_RECORD_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))]);
+        }
+      } catch (e) { console.error("Load error (seasonRecordColumns):", e); }
+    })();
+  }, []);
+  const saveTileColumns = async (next) => {
+    setTileColumns(next);
+    try { await window.storage.set("service:seasonTileColumns", JSON.stringify(next)); } catch (e) { console.error("Save error (seasonTileColumns):", e); }
   };
-  const parseDur = f => f.durationSec > 0 ? f.durationSec : (f.durationStr ? parseDurStr(f.durationStr) : 0);
-  const getDist = getFlightDist;
-  const getAlt = getFlightAlt;
-  const totalSec = yf.reduce((s,f)=>s+parseDur(f),0);
-  const totalDist = yf.reduce((s,f)=>s+getDist(f),0);
-  const flugtage = new Set(yf.map(f=>f.date).filter(Boolean)).size;
-  const getDur = f => parseDur(f);
-  const prDur  = yf.length ? Math.max(...yf.map(getDur))  : 0;
-  const prDist = yf.length ? Math.max(...yf.map(getDist)) : 0;
-  const prAlt  = yf.length ? Math.max(...yf.map(getAlt))  : 0;
-  const prFlightDur  = yf.find(f=>getDur(f)===prDur);
-  const prFlightDist = yf.find(f=>getDist(f)===prDist);
-  const prFlightAlt  = yf.find(f=>getAlt(f)===prAlt);
-  const fmtDur = s => `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,"0")}m`;
+  const saveRecordColumns = async (next) => {
+    setRecordColumns(next);
+    try { await window.storage.set("service:seasonRecordColumns", JSON.stringify(next)); } catch (e) { console.error("Save error (seasonRecordColumns):", e); }
+  };
 
   const S = {
     yearRow:{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"},
     yrBtn:(a)=>({background:a?"rgba(224,48,74,0.3)":"rgba(255,255,255,0.05)",border:a?"1px solid rgba(224,48,74,0.5)":"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"6px 14px",color:a?"#e8f4fd":"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer",fontWeight:a?600:400}),
+    sectionHead:{display:"flex",justifyContent:"flex-end",marginBottom:-6},
+    gearBtn:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:28,height:28,fontSize:14,cursor:"pointer",color:"#e8f4fd"},
     grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
     box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
     bigNum:{fontSize:26,fontWeight:800,color:"#e8f4fd",letterSpacing:-1},
     lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
     prBox:{background:"rgba(224,48,74,0.08)",border:"1px solid rgba(224,48,74,0.2)",borderRadius:12,padding:"14px 16px",marginBottom:10},
-    prTitle:{fontSize:11,fontWeight:600,color:"#e8f4fd",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
+    prTitle:{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,fontWeight:600,color:"#e8f4fd",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
     prRow:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(224,48,74,0.08)"},
     prLbl:{fontSize:13,color:"rgba(232,244,253,0.5)"},
     prVal:{fontSize:13,fontWeight:600,color:"#fcd34d"},
@@ -485,6 +673,11 @@ function SeasonSection({ flights }) {
   };
 
   if (!flights.length) return null;
+
+  const tilesMap = computeSeasonTiles(yf);
+  const visibleTiles = tileColumns.filter(c=>c.enabled).map(c=>tilesMap.get(c.key)).filter(Boolean);
+  const recordsMap = computeSeasonRecords(yf);
+  const visibleRecords = recordColumns.filter(c=>c.enabled).map(c=>recordsMap.get(c.key)).filter(Boolean);
 
   return (
     <div style={{margin:"12px 16px 0",display:"flex",flexDirection:"column",gap:8}}>
@@ -516,29 +709,38 @@ function SeasonSection({ flights }) {
       {yf.length===0 ? (
         <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge {yr==="alle"?"vorhanden":`in ${yr}`}</div>
       ) : (<>
+        <div style={S.sectionHead}>
+          <button onClick={()=>setShowTileConfig(true)} title="Kacheln bearbeiten" style={S.gearBtn}>⚙️</button>
+        </div>
         <div style={S.grid}>
-          <div style={S.box}><div style={S.bigNum}>{yf.length}</div><div style={S.lbl}>Flüge</div></div>
-          <div style={S.box}><div style={S.bigNum}>{fmtDur(totalSec)}</div><div style={S.lbl}>Total Flugzeit</div></div>
-          <div style={S.box}><div style={S.bigNum}>{flugtage}</div><div style={S.lbl}>Flugtage</div></div>
-          <div style={S.box}><div style={S.bigNum}>{yf.length>0?(totalDist/yf.length).toFixed(1):0} km</div><div style={S.lbl}>Ø / Flug</div></div>
+          {visibleTiles.map(t => (
+            <div key={t.label} style={S.box}><div style={S.bigNum}>{t.value}</div><div style={S.lbl}>{t.label}</div></div>
+          ))}
         </div>
         <div style={S.prBox}>
-          <div style={S.prTitle}>🏆 Persönliche Rekorde {yr==="alle"?"(alle Jahre)":yr}</div>
-          {[
-            ["Längster Flug",   prFlightDur?.name,  prDur  ? fmtDur(prDur)       : "—"],
-            ["Weitester Flug",  prFlightDist?.name, prDist ? prDist+" km"         : "—"],
-            ["Höchster Flug",   prFlightAlt?.name,  prAlt  ? prAlt+" m ü.M."      : "—"],
-          ].map(([label,name,val])=>(
-            <div key={label} style={S.prRow}>
+          <div style={S.prTitle}>
+            <span>🏆 Persönliche Rekorde {yr==="alle"?"(alle Jahre)":yr}</span>
+            <button onClick={()=>setShowRecordConfig(true)} title="Rekorde bearbeiten" style={S.gearBtn}>⚙️</button>
+          </div>
+          {visibleRecords.map(r=>(
+            <div key={r.label} style={S.prRow}>
               <div>
-                <div style={S.prLbl}>{label}</div>
-                {name&&<div style={S.prSub}>Flug {name}</div>}
+                <div style={S.prLbl}>{r.label}</div>
+                {r.name&&<div style={S.prSub}>Flug {r.name}</div>}
               </div>
-              <span style={S.prVal}>{val}</span>
+              <span style={S.prVal}>{r.value}</span>
             </div>
           ))}
         </div>
       </>)}
+      {showTileConfig && (
+        <ColumnConfigModal title="Saison-Kacheln" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
+          defs={SEASON_TILE_DEFS} columns={tileColumns} onSave={saveTileColumns} onClose={()=>setShowTileConfig(false)} />
+      )}
+      {showRecordConfig && (
+        <ColumnConfigModal title="Persönliche Rekorde" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
+          defs={SEASON_RECORD_DEFS} columns={recordColumns} onSave={saveRecordColumns} onClose={()=>setShowRecordConfig(false)} />
+      )}
     </div>
   );
 }
