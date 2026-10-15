@@ -387,108 +387,113 @@ function fmtDurHM(sec) {
   return `${Math.floor(sec/3600)}h ${String(Math.floor((sec%3600)/60)).padStart(2,"0")}m`;
 }
 
-// Feste Reihenfolge/Beschriftung der frei wählbaren Saison-Hauptkacheln —
-// eigene Liste (statt nur inline berechnet), damit die Auswahl-/Reihenfolge-
-// Kachel (⚙️) dieselben Keys/Labels wie computeSeasonTiles verwendet. Die
-// ursprünglichen 4 bleiben standardmässig aktiv, alles weitere lässt sich
-// über ⚙️ dazuwählen.
+// Feste Reihenfolge/Beschriftung der frei wählbaren Saison-Kacheln — eine
+// einzige Liste (statt wie zuvor Kacheln und "Persönliche Rekorde" als
+// zwei getrennte Systeme), weil ein Rekord inhaltlich nichts anderes ist
+// als eine Kachel mit dem Namen des dazugehörigen Flugs als Zusatzzeile
+// (computeSeasonTiles liefert dieses "name" bei Einzelflug-Extremwerten
+// mit, sonst nicht). Eigene Liste statt nur inline berechnet, damit die
+// Auswahl-/Reihenfolge-Kachel (⚙️) dieselben Keys/Labels wie
+// computeSeasonTiles verwendet. defaultEnabled:false lässt sich über ⚙️
+// dazuwählen, ohne die bisherige Kachel bei bestehenden Nutzern zu
+// verändern — die ursprünglich sichtbaren 4 Kacheln plus die bisherigen 5
+// Rekorde (jetzt auch Kacheln) bleiben darum weiterhin standardmässig an.
 const SEASON_TILE_DEFS = [
-  { key: "fluege",       label: "Flüge" },
-  { key: "flugzeit",     label: "Total Flugzeit" },
-  { key: "flugtage",     label: "Flugtage" },
-  { key: "avgDistanz",   label: "Ø Distanz / Flug" },
-  { key: "gesDistanz",   label: "Ges. Distanz",      defaultEnabled: false },
-  { key: "maxDistanz",   label: "Weiteste Strecke",  defaultEnabled: false },
-  { key: "maxHoehe",     label: "Höchster Punkt",    defaultEnabled: false },
-  { key: "maxDauer",     label: "Längster Flug",     defaultEnabled: false },
-  { key: "avgDauer",     label: "Ø Flugzeit / Flug", defaultEnabled: false },
-  { key: "hoehengewinn", label: "Total Höhengewinn", defaultEnabled: false },
-  { key: "maxSteigen",   label: "Max. Steigen",      defaultEnabled: false },
-  { key: "avgSpeed",     label: "Ø Geschwindigkeit", defaultEnabled: false },
-  { key: "maxSpeed",     label: "Schnellster Flug",  defaultEnabled: false },
-  { key: "schirme",      label: "Schirme",           defaultEnabled: false },
-  { key: "startplaetze", label: "Startplätze",       defaultEnabled: false },
-  { key: "landeplaetze", label: "Landeplätze",       defaultEnabled: false },
-  { key: "biplace",      label: "Biplace-Flüge",     defaultEnabled: false },
-  { key: "fuenfSterne",  label: "5★-Flüge",          defaultEnabled: false },
-];
-// Dieselben Rekorde wie bisher (Längster/Weitester/Höchster Flug) plus
-// Schnellster Flug / Meister Höhengewinn — alle 5 jetzt per ⚙️ frei
-// wählbar, gleiches Muster wie SEASON_TILE_DEFS.
-const SEASON_RECORD_DEFS = [
-  { key: "laengsterFlug",       label: "Längster Flug" },
-  { key: "weitesterFlug",       label: "Weitester Flug" },
-  { key: "hoechsterFlug",       label: "Höchster Flug" },
-  { key: "schnellsterFlug",     label: "Schnellster Flug" },
-  { key: "meisterHoehengewinn", label: "Meister Höhengewinn" },
-  { key: "bestesSteigen",       label: "Bestes Steigen", defaultEnabled: false },
+  { key: "fluege",            label: "Flüge" },
+  { key: "flugzeit",          label: "Total Flugzeit" },
+  { key: "flugtage",          label: "Flugtage" },
+  { key: "avgDistanz",        label: "Ø Distanz / Flug" },
+  { key: "maxDauer",          label: "Längster Flug" },
+  { key: "maxDistanz",        label: "Weitester Flug" },
+  { key: "maxHoehe",          label: "Höchster Flug" },
+  { key: "maxSpeed",          label: "Schnellster Flug" },
+  { key: "maxHoehengewinn",   label: "Meister Höhengewinn" },
+  { key: "gesDistanz",        label: "Ges. Distanz",        defaultEnabled: false },
+  { key: "avgDauer",          label: "Ø Flugzeit / Flug",   defaultEnabled: false },
+  { key: "hoehengewinn",      label: "Total Höhengewinn",   defaultEnabled: false },
+  { key: "avgHoehengewinn",   label: "Ø Höhengewinn / Flug", defaultEnabled: false },
+  { key: "maxSteigen",        label: "Bestes Steigen",      defaultEnabled: false },
+  { key: "avgSteigen",        label: "Ø Steigen",           defaultEnabled: false },
+  { key: "maxSinken",         label: "Stärkstes Sinken",    defaultEnabled: false },
+  { key: "avgSinken",         label: "Ø Sinken",            defaultEnabled: false },
+  { key: "avgSpeed",          label: "Ø Geschwindigkeit",   defaultEnabled: false },
+  { key: "schirme",           label: "Schirme",             defaultEnabled: false },
+  { key: "startplaetze",      label: "Startplätze",         defaultEnabled: false },
+  { key: "landeplaetze",      label: "Landeplätze",         defaultEnabled: false },
+  { key: "biplace",           label: "Biplace-Flüge",       defaultEnabled: false },
+  { key: "fuenfSterne",       label: "5★-Flüge",            defaultEnabled: false },
 ];
 function computeSeasonTiles(yf) {
+  const extremeOf = (getVal) => {
+    const vals = yf.map(f=>({f,v:getVal(f)})).filter(x=>Number.isFinite(x.v));
+    return vals.length ? vals.reduce((a,b)=> b.v>a.v?b:a) : null;
+  };
+  const minOf = (getVal) => {
+    const vals = yf.map(f=>({f,v:getVal(f)})).filter(x=>Number.isFinite(x.v));
+    return vals.length ? vals.reduce((a,b)=> b.v<a.v?b:a) : null;
+  };
+  const avgOf = (getVal) => {
+    const vals = yf.map(getVal).filter(Number.isFinite);
+    return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+  };
+  const getDur = f => getFlightDur(f) || NaN;
+  const getDist = f => getFlightDist(f) || NaN;
+  const getAlt = f => getFlightAlt(f) || NaN;
+  const getHgew = f => { const v = parseFloat(f.customFields?.hGew); return v>0 ? v : NaN; };
+  const getSteigen = f => { const v = parseFloat(f.customFields?.maxSteigen); return Number.isFinite(v) ? v : NaN; };
+  const getSinken = f => { const v = parseFloat(f.customFields?.maxSinken); return Number.isFinite(v) ? v : NaN; };
+  const getSpeed = f => { const v = parseFloat(f.customFields?.kmh); return v>0 ? v : NaN; };
+
   const totalSec = yf.reduce((s,f)=>s+getFlightDur(f),0);
   const totalDist = yf.reduce((s,f)=>s+getFlightDist(f),0);
   const flugtage = new Set(yf.map(f=>f.date).filter(Boolean)).size;
-  const durVals = yf.map(f=>({f,v:getFlightDur(f)})).filter(x=>x.v>0);
-  const maxDur = durVals.length ? durVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const distVals = yf.map(f=>({f,v:getFlightDist(f)})).filter(x=>x.v>0);
-  const maxDist = distVals.length ? distVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const altVals = yf.map(f=>({f,v:getFlightAlt(f)})).filter(x=>x.v>0);
-  const maxAlt = altVals.length ? altVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const hgewVals = yf.map(f=>({f,v:parseFloat(f.customFields?.hGew)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
-  const totalHgew = hgewVals.reduce((s,x)=>s+x.v,0);
-  const steigenVals = yf.map(f=>({f,v:parseFloat(f.customFields?.maxSteigen)})).filter(x=>Number.isFinite(x.v));
-  const bestSteigen = steigenVals.length ? steigenVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const speedVals = yf.map(f=>({f,v:parseFloat(f.customFields?.kmh)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
-  const maxSpeed = speedVals.length ? speedVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const avgSpeed = speedVals.length ? speedVals.reduce((s,x)=>s+x.v,0)/speedVals.length : 0;
+  const maxDur = extremeOf(getDur);
+  const maxDist = extremeOf(getDist);
+  const maxAlt = extremeOf(getAlt);
+  const maxHgew = extremeOf(getHgew);
+  const avgHgew = avgOf(getHgew);
+  const totalHgew = yf.reduce((s,f)=>{ const v=getHgew(f); return s+(Number.isFinite(v)?v:0); },0);
+  const maxSteigen = extremeOf(getSteigen);
+  const avgSteigen = avgOf(getSteigen);
+  const minSinken = minOf(getSinken);
+  const avgSinken = avgOf(getSinken);
+  const maxSpeed = extremeOf(getSpeed);
+  const avgSpeed = avgOf(getSpeed);
   const schirme = new Set(yf.map(f=>f.glider).filter(Boolean)).size;
   const startplaetze = new Set(yf.map(f=>f.site).filter(Boolean)).size;
   const landeplaetze = new Set(yf.map(f=>f.customFields?.landung).filter(Boolean)).size;
   const biplace = yf.filter(f=>(f.customFields?.passagier||"").trim()).length;
   const fuenfSterne = yf.filter(f=>f.rating===5).length;
-  const values = {
-    fluege: String(yf.length),
-    flugzeit: fmtDurHM(totalSec),
-    flugtage: String(flugtage),
-    avgDistanz: (yf.length ? totalDist/yf.length : 0).toFixed(1)+" km",
-    gesDistanz: totalDist.toFixed(1)+" km",
-    maxDistanz: maxDist ? maxDist.v.toFixed(1)+" km" : "—",
-    maxHoehe: maxAlt ? maxAlt.v+" m ü.M." : "—",
-    maxDauer: maxDur ? fmtDurHM(maxDur.v) : "—",
-    avgDauer: fmtDurHM(yf.length ? Math.round(totalSec/yf.length) : 0),
-    hoehengewinn: totalHgew>0 ? Math.round(totalHgew)+" m" : "—",
-    maxSteigen: bestSteigen ? bestSteigen.v+" m/s" : "—",
-    avgSpeed: speedVals.length ? avgSpeed.toFixed(1)+" km/h" : "—",
-    maxSpeed: maxSpeed ? maxSpeed.v.toFixed(1)+" km/h" : "—",
-    schirme: String(schirme),
-    startplaetze: String(startplaetze),
-    landeplaetze: String(landeplaetze),
-    biplace: String(biplace),
-    fuenfSterne: String(fuenfSterne),
-  };
-  return new Map(SEASON_TILE_DEFS.map(d => [d.key, { label: d.label, value: values[d.key] }]));
-}
-function computeSeasonRecords(yf) {
-  const prDur  = yf.length ? Math.max(...yf.map(getFlightDur))  : 0;
-  const prDist = yf.length ? Math.max(...yf.map(getFlightDist)) : 0;
-  const prAlt  = yf.length ? Math.max(...yf.map(getFlightAlt))  : 0;
-  const prFlightDur  = yf.find(f=>getFlightDur(f)===prDur);
-  const prFlightDist = yf.find(f=>getFlightDist(f)===prDist);
-  const prFlightAlt  = yf.find(f=>getFlightAlt(f)===prAlt);
-  const speedVals = yf.map(f=>({f,v:parseFloat(f.customFields?.kmh)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
-  const bestSpeed = speedVals.length ? speedVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const hgewVals = yf.map(f=>({f,v:parseFloat(f.customFields?.hGew)})).filter(x=>Number.isFinite(x.v)&&x.v>0);
-  const bestHgew = hgewVals.length ? hgewVals.reduce((a,b)=> b.v>a.v?b:a) : null;
-  const steigenVals = yf.map(f=>({f,v:parseFloat(f.customFields?.maxSteigen)})).filter(x=>Number.isFinite(x.v));
-  const bestSteigen = steigenVals.length ? steigenVals.reduce((a,b)=> b.v>a.v?b:a) : null;
+
+  // name: nur bei Einzelflug-Extremwerten gesetzt (zeigt den Flug als
+  // Zusatzzeile unter der Kachel) — bei Summen/Durchschnitten/Zählungen
+  // gibt es keinen einzelnen "zuständigen" Flug, darum dort weggelassen.
   const rows = {
-    laengsterFlug:       { name: prFlightDur?.name,   value: prDur  ? fmtDurHM(prDur) : "—" },
-    weitesterFlug:       { name: prFlightDist?.name,  value: prDist ? prDist+" km" : "—" },
-    hoechsterFlug:       { name: prFlightAlt?.name,   value: prAlt  ? prAlt+" m ü.M." : "—" },
-    schnellsterFlug:     { name: bestSpeed?.f.name,   value: bestSpeed ? bestSpeed.v.toFixed(1)+" km/h" : "—" },
-    meisterHoehengewinn: { name: bestHgew?.f.name,    value: bestHgew ? Math.round(bestHgew.v)+" m" : "—" },
-    bestesSteigen:       { name: bestSteigen?.f.name, value: bestSteigen ? bestSteigen.v+" m/s" : "—" },
+    fluege:          { value: String(yf.length) },
+    flugzeit:        { value: fmtDurHM(totalSec) },
+    flugtage:        { value: String(flugtage) },
+    avgDistanz:      { value: (yf.length ? totalDist/yf.length : 0).toFixed(1)+" km" },
+    maxDauer:        { value: maxDur ? fmtDurHM(maxDur.v) : "—", name: maxDur?.f.name },
+    maxDistanz:      { value: maxDist ? maxDist.v.toFixed(1)+" km" : "—", name: maxDist?.f.name },
+    maxHoehe:        { value: maxAlt ? maxAlt.v+" m ü.M." : "—", name: maxAlt?.f.name },
+    maxSpeed:        { value: maxSpeed ? maxSpeed.v.toFixed(1)+" km/h" : "—", name: maxSpeed?.f.name },
+    maxHoehengewinn: { value: maxHgew ? Math.round(maxHgew.v)+" m" : "—", name: maxHgew?.f.name },
+    gesDistanz:      { value: totalDist.toFixed(1)+" km" },
+    avgDauer:        { value: fmtDurHM(yf.length ? Math.round(totalSec/yf.length) : 0) },
+    hoehengewinn:    { value: totalHgew>0 ? Math.round(totalHgew)+" m" : "—" },
+    avgHoehengewinn: { value: avgHgew!=null ? Math.round(avgHgew)+" m" : "—" },
+    maxSteigen:      { value: maxSteigen ? maxSteigen.v+" m/s" : "—", name: maxSteigen?.f.name },
+    avgSteigen:      { value: avgSteigen!=null ? avgSteigen.toFixed(1)+" m/s" : "—" },
+    maxSinken:       { value: minSinken ? minSinken.v+" m/s" : "—", name: minSinken?.f.name },
+    avgSinken:       { value: avgSinken!=null ? avgSinken.toFixed(1)+" m/s" : "—" },
+    avgSpeed:        { value: avgSpeed!=null ? avgSpeed.toFixed(1)+" km/h" : "—" },
+    schirme:         { value: String(schirme) },
+    startplaetze:    { value: String(startplaetze) },
+    landeplaetze:    { value: String(landeplaetze) },
+    biplace:         { value: String(biplace) },
+    fuenfSterne:     { value: String(fuenfSterne) },
   };
-  return new Map(SEASON_RECORD_DEFS.map(d => [d.key, { label: d.label, ...rows[d.key] }]));
+  return new Map(SEASON_TILE_DEFS.map(d => [d.key, { label: d.label, ...rows[d.key] }]));
 }
 // Auswahl-/Reihenfolge-Kachel für Saison-Hauptkacheln & -Rekorde — identisch
 // zur ⚙️-Kachel in flugbuch.jsx (dort ColumnConfigModal), hier dupliziert,
@@ -615,17 +620,13 @@ function SeasonSection({ flights }) {
   };
   const yf = yr==="alle" ? flights : flights.filter(f=>f.year===yr);
 
-  // Welche Kacheln/Rekorde angezeigt werden und in welcher Reihenfolge —
-  // gleiches Muster wie searchStatsColumns in flugbuch.jsx, "service:"-
-  // Präfix, damit es vom Backup-Export/Import erfasst wird.
+  // Welche Kacheln angezeigt werden und in welcher Reihenfolge — gleiches
+  // Muster wie searchStatsColumns in flugbuch.jsx, "service:"-Präfix,
+  // damit es vom Backup-Export/Import erfasst wird.
   const [tileColumns, setTileColumns] = useState(
     SEASON_TILE_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
   );
-  const [recordColumns, setRecordColumns] = useState(
-    SEASON_RECORD_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
-  );
   const [showTileConfig, setShowTileConfig] = useState(false);
-  const [showRecordConfig, setShowRecordConfig] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -636,23 +637,11 @@ function SeasonSection({ flights }) {
           setTileColumns([...saved, ...SEASON_TILE_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))]);
         }
       } catch (e) { console.error("Load error (seasonTileColumns):", e); }
-      try {
-        const r = await window.storage.get("service:seasonRecordColumns");
-        if (r) {
-          const saved = JSON.parse(r.value);
-          const savedKeys = new Set(saved.map(c => c.key));
-          setRecordColumns([...saved, ...SEASON_RECORD_DEFS.filter(c => !savedKeys.has(c.key)).map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))]);
-        }
-      } catch (e) { console.error("Load error (seasonRecordColumns):", e); }
     })();
   }, []);
   const saveTileColumns = async (next) => {
     setTileColumns(next);
     try { await window.storage.set("service:seasonTileColumns", JSON.stringify(next)); } catch (e) { console.error("Save error (seasonTileColumns):", e); }
-  };
-  const saveRecordColumns = async (next) => {
-    setRecordColumns(next);
-    try { await window.storage.set("service:seasonRecordColumns", JSON.stringify(next)); } catch (e) { console.error("Save error (seasonRecordColumns):", e); }
   };
 
   const S = {
@@ -664,20 +653,13 @@ function SeasonSection({ flights }) {
     box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
     bigNum:{fontSize:26,fontWeight:800,color:"#e8f4fd",letterSpacing:-1},
     lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
-    prBox:{background:"rgba(224,48,74,0.08)",border:"1px solid rgba(224,48,74,0.2)",borderRadius:12,padding:"14px 16px",marginBottom:10},
-    prTitle:{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,fontWeight:600,color:"#e8f4fd",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8},
-    prRow:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(224,48,74,0.08)"},
-    prLbl:{fontSize:13,color:"rgba(232,244,253,0.5)"},
-    prVal:{fontSize:13,fontWeight:600,color:"#fcd34d"},
-    prSub:{fontSize:11,color:"rgba(232,244,253,0.3)"},
+    sub:{fontSize:10,color:"rgba(232,244,253,0.3)",marginTop:2},
   };
 
   if (!flights.length) return null;
 
   const tilesMap = computeSeasonTiles(yf);
   const visibleTiles = tileColumns.filter(c=>c.enabled).map(c=>tilesMap.get(c.key)).filter(Boolean);
-  const recordsMap = computeSeasonRecords(yf);
-  const visibleRecords = recordColumns.filter(c=>c.enabled).map(c=>recordsMap.get(c.key)).filter(Boolean);
 
   return (
     <div style={{margin:"12px 16px 0",display:"flex",flexDirection:"column",gap:8}}>
@@ -714,21 +696,10 @@ function SeasonSection({ flights }) {
         </div>
         <div style={S.grid}>
           {visibleTiles.map(t => (
-            <div key={t.label} style={S.box}><div style={S.bigNum}>{t.value}</div><div style={S.lbl}>{t.label}</div></div>
-          ))}
-        </div>
-        <div style={S.prBox}>
-          <div style={S.prTitle}>
-            <span>🏆 Persönliche Rekorde {yr==="alle"?"(alle Jahre)":yr}</span>
-            <button onClick={()=>setShowRecordConfig(true)} title="Rekorde bearbeiten" style={S.gearBtn}>⚙️</button>
-          </div>
-          {visibleRecords.map(r=>(
-            <div key={r.label} style={S.prRow}>
-              <div>
-                <div style={S.prLbl}>{r.label}</div>
-                {r.name&&<div style={S.prSub}>Flug {r.name}</div>}
-              </div>
-              <span style={S.prVal}>{r.value}</span>
+            <div key={t.label} style={S.box}>
+              <div style={S.bigNum}>{t.value}</div>
+              <div style={S.lbl}>{t.label}</div>
+              {t.name && <div style={S.sub}>Flug {t.name}</div>}
             </div>
           ))}
         </div>
@@ -736,10 +707,6 @@ function SeasonSection({ flights }) {
       {showTileConfig && (
         <ColumnConfigModal title="Saison-Kacheln" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
           defs={SEASON_TILE_DEFS} columns={tileColumns} onSave={saveTileColumns} onClose={()=>setShowTileConfig(false)} />
-      )}
-      {showRecordConfig && (
-        <ColumnConfigModal title="Persönliche Rekorde" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
-          defs={SEASON_RECORD_DEFS} columns={recordColumns} onSave={saveRecordColumns} onClose={()=>setShowRecordConfig(false)} />
       )}
     </div>
   );
