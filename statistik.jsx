@@ -650,8 +650,8 @@ function SeasonSection({ flights }) {
     sectionHead:{display:"flex",justifyContent:"flex-end",marginBottom:-6},
     gearBtn:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:28,height:28,fontSize:14,cursor:"pointer",color:"#e8f4fd"},
     grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
-    box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"14px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
-    bigNum:{fontSize:26,fontWeight:800,color:"#e8f4fd",letterSpacing:-1},
+    box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"9px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
+    bigNum:{fontSize:20,fontWeight:700,color:"#e8f4fd",letterSpacing:-1},
     lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
     sub:{fontSize:10,color:"rgba(232,244,253,0.3)",marginTop:2},
   };
