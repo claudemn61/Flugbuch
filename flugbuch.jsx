@@ -573,6 +573,79 @@ function removeStrayMapTilerWarnings() {
   } catch (e) { /* best-effort cleanup, never worth breaking anything over */ }
 }
 
+// 3D-Satellit-Ansicht: der Track selbst ist eine ganz normale 2D-"line"-
+// Ebene (siehe buildMap) — die hat in MapLibre/MapTiler SDK v3 keine eigene
+// Höhe und wird bei aktivem Terrain deshalb flach auf das Gelände projiziert
+// ("am Boden fixiert"), unabhängig von der echten Flughöhe. Eine "line"-
+// Ebene mit echter Höhe über Gelände gibt es in dieser SDK-Version nicht
+// (geprüft: weder line-elevation-reference noch symbol-height-offset sind
+// im hier geladenen Style-Spec vorhanden — beides existiert erst in viel
+// neueren, noch nicht offiziell veröffentlichten MapTiler-SDK-Versionen).
+// fill-extrusion dagegen wird nachweislich korrekt relativ zum Terrain
+// positioniert (base/height gelten ab der Geländeoberfläche an diesem
+// Punkt, nicht ab Meereshöhe) — das macht sich dieser "Vorhang" aus vielen
+// schmalen, einzeln extrudierten Säulen entlang des Tracks zunutze: jede
+// Säule reicht vom Boden (base 0) bis zur echten GPS-Höhe an diesem Punkt
+// (height = Flughöhe − Geländehöhe an dieser Stelle, per
+// queryTerrainElevation ermittelt). Die obere Kante der Säulenreihe zeigt
+// so den tatsächlichen Flugverlauf über dem Gelände; der fill-extrusion-
+// vertical-gradient lässt sie nach oben heller/nach unten dunkler auslaufen,
+// damit es eher wie eine leuchtende Spur als eine massive Wand wirkt.
+// Läuft erst nach dem ersten "idle"-Event nach dem Kamera-Sprung auf den
+// Track, da queryTerrainElevation() vor dem Laden der Terrain-Kacheln für
+// den sichtbaren Bereich 0 oder null liefert statt der echten Höhe.
+function buildAltitudeCurtain(map, points) {
+  try {
+    if (!map || !points || points.length < 2) return;
+    if (typeof map.queryTerrainElevation !== "function") return;
+    // Downsampling auf eine feste Ziel-Säulenzahl, unabhängig von der
+    // tatsächlichen Trackpunkt-Dichte (ein langer Streckenflug hat leicht
+    // tausende IGC-Punkte — eine Säule pro Punkt wäre unnötig fein und
+    // unnötig teuer zu rendern).
+    const TARGET = 220;
+    const step = Math.max(1, Math.floor(points.length / TARGET));
+    const sampled = [];
+    for (let i = 0; i < points.length; i += step) sampled.push(points[i]);
+    if (sampled[sampled.length-1] !== points[points.length-1]) sampled.push(points[points.length-1]);
+    // Feste kleine quadratische Grundfläche pro Säule (~3m) statt einer
+    // echten, senkrecht zur Flugrichtung ausgerichteten Band-Geometrie —
+    // bewusst die einfachere, robustere Variante: keine Bearing-/Offset-
+    // Berechnung nötig, bei ausreichender Säulendichte liest sich die
+    // Oberkante trotzdem als durchgehende Spur.
+    const HALF_W = 0.000016;
+    const features = sampled.map(p => {
+      const alt = p.gpsAlt;
+      if (!Number.isFinite(alt)) return null;
+      let ground;
+      try { ground = map.queryTerrainElevation([p.lon, p.lat]); } catch (e) { ground = null; }
+      if (!Number.isFinite(ground)) return null;
+      const h = Math.max(1, alt - ground);
+      return {
+        type: "Feature", properties: { h },
+        geometry: { type: "Polygon", coordinates: [[
+          [p.lon-HALF_W, p.lat-HALF_W], [p.lon+HALF_W, p.lat-HALF_W],
+          [p.lon+HALF_W, p.lat+HALF_W], [p.lon-HALF_W, p.lat+HALF_W],
+          [p.lon-HALF_W, p.lat-HALF_W],
+        ] ] },
+      };
+    }).filter(Boolean);
+    if (!features.length) return;
+    if (map.getLayer("track-altitude")) map.removeLayer("track-altitude");
+    if (map.getSource("track-altitude")) map.removeSource("track-altitude");
+    map.addSource("track-altitude", { type: "geojson", data: { type: "FeatureCollection", features } });
+    map.addLayer({
+      id: "track-altitude", type: "fill-extrusion", source: "track-altitude",
+      paint: {
+        "fill-extrusion-base": 0,
+        "fill-extrusion-height": ["get", "h"],
+        "fill-extrusion-color": "#60a5fa",
+        "fill-extrusion-opacity": 0.85,
+        "fill-extrusion-vertical-gradient": true,
+      },
+    });
+  } catch (e) { console.error("buildAltitudeCurtain error:", e); }
+}
+
 
 // Für die Weltkarte (viele Tracks gleichzeitig, WebGL-Speicher begrenzt —
 // vor allem auf iOS, siehe Kommentar bei den
@@ -1420,6 +1493,12 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       readyRef.current = true;
       applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef, mapRefObj===previewMapRef ? previewHikeRefMarkerRef : fullHikeRefMarkerRef);
       removeStrayMapTilerWarnings();
+      // Vorhang über dem Gelände nur im 3D-Satellit-Vollbild, erst sobald
+      // die Kamera (applyHighlight/fitBounds oben) tatsächlich auf dem
+      // Track steht und die Terrain-Kacheln dafür geladen sind ("idle").
+      if (use3DSat && fullTrace.length > 1) {
+        map.once("idle", () => { if (mapRefObj.current === map) buildAltitudeCurtain(map, fullTrace); });
+      }
     });
   };
 
