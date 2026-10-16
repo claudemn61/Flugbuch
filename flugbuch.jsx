@@ -628,6 +628,15 @@ function mercatorFromLngLat(lon, lat) {
   const y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360))) / 360;
   return { x, y };
 }
+// Sichtbare Breite der gelben Höhenlinie, in CSS-Pixeln. gl.lineWidth()
+// (frühere Version) wird auf praktisch allen modernen GPU-Backends
+// (ANGLE/Metal, also auch iOS/Android) stillschweigend auf 1px geclamped —
+// WebGL garantiert >1 dort gar nicht erst. Deshalb hier stattdessen ein
+// echtes Rechteck (zwei Dreiecke) pro Liniensegment, im Vertex-Shader in
+// Bildschirmraum um die gewünschte Pixel-Breite senkrecht zur Blickrichtung
+// extrudiert — funktioniert unabhängig vom GPU-Backend.
+const ALTITUDE_LINE_WIDTH_PX = 7;
+
 function createAltitudeLineLayer(id, points) {
   // Leichte Glättung nur der Höhe (nicht der Position) — reduziert GPS-/
   // Barometer-Rauschen in der Vertikalen, ohne den tatsächlich geflogenen
@@ -646,12 +655,39 @@ function createAltitudeLineLayer(id, points) {
     onAdd(map, gl) {
       try {
         this.map = map;
+        // Jedes Segment (P0→P1) wird zu einem Rechteck aus 6 Vertices
+        // (2 Dreiecke: A,B,C / B,D,C mit A=(P0,-1) B=(P0,+1) C=(P1,-1)
+        // D=(P1,+1)). a_start/a_end sind für alle 6 Vertices eines
+        // Segments identisch (feste Richtung), a_isEnd wählt im Shader per
+        // mix() aus, welcher der beiden Endpunkte tatsächlich positioniert
+        // wird — a_side bestimmt, auf welche Seite der Bildschirmraum-
+        // Normalen hin extrudiert wird. So bleibt die Normale für beide
+        // Endpunkte eines Segments konsistent (kein Vorzeichenwechsel wie
+        // bei einer Richtung "von diesem Punkt aus").
         const vertexSrc = `
-          attribute vec3 a_pos;
+          attribute vec3 a_start;
+          attribute vec3 a_end;
+          attribute float a_side;
+          attribute float a_isEnd;
           uniform mat4 u_matrix;
           uniform float u_worldSize;
+          uniform vec2 u_resolution;
+          uniform float u_lineWidthPx;
+          vec4 project(vec3 p) {
+            return u_matrix * vec4(p.x * u_worldSize, p.y * u_worldSize, p.z, 1.0);
+          }
           void main() {
-            gl_Position = u_matrix * vec4(a_pos.x * u_worldSize, a_pos.y * u_worldSize, a_pos.z, 1.0);
+            vec4 clipStart = project(a_start);
+            vec4 clipEnd = project(a_end);
+            vec2 ndcStart = clipStart.xy / clipStart.w;
+            vec2 ndcEnd = clipEnd.xy / clipEnd.w;
+            vec2 dirPx = (ndcEnd - ndcStart) * u_resolution * 0.5;
+            float len = length(dirPx);
+            vec2 dirNorm = len > 0.0001 ? dirPx / len : vec2(1.0, 0.0);
+            vec2 normalPx = vec2(-dirNorm.y, dirNorm.x) * (u_lineWidthPx * 0.5) * a_side;
+            vec2 offsetNdc = normalPx / (u_resolution * 0.5);
+            vec4 clipThis = mix(clipStart, clipEnd, a_isEnd);
+            gl_Position = vec4(clipThis.xy + offsetNdc * clipThis.w, clipThis.z, clipThis.w);
           }
         `;
         const fragmentSrc = `
@@ -680,20 +716,35 @@ function createAltitudeLineLayer(id, points) {
           console.error("track-altitude-line Programm-Fehler:", gl.getProgramInfoLog(program));
         }
         this.program = program;
-        this.aPos = gl.getAttribLocation(program, "a_pos");
+        this.aStart = gl.getAttribLocation(program, "a_start");
+        this.aEnd = gl.getAttribLocation(program, "a_end");
+        this.aSide = gl.getAttribLocation(program, "a_side");
+        this.aIsEnd = gl.getAttribLocation(program, "a_isEnd");
         this.uMatrix = gl.getUniformLocation(program, "u_matrix");
         this.uColor = gl.getUniformLocation(program, "u_color");
         this.uWorldSize = gl.getUniformLocation(program, "u_worldSize");
+        this.uResolution = gl.getUniformLocation(program, "u_resolution");
+        this.uLineWidthPx = gl.getUniformLocation(program, "u_lineWidthPx");
 
         // x/y bleiben normiert [0,1] (zoomunabhängig, einmalig gebaut),
         // z roh in Metern — siehe Kommentar oben zu mercatorFromLngLat,
         // warum die worldSize-Skalierung erst im Shader passiert.
-        const verts = [];
-        smoothed.forEach(p => {
+        const proj = smoothed.map(p => {
           const mc = mercatorFromLngLat(p.lon, p.lat);
-          verts.push(mc.x, mc.y, p.alt);
+          return [mc.x, mc.y, p.alt];
         });
-        this.vertexCount = smoothed.length;
+        const verts = [];
+        const pushVertex = (s, e, side, isEnd) => { verts.push(s[0], s[1], s[2], e[0], e[1], e[2], side, isEnd); };
+        for (let i = 0; i < proj.length - 1; i++) {
+          const s = proj[i], e = proj[i+1];
+          pushVertex(s, e, -1, 0); // A = (start,-1)
+          pushVertex(s, e, +1, 0); // B = (start,+1)
+          pushVertex(s, e, -1, 1); // C = (end,-1)
+          pushVertex(s, e, +1, 0); // B
+          pushVertex(s, e, +1, 1); // D = (end,+1)
+          pushVertex(s, e, -1, 1); // C
+        }
+        this.vertexCount = verts.length / 8;
         this.buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
@@ -709,16 +760,51 @@ function createAltitudeLineLayer(id, points) {
         // onAdd (dort war der Fehler: X/Y blieben unskaliert).
         const zoom = (this.map && typeof this.map.getZoom === "function") ? this.map.getZoom() : 0;
         const worldSize = 512 * Math.pow(2, zoom);
+        const stride = 8 * 4; // 8 Floats × 4 Byte
         gl.useProgram(this.program);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.enableVertexAttribArray(this.aPos);
-        gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(this.aStart);
+        gl.enableVertexAttribArray(this.aEnd);
+        gl.enableVertexAttribArray(this.aSide);
+        gl.enableVertexAttribArray(this.aIsEnd);
+        gl.vertexAttribPointer(this.aStart, 3, gl.FLOAT, false, stride, 0);
+        gl.vertexAttribPointer(this.aEnd, 3, gl.FLOAT, false, stride, 12);
+        gl.vertexAttribPointer(this.aSide, 1, gl.FLOAT, false, stride, 24);
+        gl.vertexAttribPointer(this.aIsEnd, 1, gl.FLOAT, false, stride, 28);
         gl.uniformMatrix4fv(this.uMatrix, false, matrix);
         gl.uniform1f(this.uWorldSize, worldSize);
+        gl.uniform2f(this.uResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.uniform1f(this.uLineWidthPx, ALTITUDE_LINE_WIDTH_PX * (gl.drawingBufferWidth / (this.map.getCanvas().clientWidth || gl.drawingBufferWidth)));
         gl.uniform4f(this.uColor, 253/255, 224/255, 71/255, 1.0); // #fde047
-        gl.lineWidth(3); // auf vielen GPUs (v.a. iOS/ANGLE) ignoriert und bleibt bei 1px — unschädlich, einfach versucht
-        gl.drawArrays(gl.LINE_STRIP, 0, this.vertexCount);
+        gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+        // Für place3DOn (Schirm-Marker beim Abspielen) — dieselbe Matrix,
+        // als flaches Array kopiert statt der von MapLibre übergebenen
+        // Referenz direkt zu behalten, da die intern zwischen Frames
+        // wiederverwendet werden könnte.
+        this.lastMatrixData = { matrix: Array.from(matrix), worldSize };
       } catch (e) { console.error("track-altitude-line render error:", e); }
+    },
+    // Projiziert einen lon/lat/Höhe-Punkt exakt über dieselbe Matrix wie die
+    // gelbe Linie selbst auf Bildschirm-Pixelkoordinaten (CSS-Pixel, relativ
+    // zum Karten-Canvas) — genutzt von place3DOn, damit der Schirm-Marker
+    // beim Abspielen der Linie folgt statt der bodengebundenen 2D-Linie.
+    // Liefert null, wenn noch kein Frame gerendert wurde oder der Punkt
+    // hinter der Kamera liegt.
+    projectPoint(lon, lat, altMeters) {
+      const d = this.lastMatrixData;
+      if (!d) return null;
+      const mc = mercatorFromLngLat(lon, lat);
+      const x = mc.x * d.worldSize, y = mc.y * d.worldSize, z = altMeters || 0;
+      const m = d.matrix;
+      const clipX = m[0]*x + m[4]*y + m[8]*z + m[12];
+      const clipY = m[1]*x + m[5]*y + m[9]*z + m[13];
+      const clipW = m[3]*x + m[7]*y + m[11]*z + m[15];
+      if (!(clipW > 0)) return null;
+      const canvas = this.map && this.map.getCanvas && this.map.getCanvas();
+      const cw = canvas ? canvas.clientWidth : 0, ch = canvas ? canvas.clientHeight : 0;
+      if (!cw || !ch) return null;
+      const ndcX = clipX / clipW, ndcY = clipY / clipW;
+      return { x: (ndcX*0.5+0.5)*cw, y: (1-(ndcY*0.5+0.5))*ch };
     },
     onRemove(map, gl) {
       try {
@@ -1125,11 +1211,6 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       return next;
     });
   };
-  // TEMPORÄR zur Fehlersuche (gemeldeter Höhenversatz der 3D-Linie):
-  // zeigt GPS-Höhe vs. von MapLibre tatsächlich gerenderte Geländehöhe am
-  // Startpunkt, sobald im 3D-Satellit die Terrain-Kacheln dort geladen
-  // sind. Wieder entfernen, sobald die Ursache geklärt ist.
-  const [altDebug, setAltDebug] = useState(null);
   // Route markers are redrawn onto the live map instance whenever the route
   // data itself changes, without rebuilding the map — see drawRoutePoints
   // below. Tracked per map instance so a redraw can remove exactly its own
@@ -1186,6 +1267,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   const [playElapsedSec, setPlayElapsedSec] = useState(0); // seconds into the flight (IGC time)
   const playMarkerRef = useRef(null);
   const previewPlayMarkerRef = useRef(null);
+  // Schirm-Marker im 3D-Satellit (siehe place3DOn weiter unten) — eine
+  // manuell positionierte DOM-Markierung statt sdk.Marker, weil sdk.Marker
+  // nur lon/lat (plus Boden-Terrainhöhe) kennt, keine frei wählbare
+  // Flughöhe. Hält { el, imgEl, altEl, kind, state, offRender }.
+  const play3DMarkerRef = useRef(null);
+  // Layer-Instanz der gelben Höhenlinie der Vollbild-Karte (siehe
+  // createAltitudeLineLayer/buildMap) — place3DOn nutzt deren
+  // projectPoint(), um den Marker exakt auf derselben Projektion wie die
+  // Linie selbst zu platzieren.
+  const altitudeLineLayerRef = useRef(null);
   const playRafRef = useRef(null);
   const playLastTsRef = useRef(null);
   // gpsvColorBy jetzt vom übergeordneten DetailContent übergeben (statt
@@ -1489,6 +1580,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // Statt fragiler Pixel-Abstimmung: für die Vollbild-Karte ganz
     // abgeschaltet — Pinch-Zoom und Ziehen funktionieren ohnehin ohne sie.
     const isFullscreenMap = mapRefObj === fullMapRef;
+    // Alte Layer-Referenz verwerfen, bevor die Karte (ggf. neu, ggf. ohne
+    // 3D-Satellit) aufgebaut wird — sonst würde place3DOn später gegen eine
+    // Layer-Instanz einer bereits entfernten Karte rendern.
+    if (isFullscreenMap) altitudeLineLayerRef.current = null;
     // 3D-Satellit gilt bewusst nur fürs Vollbild — die kleine Vorschau-
     // Karte bleibt immer 2D-Outdoor (in der Grösse bringt eine Schräg-
     // ansicht keinen Mehrwert, nur verzerrte Lesbarkeit).
@@ -1603,17 +1698,14 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       // siehe createAltitudeLineLayer: positioniert rein über Mercator-
       // Koordinaten + echter GPS-Höhe, unabhängig vom Gelände).
       if (use3DSat && fullTrace.length > 1) {
-        try { map.addLayer(createAltitudeLineLayer("track-altitude-line", fullTrace)); }
-        catch (e) { console.error("addLayer track-altitude-line error:", e); }
-        setAltDebug(null);
-        map.once("idle", () => {
-          try {
-            if (mapRefObj.current !== map || typeof map.queryTerrainElevation !== "function") return;
-            const p0 = fullTrace[0];
-            const ground = map.queryTerrainElevation([p0.lon, p0.lat]);
-            if (Number.isFinite(ground)) setAltDebug({ gps: Math.round(p0.gpsAlt), ground: Math.round(ground), diff: Math.round(p0.gpsAlt - ground) });
-          } catch (e) { console.error("altDebug query error:", e); }
-        });
+        try {
+          const altLineLayer = createAltitudeLineLayer("track-altitude-line", fullTrace);
+          map.addLayer(altLineLayer);
+          // Für den Schirm-Marker beim Abspielen (siehe place3DOn weiter
+          // unten) — der braucht dieselbe Projektion wie die gelbe Linie,
+          // um ihr statt der bodengebundenen 2D-Linie zu folgen.
+          if (isFullscreenMap) altitudeLineLayerRef.current = altLineLayer;
+        } catch (e) { console.error("addLayer track-altitude-line error:", e); }
       }
     });
   };
@@ -1869,9 +1961,74 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         map.jumpTo({ center: [lon, lat], zoom: map.getZoom() });
       }
     };
+    // Im 3D-Satellit folgt der Schirm-Marker der höhenkorrekten gelben
+    // Linie (createAltitudeLineLayer) statt der bodengebundenen 2D-Linie —
+    // sdk.Marker (placeOn oben) kennt nur lon/lat (plus ggf. Terrainhöhe am
+    // Boden), keine frei wählbare Flughöhe. Deshalb hier eine eigene,
+    // manuell positionierte DOM-Markierung: die Bildschirm-Position wird
+    // pro gerendertem Kartenframe direkt aus derselben Projektionsmatrix
+    // wie die gelbe Linie berechnet (layer.projectPoint), inkl. echter
+    // GPS-Höhe — bleibt damit auch bei Kamerabewegung während des
+    // Abspielens exakt auf der Linie.
+    const place3DOn = (map, ref, layer) => {
+      if (!map || !layer) return;
+      if (ref.current && ref.current.kind !== (showBoot ? "boot" : "glider")) {
+        ref.current.el.remove();
+        ref.current.offRender();
+        ref.current = null;
+      }
+      if (!ref.current) {
+        const el = document.createElement("div");
+        el.style.cssText = `position:absolute;left:0;top:0;width:34px;height:34px;margin-left:-17px;margin-top:-17px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;pointer-events:none;`;
+        let img = null;
+        if (showBoot) {
+          el.style.fontSize = "26px";
+          el.textContent = "🥾";
+        } else if (gliderIcon.type === "image") {
+          img = document.createElement("img");
+          img.src = gliderIcon.value;
+          img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
+          el.appendChild(img);
+        } else {
+          el.style.fontSize = "26px";
+          el.textContent = gliderIcon.value;
+        }
+        const altEl = document.createElement("span");
+        altEl.style.cssText = `position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
+        el.appendChild(altEl);
+        map.getCanvasContainer().appendChild(el);
+        // state hält die jeweils aktuelle Position — der render-Listener
+        // unten wird nur einmal gebunden, muss aber bei jedem Kartenframe
+        // (nicht nur bei jeder Änderung von playElapsedSec) die zuletzt
+        // bekannte Position neu projizieren, z.B. wenn während des
+        // Abspielens die Kamera bewegt wird.
+        const state = { lon: 0, lat: 0, alt: 0 };
+        const update = () => {
+          const p = layer.projectPoint(state.lon, state.lat, state.alt);
+          if (!p) { el.style.display = "none"; return; }
+          el.style.display = "flex";
+          el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+        };
+        map.on("render", update);
+        ref.current = { el, imgEl: img, altEl, kind: showBoot ? "boot" : "glider", state, offRender: () => map.off("render", update) };
+      }
+      const m = ref.current;
+      m.state.lon = lon; m.state.lat = lat; m.state.alt = alt;
+      if (!showBoot && m.imgEl) m.imgEl.style.transform = `rotate(${hdg}deg)`;
+      m.altEl.textContent = (alt!=null ? Math.round(alt) : "")+"m";
+    };
+
     if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef, false);
-    if (isFullscreen && fullReadyRef.current) placeOn(fullMapRef.current, playMarkerRef, true);
-  }, [playElapsedSec, isFullscreen, playPhase]);
+    if (isFullscreen && fullReadyRef.current) {
+      if (satelliteMode && altitudeLineLayerRef.current) {
+        if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+        place3DOn(fullMapRef.current, play3DMarkerRef, altitudeLineLayerRef.current);
+      } else {
+        if (play3DMarkerRef.current) { play3DMarkerRef.current.el.remove(); play3DMarkerRef.current.offRender(); play3DMarkerRef.current = null; }
+        placeOn(fullMapRef.current, playMarkerRef, true);
+      }
+    }
+  }, [playElapsedSec, isFullscreen, playPhase, satelliteMode]);
 
   // Cleans up the fullscreen-specific playback marker whenever fullscreen
   // closes (playback itself keeps going — it's shared with the preview
@@ -1879,12 +2036,14 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // changes so a stale marker never lingers into the next map instance.
   useEffect(() => {
     if (!isFullscreen && playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+    if (!isFullscreen && play3DMarkerRef.current) { play3DMarkerRef.current.el.remove(); play3DMarkerRef.current.offRender(); play3DMarkerRef.current = null; }
   }, [isFullscreen]);
   useEffect(() => {
     setIsPlaying(false);
     setPlayElapsedSec(0);
     setPlayPhase((flight?.hikeTrack?.length || 0) > 1 ? "hike" : "flight");
     if (playMarkerRef.current) { playMarkerRef.current.remove(); playMarkerRef.current = null; }
+    if (play3DMarkerRef.current) { play3DMarkerRef.current.el.remove(); play3DMarkerRef.current.offRender(); play3DMarkerRef.current = null; }
     if (previewPlayMarkerRef.current) { previewPlayMarkerRef.current.remove(); previewPlayMarkerRef.current = null; }
     if (onPlaybackPositionChange) onPlaybackPositionChange(null);
   }, [flight?.id]);
@@ -2098,11 +2257,6 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
             ✕
           </button>
-          {satelliteMode && altDebug && (
-            <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 50px)",right:14,background:"rgba(10,15,25,0.85)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:10,padding:"6px 10px",color:"#fde047",fontSize:11,fontFamily:"monospace",lineHeight:1.5,transform:"translateZ(0)",zIndex:5,whiteSpace:"nowrap"}}>
-              🐞 GPS {altDebug.gps}m · Terrain {altDebug.ground}m · Diff {altDebug.diff}m
-            </div>
-          )}
         </div>
       )}
     </>
