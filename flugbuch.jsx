@@ -1290,6 +1290,17 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       return next;
     });
   };
+  // Kippen (Pitch) der 3D-Satellit-Ansicht per Button statt nur per Geste —
+  // die native Zwei-Finger-Hoch/Runter-Geste von MapLibre ist auf iOS
+  // unzuverlässig (wird dort oft stattdessen als Verschieben interpretiert).
+  // maxPitch im Map-Konstruktor unten auf 75 angehoben, sonst wäre bei der
+  // Start-Neigung von 55° kaum noch Spielraum nach oben.
+  const adjustPitch = (delta) => {
+    const map = fullMapRef.current;
+    if (!map || typeof map.getPitch !== "function") return;
+    const next = Math.max(0, Math.min(75, map.getPitch() + delta));
+    map.easeTo({ pitch: next, duration: 250 });
+  };
   // Route markers are redrawn onto the live map instance whenever the route
   // data itself changes, without rebuilding the map — see drawRoutePoints
   // below. Tracked per map instance so a redraw can remove exactly its own
@@ -1670,6 +1681,9 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     const map = new sdk.Map({
       container, apiKey: MAPTILER_API_KEY, style: use3DSat ? sdk.MapStyle.HYBRID : sdk.MapStyle.OUTDOOR,
       language: "de", center: initialCenter, zoom: 11, pitch: use3DSat ? 55 : 0,
+      // Default-maxPitch (60) liesse bei der Start-Neigung von 55° kaum
+      // Spielraum nach "steiler" (siehe adjustPitch-Kippbuttons).
+      ...(use3DSat ? { maxPitch: 75 } : {}),
       ...(isFullscreenMap ? { navigationControl: false, geolocateControl: false } : {}),
     });
     mapRefObj.current = map;
@@ -2336,6 +2350,21 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
             ✕
           </button>
+          {satelliteMode && (
+            // Kippen per Button statt nur per (auf iOS unzuverlässiger)
+            // Zwei-Finger-Geste — siehe adjustPitch. Rechter Rand, vertikal
+            // mittig: alle vier Ecken sind bereits belegt.
+            <div style={{position:"absolute",top:"50%",right:14,transform:"translateY(-50%) translateZ(0)",display:"flex",flexDirection:"column",gap:6,zIndex:5}}>
+              <button onClick={()=>adjustPitch(15)} title="Steiler kippen"
+                style={{background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:17,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
+                +
+              </button>
+              <button onClick={()=>adjustPitch(-15)} title="Flacher kippen"
+                style={{background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:17,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)"}}>
+                −
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
