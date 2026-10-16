@@ -2090,11 +2090,16 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
         altEl.style.cssText = `position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
         el.appendChild(altEl);
         map.getCanvasContainer().appendChild(el);
-        // state hält die jeweils aktuelle Position — der render-Listener
-        // unten wird nur einmal gebunden, muss aber bei jedem Kartenframe
-        // (nicht nur bei jeder Änderung von playElapsedSec) die zuletzt
-        // bekannte Position neu projizieren, z.B. wenn während des
-        // Abspielens die Kamera bewegt wird.
+        // state hält die jeweils aktuelle Position. Der render-Listener
+        // unten deckt nur die Kamerabewegung ab (Pan/Zoom/Kippen während
+        // pausiertem Abspielen) — MapLibre zeichnet aber nur neu, wenn sich
+        // am Kartenbild selbst etwas ändert, nicht automatisch bei jeder
+        // Änderung von playElapsedSec. Direkt nach dem Terrain-Aufbau (kein
+        // Kamerawechsel mehr, Karte "idle") blieb der Marker deshalb an der
+        // zuletzt gerenderten Stelle hängen, obwohl state sich längst
+        // weiterbewegt hatte — update() wird deshalb unten bei jedem
+        // Effekt-Durchlauf zusätzlich direkt aufgerufen, nicht nur hier
+        // einmalig über map.on("render", …) gebunden.
         const state = { lon: 0, lat: 0, alt: 0 };
         const update = () => {
           const p = layer.projectPoint(state.lon, state.lat, state.alt);
@@ -2103,12 +2108,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           el.style.transform = `translate(${p.x}px, ${p.y}px)`;
         };
         map.on("render", update);
-        ref.current = { el, imgEl: img, altEl, kind: showBoot ? "boot" : "glider", state, offRender: () => map.off("render", update) };
+        ref.current = { el, imgEl: img, altEl, kind: showBoot ? "boot" : "glider", state, update, offRender: () => map.off("render", update) };
       }
       const m = ref.current;
       m.state.lon = lon; m.state.lat = lat; m.state.alt = alt;
       if (!showBoot && m.imgEl) m.imgEl.style.transform = `rotate(${hdg}deg)`;
       m.altEl.textContent = (alt!=null ? Math.round(alt) : "")+"m";
+      m.update();
     };
 
     if (previewReadyRef.current) placeOn(previewMapRef.current, previewPlayMarkerRef, false);
