@@ -635,7 +635,13 @@ function mercatorFromLngLat(lon, lat) {
 // echtes Rechteck (zwei Dreiecke) pro Liniensegment, im Vertex-Shader in
 // Bildschirmraum um die gewünschte Pixel-Breite senkrecht zur Blickrichtung
 // extrudiert — funktioniert unabhängig vom GPU-Backend.
-const ALTITUDE_LINE_WIDTH_PX = 7;
+const ALTITUDE_LINE_WIDTH_PX = 3.5;
+// Anzahl Kreissegmente für die runden Verbindungsstücke an jedem Track-
+// Punkt (siehe JOINT_VERTEX_SRC unten) — füllt die Lücke/den Knick, die an
+// jedem Punkt zwischen zwei geraden Liniensegmenten sonst sichtbar bliebe
+// (besonders in engen Thermikkreisen), ohne die eigentliche GPS-Position
+// zu verändern. 10 reicht bei dieser Linienbreite für ein rundes Aussehen.
+const ALTITUDE_LINE_JOINT_SEGMENTS = 10;
 
 function createAltitudeLineLayer(id, points) {
   // Leichte Glättung nur der Höhe (nicht der Position) — reduziert GPS-/
@@ -655,6 +661,35 @@ function createAltitudeLineLayer(id, points) {
     onAdd(map, gl) {
       try {
         this.map = map;
+        const compile = (type, src) => {
+          const sh = gl.createShader(type);
+          gl.shaderSource(sh, src);
+          gl.compileShader(sh);
+          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+            console.error("track-altitude-line Shader-Fehler:", gl.getShaderInfoLog(sh));
+          }
+          return sh;
+        };
+        const link = (vertexSrc, fragmentSrc) => {
+          const vs = compile(gl.VERTEX_SHADER, vertexSrc);
+          const fs = compile(gl.FRAGMENT_SHADER, fragmentSrc);
+          const program = gl.createProgram();
+          gl.attachShader(program, vs);
+          gl.attachShader(program, fs);
+          gl.linkProgram(program);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error("track-altitude-line Programm-Fehler:", gl.getProgramInfoLog(program));
+          }
+          return program;
+        };
+        const fragmentSrc = `
+          precision mediump float;
+          uniform vec4 u_color;
+          void main() {
+            gl_FragColor = u_color;
+          }
+        `;
+
         // Jedes Segment (P0→P1) wird zu einem Rechteck aus 6 Vertices
         // (2 Dreiecke: A,B,C / B,D,C mit A=(P0,-1) B=(P0,+1) C=(P1,-1)
         // D=(P1,+1)). a_start/a_end sind für alle 6 Vertices eines
@@ -664,7 +699,7 @@ function createAltitudeLineLayer(id, points) {
         // Normalen hin extrudiert wird. So bleibt die Normale für beide
         // Endpunkte eines Segments konsistent (kein Vorzeichenwechsel wie
         // bei einer Richtung "von diesem Punkt aus").
-        const vertexSrc = `
+        const segVertexSrc = `
           attribute vec3 a_start;
           attribute vec3 a_end;
           attribute float a_side;
@@ -690,41 +725,46 @@ function createAltitudeLineLayer(id, points) {
             gl_Position = vec4(clipThis.xy + offsetNdc * clipThis.w, clipThis.z, clipThis.w);
           }
         `;
-        const fragmentSrc = `
-          precision mediump float;
-          uniform vec4 u_color;
+        this.segProgram = link(segVertexSrc, fragmentSrc);
+        this.aStart = gl.getAttribLocation(this.segProgram, "a_start");
+        this.aEnd = gl.getAttribLocation(this.segProgram, "a_end");
+        this.aSide = gl.getAttribLocation(this.segProgram, "a_side");
+        this.aIsEnd = gl.getAttribLocation(this.segProgram, "a_isEnd");
+        this.segUMatrix = gl.getUniformLocation(this.segProgram, "u_matrix");
+        this.segUColor = gl.getUniformLocation(this.segProgram, "u_color");
+        this.segUWorldSize = gl.getUniformLocation(this.segProgram, "u_worldSize");
+        this.segUResolution = gl.getUniformLocation(this.segProgram, "u_resolution");
+        this.segULineWidthPx = gl.getUniformLocation(this.segProgram, "u_lineWidthPx");
+
+        // Runde Verbindungsstücke: ein Dreiecksfächer (als einzelne
+        // Dreiecke, kein TRIANGLE_FAN-Primitive) pro Track-Punkt, Radius
+        // = halbe Linienbreite. a_offsetUnit ist ein Einheitsvektor
+        // (Mittelpunkt: (0,0)) statt bereits in Pixeln umgerechnet — die
+        // tatsächliche Pixel-Grösse (inkl. DPI-Skalierung) kommt erst in
+        // render() über dieselbe u_lineWidthPx-Uniform wie bei den
+        // Segmenten dazu, sonst wäre der Kreis unabhängig vom
+        // Device-Pixel-Ratio falsch skaliert.
+        const jointVertexSrc = `
+          attribute vec3 a_center;
+          attribute vec2 a_offsetUnit;
+          uniform mat4 u_matrix;
+          uniform float u_worldSize;
+          uniform vec2 u_resolution;
+          uniform float u_lineWidthPx;
           void main() {
-            gl_FragColor = u_color;
+            vec4 clipCenter = u_matrix * vec4(a_center.x * u_worldSize, a_center.y * u_worldSize, a_center.z, 1.0);
+            vec2 offsetNdc = (a_offsetUnit * u_lineWidthPx * 0.5) / (u_resolution * 0.5);
+            gl_Position = vec4(clipCenter.xy + offsetNdc * clipCenter.w, clipCenter.z, clipCenter.w);
           }
         `;
-        const compile = (type, src) => {
-          const sh = gl.createShader(type);
-          gl.shaderSource(sh, src);
-          gl.compileShader(sh);
-          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-            console.error("track-altitude-line Shader-Fehler:", gl.getShaderInfoLog(sh));
-          }
-          return sh;
-        };
-        const vs = compile(gl.VERTEX_SHADER, vertexSrc);
-        const fs = compile(gl.FRAGMENT_SHADER, fragmentSrc);
-        const program = gl.createProgram();
-        gl.attachShader(program, vs);
-        gl.attachShader(program, fs);
-        gl.linkProgram(program);
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-          console.error("track-altitude-line Programm-Fehler:", gl.getProgramInfoLog(program));
-        }
-        this.program = program;
-        this.aStart = gl.getAttribLocation(program, "a_start");
-        this.aEnd = gl.getAttribLocation(program, "a_end");
-        this.aSide = gl.getAttribLocation(program, "a_side");
-        this.aIsEnd = gl.getAttribLocation(program, "a_isEnd");
-        this.uMatrix = gl.getUniformLocation(program, "u_matrix");
-        this.uColor = gl.getUniformLocation(program, "u_color");
-        this.uWorldSize = gl.getUniformLocation(program, "u_worldSize");
-        this.uResolution = gl.getUniformLocation(program, "u_resolution");
-        this.uLineWidthPx = gl.getUniformLocation(program, "u_lineWidthPx");
+        this.jointProgram = link(jointVertexSrc, fragmentSrc);
+        this.aCenter = gl.getAttribLocation(this.jointProgram, "a_center");
+        this.aOffsetUnit = gl.getAttribLocation(this.jointProgram, "a_offsetUnit");
+        this.jointUMatrix = gl.getUniformLocation(this.jointProgram, "u_matrix");
+        this.jointUColor = gl.getUniformLocation(this.jointProgram, "u_color");
+        this.jointUWorldSize = gl.getUniformLocation(this.jointProgram, "u_worldSize");
+        this.jointUResolution = gl.getUniformLocation(this.jointProgram, "u_resolution");
+        this.jointULineWidthPx = gl.getUniformLocation(this.jointProgram, "u_lineWidthPx");
 
         // x/y bleiben normiert [0,1] (zoomunabhängig, einmalig gebaut),
         // z roh in Metern — siehe Kommentar oben zu mercatorFromLngLat,
@@ -733,26 +773,43 @@ function createAltitudeLineLayer(id, points) {
           const mc = mercatorFromLngLat(p.lon, p.lat);
           return [mc.x, mc.y, p.alt];
         });
-        const verts = [];
-        const pushVertex = (s, e, side, isEnd) => { verts.push(s[0], s[1], s[2], e[0], e[1], e[2], side, isEnd); };
+
+        const segVerts = [];
+        const pushSeg = (s, e, side, isEnd) => { segVerts.push(s[0], s[1], s[2], e[0], e[1], e[2], side, isEnd); };
         for (let i = 0; i < proj.length - 1; i++) {
           const s = proj[i], e = proj[i+1];
-          pushVertex(s, e, -1, 0); // A = (start,-1)
-          pushVertex(s, e, +1, 0); // B = (start,+1)
-          pushVertex(s, e, -1, 1); // C = (end,-1)
-          pushVertex(s, e, +1, 0); // B
-          pushVertex(s, e, +1, 1); // D = (end,+1)
-          pushVertex(s, e, -1, 1); // C
+          pushSeg(s, e, -1, 0); // A = (start,-1)
+          pushSeg(s, e, +1, 0); // B = (start,+1)
+          pushSeg(s, e, -1, 1); // C = (end,-1)
+          pushSeg(s, e, +1, 0); // B
+          pushSeg(s, e, +1, 1); // D = (end,+1)
+          pushSeg(s, e, -1, 1); // C
         }
-        this.vertexCount = verts.length / 8;
-        this.buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+        this.segVertexCount = segVerts.length / 8;
+        this.segBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.segBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(segVerts), gl.STATIC_DRAW);
+
+        const jointVerts = [];
+        const pushJoint = (c, ox, oy) => { jointVerts.push(c[0], c[1], c[2], ox, oy); };
+        const M = ALTITUDE_LINE_JOINT_SEGMENTS;
+        proj.forEach(c => {
+          for (let k = 0; k < M; k++) {
+            const a0 = (k / M) * Math.PI * 2, a1 = ((k+1) / M) * Math.PI * 2;
+            pushJoint(c, 0, 0);
+            pushJoint(c, Math.cos(a0), Math.sin(a0));
+            pushJoint(c, Math.cos(a1), Math.sin(a1));
+          }
+        });
+        this.jointVertexCount = jointVerts.length / 5;
+        this.jointBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.jointBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(jointVerts), gl.STATIC_DRAW);
       } catch (e) { console.error("track-altitude-line onAdd error:", e); }
     },
     render(gl, matrixOrOptions) {
       try {
-        if (!this.program || !this.vertexCount) return;
+        if (!this.segProgram || !this.segVertexCount) return;
         const matrix = (matrixOrOptions && matrixOrOptions.modelViewProjectionMatrix) || matrixOrOptions;
         if (!matrix) return;
         // worldSize = Kachelgrösse(512) × 2^Zoom — ändert sich laufend mit
@@ -760,23 +817,43 @@ function createAltitudeLineLayer(id, points) {
         // onAdd (dort war der Fehler: X/Y blieben unskaliert).
         const zoom = (this.map && typeof this.map.getZoom === "function") ? this.map.getZoom() : 0;
         const worldSize = 512 * Math.pow(2, zoom);
-        const stride = 8 * 4; // 8 Floats × 4 Byte
-        gl.useProgram(this.program);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        const clientWidth = this.map.getCanvas().clientWidth || gl.drawingBufferWidth;
+        const lineWidthDevicePx = ALTITUDE_LINE_WIDTH_PX * (gl.drawingBufferWidth / clientWidth);
+        const color = [253/255, 224/255, 71/255, 1.0]; // #fde047
+
+        gl.useProgram(this.segProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.segBuffer);
         gl.enableVertexAttribArray(this.aStart);
         gl.enableVertexAttribArray(this.aEnd);
         gl.enableVertexAttribArray(this.aSide);
         gl.enableVertexAttribArray(this.aIsEnd);
-        gl.vertexAttribPointer(this.aStart, 3, gl.FLOAT, false, stride, 0);
-        gl.vertexAttribPointer(this.aEnd, 3, gl.FLOAT, false, stride, 12);
-        gl.vertexAttribPointer(this.aSide, 1, gl.FLOAT, false, stride, 24);
-        gl.vertexAttribPointer(this.aIsEnd, 1, gl.FLOAT, false, stride, 28);
-        gl.uniformMatrix4fv(this.uMatrix, false, matrix);
-        gl.uniform1f(this.uWorldSize, worldSize);
-        gl.uniform2f(this.uResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
-        gl.uniform1f(this.uLineWidthPx, ALTITUDE_LINE_WIDTH_PX * (gl.drawingBufferWidth / (this.map.getCanvas().clientWidth || gl.drawingBufferWidth)));
-        gl.uniform4f(this.uColor, 253/255, 224/255, 71/255, 1.0); // #fde047
-        gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+        const segStride = 8 * 4; // 8 Floats × 4 Byte
+        gl.vertexAttribPointer(this.aStart, 3, gl.FLOAT, false, segStride, 0);
+        gl.vertexAttribPointer(this.aEnd, 3, gl.FLOAT, false, segStride, 12);
+        gl.vertexAttribPointer(this.aSide, 1, gl.FLOAT, false, segStride, 24);
+        gl.vertexAttribPointer(this.aIsEnd, 1, gl.FLOAT, false, segStride, 28);
+        gl.uniformMatrix4fv(this.segUMatrix, false, matrix);
+        gl.uniform1f(this.segUWorldSize, worldSize);
+        gl.uniform2f(this.segUResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.uniform1f(this.segULineWidthPx, lineWidthDevicePx);
+        gl.uniform4f(this.segUColor, color[0], color[1], color[2], color[3]);
+        gl.drawArrays(gl.TRIANGLES, 0, this.segVertexCount);
+
+        if (this.jointProgram && this.jointVertexCount) {
+          gl.useProgram(this.jointProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.jointBuffer);
+          gl.enableVertexAttribArray(this.aCenter);
+          gl.enableVertexAttribArray(this.aOffsetUnit);
+          const jointStride = 5 * 4; // 5 Floats × 4 Byte
+          gl.vertexAttribPointer(this.aCenter, 3, gl.FLOAT, false, jointStride, 0);
+          gl.vertexAttribPointer(this.aOffsetUnit, 2, gl.FLOAT, false, jointStride, 12);
+          gl.uniformMatrix4fv(this.jointUMatrix, false, matrix);
+          gl.uniform1f(this.jointUWorldSize, worldSize);
+          gl.uniform2f(this.jointUResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+          gl.uniform1f(this.jointULineWidthPx, lineWidthDevicePx);
+          gl.uniform4f(this.jointUColor, color[0], color[1], color[2], color[3]);
+          gl.drawArrays(gl.TRIANGLES, 0, this.jointVertexCount);
+        }
         // Für place3DOn (Schirm-Marker beim Abspielen) — dieselbe Matrix,
         // als flaches Array kopiert statt der von MapLibre übergebenen
         // Referenz direkt zu behalten, da die intern zwischen Frames
@@ -808,8 +885,10 @@ function createAltitudeLineLayer(id, points) {
     },
     onRemove(map, gl) {
       try {
-        if (this.buffer) gl.deleteBuffer(this.buffer);
-        if (this.program) gl.deleteProgram(this.program);
+        if (this.segBuffer) gl.deleteBuffer(this.segBuffer);
+        if (this.jointBuffer) gl.deleteBuffer(this.jointBuffer);
+        if (this.segProgram) gl.deleteProgram(this.segProgram);
+        if (this.jointProgram) gl.deleteProgram(this.jointProgram);
       } catch (e) {}
     },
   };
