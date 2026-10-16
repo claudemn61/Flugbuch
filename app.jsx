@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.1";
+const APP_VERSION = "6.19.2";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.2", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: das lückenlose Band aus v6.19.1 reichte durchgehend vom Boden bis zur Flughöhe — bei 100-500+ m Höhe über Gelände (normale Thermikhöhen) wirkte das aus der Kamera nicht wie eine Linie, sondern wie eine massive Wand (Nutzer-Screenshot). Zeigt jetzt nur noch ein dünnes, frei schwebendes Band exakt auf der echten Flughöhe (10 m dick), ohne Verbindung zum Boden." },
   { v: "6.19.1", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Track-Vorhang aus v6.18.1 nachgebessert — war als einzelne, durch Lücken getrennte Säulen kaum als zusammenhängende Linie erkennbar, zudem liess ein in dieser SDK-Version fehlerhaftes Verlaufs-Shading (fill-extrusion-vertical-gradient über Terrain) die Spur zu dunkel wirken. Jetzt ein lückenloses Band aus aneinander anschliessenden Segmenten in kräftigem, voll deckendem Gelb statt einzelner Säulen mit Verlauf. Die Boden-Trackline (zwangsläufig weiterhin am Boden) ist dafür im 3D-Satellit deutlich schmaler/blasser als in 2D, damit sie nicht mehr mit dem erhöhten Track konkurriert." },
   { v: "6.19", note: "Statistik ▸ Startplätze/Landeplätze/Passagiere: eigenes Suchfeld pro Kachel (gleiche Syntax wie überall sonst in der App: feld:wert, +wort, -wort, UND/ODER) — filtert direkt, welche Flüge in die Gruppierung einfliessen." },
   { v: "6.18.1", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Track lag wieder flach am Boden statt über dem Gelände. MapLibre kann Linien in dieser SDK-Version nicht in echter Höhe über Terrain zeichnen — stattdessen jetzt ein \"Vorhang\" aus vielen schmalen, einzeln auf die tatsächliche GPS-Höhe extrudierten Säulen entlang des Tracks (oben heller auslaufend), der die reale Flughöhe über dem Gelände zeigt. Normale 2D-Ansicht unverändert." },
