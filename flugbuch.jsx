@@ -587,10 +587,10 @@ function removeStrayMapTilerWarnings() {
 // Linie — unabhängig davon, wie die Höhe berechnet wird.
 //
 // Stattdessen: ein "Custom Layer", der die Trackpunkte als echte 3D-Linie
-// direkt per WebGL zeichnet, mit MercatorCoordinate.fromLngLat(lngLat, alt)
-// im 3D-Weltraum der Karte platziert — jeder Punkt an seiner tatsächlichen
-// GPS-Höhe, komplett unabhängig vom Terrain/Gelände (keine Geländehöhen-
-// Abfrage nötig, darum auch keines der früheren Terrain-Ladezeit-Probleme).
+// direkt per WebGL zeichnet, jeder Punkt an seiner tatsächlichen GPS-Höhe
+// im 3D-Weltraum der Karte platziert — komplett unabhängig vom Terrain/
+// Gelände (keine Geländehöhen-Abfrage nötig, darum auch keines der
+// früheren Terrain-Ladezeit-Probleme).
 // Bewusst klassische GLSL-ES-1.00-Syntax (attribute/varying/gl_FragColor,
 // kein "#version"-Pragma) statt der neueren WebGL2-Syntax aus den
 // MapLibre-Beispielen — kompiliert so unverändert sowohl unter WebGL1 als
@@ -600,6 +600,27 @@ function removeStrayMapTilerWarnings() {
 // 4x4-Array vs. ein Options-Objekt mit .modelViewProjectionMatrix) — da die
 // genaue, im CDN-Bundle enthaltene Version nicht zuverlässig bekannt ist,
 // fängt render() unten beide Formen ab.
+//
+// Mercator-Projektion (lon/lat/Höhe → MapLibres normierter 3D-Weltraum)
+// selbst nachgebaut statt sdk.MercatorCoordinate zu verwenden — ob die
+// SDK diese Klasse auf ihrem UMD-Global (window.maptilersdk) überhaupt
+// bereitstellt, liess sich mangels CDN-Zugriff aus dieser Sandbox nicht
+// verifizieren; schlägt das lautlos fehl, bleibt render() wegen des
+// fehlenden Programms/vertexCount dauerhaft ein No-Op, und sichtbar wäre
+// weiterhin nur die (zwangsläufig bodengebundene) 2D-Linie — genau das
+// nach wie vor gemeldete Symptom. Die Formel unten ist exakt die von
+// MapLibre GL JS selbst verwendete (Quelltext geprüft: mercatorXfromLng/
+// mercatorYfromLat/mercatorZfromAltitude, Erdradius 6371008.8m) und damit
+// unabhängig von der SDK-Export-Oberfläche verlässlich.
+function mercatorFromLngLat(lon, lat, altitude) {
+  const EARTH_RADIUS = 6371008.8;
+  const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS;
+  const x = (180 + lon) / 360;
+  const y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360))) / 360;
+  const circumferenceAtLat = EARTH_CIRCUMFERENCE * Math.cos(lat * Math.PI/180);
+  const z = (altitude || 0) / circumferenceAtLat;
+  return { x, y, z };
+}
 function createAltitudeLineLayer(id, points) {
   // Leichte Glättung nur der Höhe (nicht der Position) — reduziert GPS-/
   // Barometer-Rauschen in der Vertikalen, ohne den tatsächlich geflogenen
@@ -654,10 +675,9 @@ function createAltitudeLineLayer(id, points) {
         this.uMatrix = gl.getUniformLocation(program, "u_matrix");
         this.uColor = gl.getUniformLocation(program, "u_color");
 
-        const sdk = window.maptilersdk;
         const verts = [];
         smoothed.forEach(p => {
-          const mc = sdk.MercatorCoordinate.fromLngLat([p.lon, p.lat], p.alt);
+          const mc = mercatorFromLngLat(p.lon, p.lat, p.alt);
           verts.push(mc.x, mc.y, mc.z);
         });
         this.vertexCount = smoothed.length;
