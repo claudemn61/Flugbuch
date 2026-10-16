@@ -1125,6 +1125,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       return next;
     });
   };
+  // TEMPORÄR zur Fehlersuche (gemeldeter Höhenversatz der 3D-Linie):
+  // zeigt GPS-Höhe vs. von MapLibre tatsächlich gerenderte Geländehöhe am
+  // Startpunkt, sobald im 3D-Satellit die Terrain-Kacheln dort geladen
+  // sind. Wieder entfernen, sobald die Ursache geklärt ist.
+  const [altDebug, setAltDebug] = useState(null);
   // Route markers are redrawn onto the live map instance whenever the route
   // data itself changes, without rebuilding the map — see drawRoutePoints
   // below. Tracked per map instance so a redraw can remove exactly its own
@@ -1600,6 +1605,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       if (use3DSat && fullTrace.length > 1) {
         try { map.addLayer(createAltitudeLineLayer("track-altitude-line", fullTrace)); }
         catch (e) { console.error("addLayer track-altitude-line error:", e); }
+        setAltDebug(null);
+        map.once("idle", () => {
+          try {
+            if (mapRefObj.current !== map || typeof map.queryTerrainElevation !== "function") return;
+            const p0 = fullTrace[0];
+            const ground = map.queryTerrainElevation([p0.lon, p0.lat]);
+            if (Number.isFinite(ground)) setAltDebug({ gps: Math.round(p0.gpsAlt), ground: Math.round(ground), diff: Math.round(p0.gpsAlt - ground) });
+          } catch (e) { console.error("altDebug query error:", e); }
+        });
       }
     });
   };
@@ -2084,6 +2098,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
             style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
             ✕
           </button>
+          {satelliteMode && altDebug && (
+            <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 50px)",right:14,background:"rgba(10,15,25,0.85)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:10,padding:"6px 10px",color:"#fde047",fontSize:11,fontFamily:"monospace",lineHeight:1.5,transform:"translateZ(0)",zIndex:5,whiteSpace:"nowrap"}}>
+              🐞 GPS {altDebug.gps}m · Terrain {altDebug.ground}m · Diff {altDebug.diff}m
+            </div>
+          )}
         </div>
       )}
     </>
