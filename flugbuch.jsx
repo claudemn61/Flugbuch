@@ -598,49 +598,75 @@ function buildAltitudeCurtain(map, points) {
   try {
     if (!map || !points || points.length < 2) return;
     if (typeof map.queryTerrainElevation !== "function") return;
-    // Downsampling auf eine feste Ziel-Säulenzahl, unabhängig von der
+    // Downsampling auf eine feste Ziel-Punktzahl, unabhängig von der
     // tatsächlichen Trackpunkt-Dichte (ein langer Streckenflug hat leicht
-    // tausende IGC-Punkte — eine Säule pro Punkt wäre unnötig fein und
-    // unnötig teuer zu rendern).
-    const TARGET = 220;
+    // tausende IGC-Punkte). Da die Segmente unten lückenlos aneinander
+    // anschliessen (jedes Segment-Viereck teilt sich seine beiden äusseren
+    // Eckpunkte mit dem jeweiligen Nachbarn), ist das rein für eine glatte
+    // Höhenkurve nötig, nicht um Lücken zu vermeiden.
+    const TARGET = 260;
     const step = Math.max(1, Math.floor(points.length / TARGET));
     const sampled = [];
     for (let i = 0; i < points.length; i += step) sampled.push(points[i]);
     if (sampled[sampled.length-1] !== points[points.length-1]) sampled.push(points[points.length-1]);
-    // Feste kleine quadratische Grundfläche pro Säule (~3m) statt einer
-    // echten, senkrecht zur Flugrichtung ausgerichteten Band-Geometrie —
-    // bewusst die einfachere, robustere Variante: keine Bearing-/Offset-
-    // Berechnung nötig, bei ausreichender Säulendichte liest sich die
-    // Oberkante trotzdem als durchgehende Spur.
-    const HALF_W = 0.000016;
-    const features = sampled.map(p => {
+
+    // Höhe über Gelände je Punkt, einmal vorberechnet.
+    const withGround = sampled.map(p => {
       const alt = p.gpsAlt;
       if (!Number.isFinite(alt)) return null;
       let ground;
       try { ground = map.queryTerrainElevation([p.lon, p.lat]); } catch (e) { ground = null; }
       if (!Number.isFinite(ground)) return null;
-      const h = Math.max(1, alt - ground);
-      return {
+      return { lon: p.lon, lat: p.lat, h: Math.max(1, alt - ground) };
+    }).filter(Boolean);
+    if (withGround.length < 2) return;
+
+    // Echtes, lückenloses Band statt einzelner Säulen: pro Segment (zwei
+    // aufeinanderfolgende Punkte) ein Viereck, dessen beide Seiten um eine
+    // feste Breite senkrecht zur Segment-Richtung versetzt sind — die
+    // übliche "Linie zu Polygon aufdicken"-Methode. Grad→Meter-Umrechnung
+    // nur grob (Breitengrad-Korrektur für Längengrad), für die Breite
+    // einer Trackline auf dieser Massstabsebene ausreichend genau.
+    const WIDTH_M = 5;
+    const M_PER_DEG_LAT = 111320;
+    const features = [];
+    for (let i = 0; i < withGround.length - 1; i++) {
+      const a = withGround[i], b = withGround[i+1];
+      const mPerDegLon = 111320 * Math.cos(a.lat * Math.PI/180) || 1;
+      const dx = b.lon - a.lon, dy = b.lat - a.lat;
+      const len = Math.hypot(dx, dy) || 1e-9;
+      // Einheits-Senkrechte in Grad-Raum (nicht meterkorrekt normiert),
+      // danach je Achse auf die gewünschte Meter-Breite skaliert.
+      const perpLon = -dy / len, perpLat = dx / len;
+      const offLon = perpLon * (WIDTH_M/2) / mPerDegLon;
+      const offLat = perpLat * (WIDTH_M/2) / M_PER_DEG_LAT;
+      const h = (a.h + b.h) / 2;
+      features.push({
         type: "Feature", properties: { h },
         geometry: { type: "Polygon", coordinates: [[
-          [p.lon-HALF_W, p.lat-HALF_W], [p.lon+HALF_W, p.lat-HALF_W],
-          [p.lon+HALF_W, p.lat+HALF_W], [p.lon-HALF_W, p.lat+HALF_W],
-          [p.lon-HALF_W, p.lat-HALF_W],
+          [a.lon-offLon, a.lat-offLat], [a.lon+offLon, a.lat+offLat],
+          [b.lon+offLon, b.lat+offLat], [b.lon-offLon, b.lat-offLat],
+          [a.lon-offLon, a.lat-offLat],
         ] ] },
-      };
-    }).filter(Boolean);
+      });
+    }
     if (!features.length) return;
     if (map.getLayer("track-altitude")) map.removeLayer("track-altitude");
     if (map.getSource("track-altitude")) map.removeSource("track-altitude");
     map.addSource("track-altitude", { type: "geojson", data: { type: "FeatureCollection", features } });
+    // Kein fill-extrusion-vertical-gradient — in Kombination mit Terrain ist
+    // dessen Höhen-Shading in dieser SDK-Version nachweislich fehlerhaft
+    // (berechnet die Helligkeit ab Meereshöhe statt ab der Säulen-Basis,
+    // siehe MapLibre-Issue dazu), was die Spur dadurch dunkel statt hell
+    // erscheinen lassen kann. Stattdessen eine einzige kräftige, voll
+    // deckende Farbe — robust unabhängig von dieser Altversion.
     map.addLayer({
       id: "track-altitude", type: "fill-extrusion", source: "track-altitude",
       paint: {
         "fill-extrusion-base": 0,
         "fill-extrusion-height": ["get", "h"],
-        "fill-extrusion-color": "#60a5fa",
-        "fill-extrusion-opacity": 0.85,
-        "fill-extrusion-vertical-gradient": true,
+        "fill-extrusion-color": "#fbbf24",
+        "fill-extrusion-opacity": 0.95,
       },
     });
   } catch (e) { console.error("buildAltitudeCurtain error:", e); }
@@ -1445,12 +1471,22 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           type: "geojson",
           data: { type: "Feature", geometry: { type: "LineString", coordinates: fullTrace.map(p=>[p.lon,p.lat]) } },
         });
-        map.addLayer({ id: "track-casing", type: "line", source: "track",
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "rgba(255,255,255,0.55)", "line-width": 6.5 } });
+        // Im 3D-Satellit ist diese Linie nur noch der (zwangsläufig am
+        // Boden klebende, siehe buildAltitudeCurtain) Bodenschatten unter
+        // dem echten, erhöht dargestellten Track — deutlich schmaler/
+        // unauffälliger als in der normalen 2D-Ansicht, damit der farbige
+        // Vorhang oben eindeutig die Hauptlinie bleibt statt mit ihr zu
+        // konkurrieren.
+        if (!use3DSat) {
+          map.addLayer({ id: "track-casing", type: "line", source: "track",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "rgba(255,255,255,0.55)", "line-width": 6.5 } });
+        }
         map.addLayer({ id: "track-line", type: "line", source: "track",
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#1e40af", "line-width": 3.5 } });
+          paint: use3DSat
+            ? { "line-color": "rgba(30,64,175,0.5)", "line-width": 1.5 }
+            : { "line-color": "#1e40af", "line-width": 3.5 } });
       }
       // Hike-GPX (the walk up to launch, if imported) shown as a green
       // line — visually distinct from the flight's own blue track, same
