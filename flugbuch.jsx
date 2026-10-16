@@ -627,7 +627,7 @@ function buildAltitudeCurtain(map, points) {
     // übliche "Linie zu Polygon aufdicken"-Methode. Grad→Meter-Umrechnung
     // nur grob (Breitengrad-Korrektur für Längengrad), für die Breite
     // einer Trackline auf dieser Massstabsebene ausreichend genau.
-    const WIDTH_M = 5;
+    const WIDTH_M = 6;
     const M_PER_DEG_LAT = 111320;
     const features = [];
     for (let i = 0; i < withGround.length - 1; i++) {
@@ -640,9 +640,9 @@ function buildAltitudeCurtain(map, points) {
       const perpLon = -dy / len, perpLat = dx / len;
       const offLon = perpLon * (WIDTH_M/2) / mPerDegLon;
       const offLat = perpLat * (WIDTH_M/2) / M_PER_DEG_LAT;
-      const h = (a.h + b.h) / 2;
+      const top = (a.h + b.h) / 2;
       features.push({
-        type: "Feature", properties: { h },
+        type: "Feature", properties: { top },
         geometry: { type: "Polygon", coordinates: [[
           [a.lon-offLon, a.lat-offLat], [a.lon+offLon, a.lat+offLat],
           [b.lon+offLon, b.lat+offLat], [b.lon-offLon, b.lat-offLat],
@@ -654,19 +654,23 @@ function buildAltitudeCurtain(map, points) {
     if (map.getLayer("track-altitude")) map.removeLayer("track-altitude");
     if (map.getSource("track-altitude")) map.removeSource("track-altitude");
     map.addSource("track-altitude", { type: "geojson", data: { type: "FeatureCollection", features } });
-    // Kein fill-extrusion-vertical-gradient — in Kombination mit Terrain ist
-    // dessen Höhen-Shading in dieser SDK-Version nachweislich fehlerhaft
-    // (berechnet die Helligkeit ab Meereshöhe statt ab der Säulen-Basis,
-    // siehe MapLibre-Issue dazu), was die Spur dadurch dunkel statt hell
-    // erscheinen lassen kann. Stattdessen eine einzige kräftige, voll
-    // deckende Farbe — robust unabhängig von dieser Altversion.
+    // Bewusst KEIN durchgehender Vorhang von Boden bis Flughöhe mehr — bei
+    // 100-500+ m Höhe über Gelände (normale Thermikhöhen) wirkte das aus
+    // der schrägen 3D-Kamera nicht wie eine dünne Linie, sondern wie eine
+    // massive, blickfüllende Wand (Nutzer-Screenshot). Stattdessen ein
+    // dünnes, frei schwebendes Band: Basis liegt CAP_M unter der echten
+    // Flughöhe, Oberkante exakt darauf — keine Verbindung zum Boden mehr,
+    // dafür liest es sich jetzt als echte "Tracklinie in der Luft" statt
+    // als Mauer. (Kein fill-extrusion-vertical-gradient: dessen Shading ist
+    // über Terrain in dieser SDK-Version nachweislich fehlerhaft.)
+    const CAP_M = 10;
     map.addLayer({
       id: "track-altitude", type: "fill-extrusion", source: "track-altitude",
       paint: {
-        "fill-extrusion-base": 0,
-        "fill-extrusion-height": ["get", "h"],
-        "fill-extrusion-color": "#fbbf24",
-        "fill-extrusion-opacity": 0.95,
+        "fill-extrusion-base": ["max", 0, ["-", ["get", "top"], CAP_M]],
+        "fill-extrusion-height": ["get", "top"],
+        "fill-extrusion-color": "#fde047",
+        "fill-extrusion-opacity": 1,
       },
     });
   } catch (e) { console.error("buildAltitudeCurtain error:", e); }
