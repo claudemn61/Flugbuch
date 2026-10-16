@@ -601,25 +601,32 @@ function removeStrayMapTilerWarnings() {
 // genaue, im CDN-Bundle enthaltene Version nicht zuverlässig bekannt ist,
 // fängt render() unten beide Formen ab.
 //
-// Mercator-Projektion (lon/lat/Höhe → MapLibres normierter 3D-Weltraum)
-// selbst nachgebaut statt sdk.MercatorCoordinate zu verwenden — ob die
-// SDK diese Klasse auf ihrem UMD-Global (window.maptilersdk) überhaupt
-// bereitstellt, liess sich mangels CDN-Zugriff aus dieser Sandbox nicht
-// verifizieren; schlägt das lautlos fehl, bleibt render() wegen des
-// fehlenden Programms/vertexCount dauerhaft ein No-Op, und sichtbar wäre
-// weiterhin nur die (zwangsläufig bodengebundene) 2D-Linie — genau das
-// nach wie vor gemeldete Symptom. Die Formel unten ist exakt die von
-// MapLibre GL JS selbst verwendete (Quelltext geprüft: mercatorXfromLng/
-// mercatorYfromLat/mercatorZfromAltitude, Erdradius 6371008.8m) und damit
-// unabhängig von der SDK-Export-Oberfläche verlässlich.
-function mercatorFromLngLat(lon, lat, altitude) {
-  const EARTH_RADIUS = 6371008.8;
-  const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS;
+// Mercator-Projektion (lon/lat → normierte [0,1]-Weltkoordinaten) selbst
+// nachgebaut statt sdk.MercatorCoordinate zu verwenden — ob die SDK diese
+// Klasse auf ihrem UMD-Global (window.maptilersdk) überhaupt bereitstellt,
+// liess sich mangels CDN-Zugriff aus dieser Sandbox nicht verifizieren.
+// Formel exakt die von MapLibre GL JS selbst verwendete (Quelltext aus
+// maplibre/maplibre-gl-js geklont und geprüft: mercatorXfromLng/
+// mercatorYfromLat in src/geo/mercator_coordinate.ts).
+//
+// WICHTIG, per Quelltext-Vergleich gefunden (src/geo/projection/
+// mercator_transform.ts, _calcMatrices): die an Custom Layer übergebene
+// modelViewProjectionMatrix erwartet X/Y NICHT in diesen normierten
+// [0,1]-Werten (das wäre die separate, intern genutzte "mercatorMatrix"),
+// sondern in "Weltkoordinaten" = normierte Werte × worldSize (512×2^Zoom).
+// Z dagegen bleibt roh in Metern — die Matrix skaliert Z selbst intern mit
+// pixelPerMeter (siehe _pixelPerMeter-Berechnung dort), beide Skalierungen
+// zusammen ergeben dieselbe Einheit wie X/Y. Das war der tatsächliche
+// Fehler in v6.19.4/.5: X/Y blieben unskaliert (~0.3-0.5 statt z.B.
+// hunderttausenden bei typischem Zoom), wodurch die ganze Linie praktisch
+// auf einen Punkt kollabierte — sichtbar blieb nur die separate,
+// bodengebundene 2D-Linie, exakt das gemeldete "am Boden fixiert".
+// worldSize ändert sich mit dem Zoom, darum erst in render() (nicht schon
+// beim einmaligen Buffer-Aufbau in onAdd) über eine Uniform angewendet.
+function mercatorFromLngLat(lon, lat) {
   const x = (180 + lon) / 360;
   const y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360))) / 360;
-  const circumferenceAtLat = EARTH_CIRCUMFERENCE * Math.cos(lat * Math.PI/180);
-  const z = (altitude || 0) / circumferenceAtLat;
-  return { x, y, z };
+  return { x, y };
 }
 function createAltitudeLineLayer(id, points) {
   // Leichte Glättung nur der Höhe (nicht der Position) — reduziert GPS-/
@@ -638,11 +645,13 @@ function createAltitudeLineLayer(id, points) {
     id, type: "custom", renderingMode: "3d",
     onAdd(map, gl) {
       try {
+        this.map = map;
         const vertexSrc = `
           attribute vec3 a_pos;
           uniform mat4 u_matrix;
+          uniform float u_worldSize;
           void main() {
-            gl_Position = u_matrix * vec4(a_pos, 1.0);
+            gl_Position = u_matrix * vec4(a_pos.x * u_worldSize, a_pos.y * u_worldSize, a_pos.z, 1.0);
           }
         `;
         const fragmentSrc = `
@@ -674,11 +683,15 @@ function createAltitudeLineLayer(id, points) {
         this.aPos = gl.getAttribLocation(program, "a_pos");
         this.uMatrix = gl.getUniformLocation(program, "u_matrix");
         this.uColor = gl.getUniformLocation(program, "u_color");
+        this.uWorldSize = gl.getUniformLocation(program, "u_worldSize");
 
+        // x/y bleiben normiert [0,1] (zoomunabhängig, einmalig gebaut),
+        // z roh in Metern — siehe Kommentar oben zu mercatorFromLngLat,
+        // warum die worldSize-Skalierung erst im Shader passiert.
         const verts = [];
         smoothed.forEach(p => {
-          const mc = mercatorFromLngLat(p.lon, p.lat, p.alt);
-          verts.push(mc.x, mc.y, mc.z);
+          const mc = mercatorFromLngLat(p.lon, p.lat);
+          verts.push(mc.x, mc.y, p.alt);
         });
         this.vertexCount = smoothed.length;
         this.buffer = gl.createBuffer();
@@ -691,11 +704,17 @@ function createAltitudeLineLayer(id, points) {
         if (!this.program || !this.vertexCount) return;
         const matrix = (matrixOrOptions && matrixOrOptions.modelViewProjectionMatrix) || matrixOrOptions;
         if (!matrix) return;
+        // worldSize = Kachelgrösse(512) × 2^Zoom — ändert sich laufend mit
+        // dem Zoom, darum hier pro Frame neu berechnet statt einmalig in
+        // onAdd (dort war der Fehler: X/Y blieben unskaliert).
+        const zoom = (this.map && typeof this.map.getZoom === "function") ? this.map.getZoom() : 0;
+        const worldSize = 512 * Math.pow(2, zoom);
         gl.useProgram(this.program);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.enableVertexAttribArray(this.aPos);
         gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
         gl.uniformMatrix4fv(this.uMatrix, false, matrix);
+        gl.uniform1f(this.uWorldSize, worldSize);
         gl.uniform4f(this.uColor, 253/255, 224/255, 71/255, 1.0); // #fde047
         gl.lineWidth(3); // auf vielen GPUs (v.a. iOS/ANGLE) ignoriert und bleibt bei 1px — unschädlich, einfach versucht
         gl.drawArrays(gl.LINE_STRIP, 0, this.vertexCount);
