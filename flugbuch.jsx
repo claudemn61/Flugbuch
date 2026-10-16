@@ -579,114 +579,115 @@ function removeStrayMapTilerWarnings() {
 // ("am Boden fixiert"), unabhängig von der echten Flughöhe. Eine "line"-
 // Ebene mit echter Höhe über Gelände gibt es in dieser SDK-Version nicht
 // (geprüft: weder line-elevation-reference noch symbol-height-offset sind
-// im hier geladenen Style-Spec vorhanden — beides existiert erst in viel
-// neueren, noch nicht offiziell veröffentlichten MapTiler-SDK-Versionen).
-// fill-extrusion dagegen wird nachweislich korrekt relativ zum Terrain
-// positioniert (base/height gelten ab der Geländeoberfläche an diesem
-// Punkt, nicht ab Meereshöhe) — das macht sich dieser "Vorhang" aus vielen
-// schmalen, einzeln extrudierten Säulen entlang des Tracks zunutze: jede
-// Säule reicht vom Boden (base 0) bis zur echten GPS-Höhe an diesem Punkt
-// (height = Flughöhe − Geländehöhe an dieser Stelle, per
-// queryTerrainElevation ermittelt). Die obere Kante der Säulenreihe zeigt
-// so den tatsächlichen Flugverlauf über dem Gelände; der fill-extrusion-
-// vertical-gradient lässt sie nach oben heller/nach unten dunkler auslaufen,
-// damit es eher wie eine leuchtende Spur als eine massive Wand wirkt.
-// Läuft erst nach dem ersten "idle"-Event nach dem Kamera-Sprung auf den
-// Track, da queryTerrainElevation() vor dem Laden der Terrain-Kacheln für
-// den sichtbaren Bereich 0 oder null liefert statt der echten Höhe.
-function buildAltitudeCurtain(map, points) {
-  try {
-    if (!map || !points || points.length < 2) return;
-    if (typeof map.queryTerrainElevation !== "function") return;
-    // Downsampling auf eine feste Ziel-Punktzahl, unabhängig von der
-    // tatsächlichen Trackpunkt-Dichte (ein langer Streckenflug hat leicht
-    // tausende IGC-Punkte). Da die Segmente unten lückenlos aneinander
-    // anschliessen (jedes Segment-Viereck teilt sich seine beiden äusseren
-    // Eckpunkte mit dem jeweiligen Nachbarn), ist das rein für eine glatte
-    // Höhenkurve nötig, nicht um Lücken zu vermeiden.
-    const TARGET = 260;
-    const step = Math.max(1, Math.floor(points.length / TARGET));
-    const sampled = [];
-    for (let i = 0; i < points.length; i += step) sampled.push(points[i]);
-    if (sampled[sampled.length-1] !== points[points.length-1]) sampled.push(points[points.length-1]);
+// im hier geladenen Style-Spec vorhanden). Mehrere Anläufe mit
+// fill-extrusion ("Vorhang"/Säulen von Boden bis Flughöhe, siehe
+// VERSION_LOG v6.18.1–v6.19.3) scheiterten strukturell: eine fill-extrusion
+// ist immer ein massives 3D-Objekt und wirkt aus der schrägen 3D-Kamera
+// dadurch zwangsläufig wie ein Balken bzw. eine Wand, nie wie eine dünne
+// Linie — unabhängig davon, wie die Höhe berechnet wird.
+//
+// Stattdessen: ein "Custom Layer", der die Trackpunkte als echte 3D-Linie
+// direkt per WebGL zeichnet, mit MercatorCoordinate.fromLngLat(lngLat, alt)
+// im 3D-Weltraum der Karte platziert — jeder Punkt an seiner tatsächlichen
+// GPS-Höhe, komplett unabhängig vom Terrain/Gelände (keine Geländehöhen-
+// Abfrage nötig, darum auch keines der früheren Terrain-Ladezeit-Probleme).
+// Bewusst klassische GLSL-ES-1.00-Syntax (attribute/varying/gl_FragColor,
+// kein "#version"-Pragma) statt der neueren WebGL2-Syntax aus den
+// MapLibre-Beispielen — kompiliert so unverändert sowohl unter WebGL1 als
+// auch WebGL2 (die SDK kann je nach Gerät beides liefern), ohne dass hier
+// zwischen beidem unterschieden werden müsste. Die zweite render()-
+// Parameter-Form hat sich zwischen MapLibre-Versionen geändert (rohes
+// 4x4-Array vs. ein Options-Objekt mit .modelViewProjectionMatrix) — da die
+// genaue, im CDN-Bundle enthaltene Version nicht zuverlässig bekannt ist,
+// fängt render() unten beide Formen ab.
+function createAltitudeLineLayer(id, points) {
+  // Leichte Glättung nur der Höhe (nicht der Position) — reduziert GPS-/
+  // Barometer-Rauschen in der Vertikalen, ohne den tatsächlich geflogenen
+  // Weg selbst zu verändern.
+  const smoothed = [];
+  for (let i = 0; i < points.length; i++) {
+    const win = points.slice(Math.max(0, i-2), Math.min(points.length, i+3));
+    const alts = win.map(q => q.gpsAlt).filter(Number.isFinite);
+    if (!alts.length) continue;
+    const alt = alts.reduce((s,v)=>s+v, 0) / alts.length;
+    smoothed.push({ lon: points[i].lon, lat: points[i].lat, alt });
+  }
 
-    // Höhe über Gelände je Punkt, einmal vorberechnet.
-    const withGround = sampled.map(p => {
-      const alt = p.gpsAlt;
-      if (!Number.isFinite(alt)) return null;
-      let ground;
-      try { ground = map.queryTerrainElevation([p.lon, p.lat]); } catch (e) { ground = null; }
-      if (!Number.isFinite(ground)) return null;
-      // queryTerrainElevation liefert für noch nicht geladene Kacheln
-      // nachweislich 0 statt null zurück (bekannter MapLibre-Fehler) —
-      // echtes Gelände in den Flugregionen dieser App liegt nie annähernd
-      // auf Meereshöhe, ein Wert darunter ist darum fast sicher "noch
-      // nicht geladen", nicht echte Geländehöhe. Lieber diesen Punkt
-      // überspringen (das Band überbrückt die Lücke zum nächsten gültigen
-      // Punkt) als eine falsche Höhe übernehmen.
-      if (ground < 200) return null;
-      // Mindesthöhe, damit das Band nicht direkt nach dem Start oder beim
-      // Hangsoaring (wo die errechnete Höhe über Gelände durch GPS-/DEM-
-      // Ungenauigkeit leicht nahe 0 oder sogar negativ werden kann)
-      // komplett im Gelände verschwindet, sondern dort zumindest als
-      // schmaler sichtbarer Streifen knapp über dem Boden erscheint.
-      return { lon: p.lon, lat: p.lat, h: Math.max(15, alt - ground) };
-    }).filter(Boolean);
-    if (withGround.length < 2) return;
+  return {
+    id, type: "custom", renderingMode: "3d",
+    onAdd(map, gl) {
+      try {
+        const vertexSrc = `
+          attribute vec3 a_pos;
+          uniform mat4 u_matrix;
+          void main() {
+            gl_Position = u_matrix * vec4(a_pos, 1.0);
+          }
+        `;
+        const fragmentSrc = `
+          precision mediump float;
+          uniform vec4 u_color;
+          void main() {
+            gl_FragColor = u_color;
+          }
+        `;
+        const compile = (type, src) => {
+          const sh = gl.createShader(type);
+          gl.shaderSource(sh, src);
+          gl.compileShader(sh);
+          if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+            console.error("track-altitude-line Shader-Fehler:", gl.getShaderInfoLog(sh));
+          }
+          return sh;
+        };
+        const vs = compile(gl.VERTEX_SHADER, vertexSrc);
+        const fs = compile(gl.FRAGMENT_SHADER, fragmentSrc);
+        const program = gl.createProgram();
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          console.error("track-altitude-line Programm-Fehler:", gl.getProgramInfoLog(program));
+        }
+        this.program = program;
+        this.aPos = gl.getAttribLocation(program, "a_pos");
+        this.uMatrix = gl.getUniformLocation(program, "u_matrix");
+        this.uColor = gl.getUniformLocation(program, "u_color");
 
-    // Echtes, lückenloses Band statt einzelner Säulen: pro Segment (zwei
-    // aufeinanderfolgende Punkte) ein Viereck, dessen beide Seiten um eine
-    // feste Breite senkrecht zur Segment-Richtung versetzt sind — die
-    // übliche "Linie zu Polygon aufdicken"-Methode. Grad→Meter-Umrechnung
-    // nur grob (Breitengrad-Korrektur für Längengrad), für die Breite
-    // einer Trackline auf dieser Massstabsebene ausreichend genau.
-    const WIDTH_M = 6;
-    const M_PER_DEG_LAT = 111320;
-    const features = [];
-    for (let i = 0; i < withGround.length - 1; i++) {
-      const a = withGround[i], b = withGround[i+1];
-      const mPerDegLon = 111320 * Math.cos(a.lat * Math.PI/180) || 1;
-      const dx = b.lon - a.lon, dy = b.lat - a.lat;
-      const len = Math.hypot(dx, dy) || 1e-9;
-      // Einheits-Senkrechte in Grad-Raum (nicht meterkorrekt normiert),
-      // danach je Achse auf die gewünschte Meter-Breite skaliert.
-      const perpLon = -dy / len, perpLat = dx / len;
-      const offLon = perpLon * (WIDTH_M/2) / mPerDegLon;
-      const offLat = perpLat * (WIDTH_M/2) / M_PER_DEG_LAT;
-      const top = (a.h + b.h) / 2;
-      features.push({
-        type: "Feature", properties: { top },
-        geometry: { type: "Polygon", coordinates: [[
-          [a.lon-offLon, a.lat-offLat], [a.lon+offLon, a.lat+offLat],
-          [b.lon+offLon, b.lat+offLat], [b.lon-offLon, b.lat-offLat],
-          [a.lon-offLon, a.lat-offLat],
-        ] ] },
-      });
-    }
-    if (!features.length) return;
-    if (map.getLayer("track-altitude")) map.removeLayer("track-altitude");
-    if (map.getSource("track-altitude")) map.removeSource("track-altitude");
-    map.addSource("track-altitude", { type: "geojson", data: { type: "FeatureCollection", features } });
-    // Bewusst KEIN durchgehender Vorhang von Boden bis Flughöhe mehr — bei
-    // 100-500+ m Höhe über Gelände (normale Thermikhöhen) wirkte das aus
-    // der schrägen 3D-Kamera nicht wie eine dünne Linie, sondern wie eine
-    // massive, blickfüllende Wand (Nutzer-Screenshot). Stattdessen ein
-    // dünnes, frei schwebendes Band: Basis liegt CAP_M unter der echten
-    // Flughöhe, Oberkante exakt darauf — keine Verbindung zum Boden mehr,
-    // dafür liest es sich jetzt als echte "Tracklinie in der Luft" statt
-    // als Mauer. (Kein fill-extrusion-vertical-gradient: dessen Shading ist
-    // über Terrain in dieser SDK-Version nachweislich fehlerhaft.)
-    const CAP_M = 10;
-    map.addLayer({
-      id: "track-altitude", type: "fill-extrusion", source: "track-altitude",
-      paint: {
-        "fill-extrusion-base": ["max", 0, ["-", ["get", "top"], CAP_M]],
-        "fill-extrusion-height": ["get", "top"],
-        "fill-extrusion-color": "#fde047",
-        "fill-extrusion-opacity": 1,
-      },
-    });
-  } catch (e) { console.error("buildAltitudeCurtain error:", e); }
+        const sdk = window.maptilersdk;
+        const verts = [];
+        smoothed.forEach(p => {
+          const mc = sdk.MercatorCoordinate.fromLngLat([p.lon, p.lat], p.alt);
+          verts.push(mc.x, mc.y, mc.z);
+        });
+        this.vertexCount = smoothed.length;
+        this.buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+      } catch (e) { console.error("track-altitude-line onAdd error:", e); }
+    },
+    render(gl, matrixOrOptions) {
+      try {
+        if (!this.program || !this.vertexCount) return;
+        const matrix = (matrixOrOptions && matrixOrOptions.modelViewProjectionMatrix) || matrixOrOptions;
+        if (!matrix) return;
+        gl.useProgram(this.program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.enableVertexAttribArray(this.aPos);
+        gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.uniformMatrix4fv(this.uMatrix, false, matrix);
+        gl.uniform4f(this.uColor, 253/255, 224/255, 71/255, 1.0); // #fde047
+        gl.lineWidth(3); // auf vielen GPUs (v.a. iOS/ANGLE) ignoriert und bleibt bei 1px — unschädlich, einfach versucht
+        gl.drawArrays(gl.LINE_STRIP, 0, this.vertexCount);
+      } catch (e) { console.error("track-altitude-line render error:", e); }
+    },
+    onRemove(map, gl) {
+      try {
+        if (this.buffer) gl.deleteBuffer(this.buffer);
+        if (this.program) gl.deleteProgram(this.program);
+      } catch (e) {}
+    },
+  };
 }
 
 
@@ -1489,11 +1490,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
           data: { type: "Feature", geometry: { type: "LineString", coordinates: fullTrace.map(p=>[p.lon,p.lat]) } },
         });
         // Im 3D-Satellit ist diese Linie nur noch der (zwangsläufig am
-        // Boden klebende, siehe buildAltitudeCurtain) Bodenschatten unter
-        // dem echten, erhöht dargestellten Track — deutlich schmaler/
-        // unauffälliger als in der normalen 2D-Ansicht, damit der farbige
-        // Vorhang oben eindeutig die Hauptlinie bleibt statt mit ihr zu
-        // konkurrieren.
+        // Boden klebende, siehe createAltitudeLineLayer) Bodenschatten
+        // unter dem echten, höhenkorrekt dargestellten Track — deutlich
+        // schmaler/unauffälliger als in der normalen 2D-Ansicht, damit die
+        // farbige 3D-Linie oben eindeutig die Hauptlinie bleibt statt mit
+        // ihr zu konkurrieren.
         if (!use3DSat) {
           map.addLayer({ id: "track-casing", type: "line", source: "track",
             layout: { "line-join": "round", "line-cap": "round" },
@@ -1546,23 +1547,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       readyRef.current = true;
       applyHighlight(map, mapRefObj===previewMapRef ? previewRefMarkerRef : fullRefMarkerRef, mapRefObj===previewMapRef ? previewHikeRefMarkerRef : fullHikeRefMarkerRef);
       removeStrayMapTilerWarnings();
-      // Vorhang über dem Gelände nur im 3D-Satellit-Vollbild, erst sobald
-      // die Kamera (applyHighlight/fitBounds oben) tatsächlich auf dem
-      // Track steht und die Terrain-Kacheln dafür geladen sind ("idle").
-      // Ein langer Streckenflug kann nach dem Kamera-Sprung viele Terrain-
-      // Kacheln gleichzeitig brauchen — "idle" heisst nur "gerade nichts
-      // mehr unterwegs", nicht zwingend "alles im sichtbaren Bereich
-      // bereits geladen". Statt auf exaktes Timing zu vertrauen: mehrfach
-      // neu aufbauen (ersetzt die vorherige Quelle), mit wachsendem
-      // Abstand — jeder weitere Durchlauf hat mehr geladene Kacheln zur
-      // Verfügung und korrigiert dadurch Lücken/falsche Werte aus zu früh
-      // abgefragten, noch nicht geladenen Bereichen selbst nach.
+      // Höhenkorrekte 3D-Linie nur im Satellit-Vollbild — kann sofort
+      // hinzugefügt werden (kein Warten auf Terrain-/Kamera-Zustand nötig,
+      // siehe createAltitudeLineLayer: positioniert rein über Mercator-
+      // Koordinaten + echter GPS-Höhe, unabhängig vom Gelände).
       if (use3DSat && fullTrace.length > 1) {
-        map.once("idle", () => {
-          [0, 900, 2200].forEach(delay => {
-            setTimeout(() => { if (mapRefObj.current === map) buildAltitudeCurtain(map, fullTrace); }, delay);
-          });
-        });
+        try { map.addLayer(createAltitudeLineLayer("track-altitude-line", fullTrace)); }
+        catch (e) { console.error("addLayer track-altitude-line error:", e); }
       }
     });
   };
