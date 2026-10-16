@@ -948,6 +948,27 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // man tatsächlich editieren will (verschieben/löschen). Die Vorschau-
   // Karte zeigt Punkte nie, dort gibt es ohnehin keine Bearbeitung.
   const [showRoutePoints, setShowRoutePoints] = useState(false);
+  // 3D-Satellit als Kartenvariante für die Vollbild-Karte (zusätzlich zur
+  // bisherigen 2D-Outdoor-Ansicht) — nur fürs Vollbild, die kleine
+  // Vorschau-Karte bleibt immer 2D. "service:"-Präfix, damit die Wahl vom
+  // Backup-Export/Import erfasst wird und über einen Neustart hinweg
+  // erhalten bleibt.
+  const [satelliteMode, setSatelliteMode] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:flugdetailSatellite3d");
+        if (r && r.value === "1") setSatelliteMode(true);
+      } catch (e) { console.error("Load error (flugdetailSatellite3d):", e); }
+    })();
+  }, []);
+  const toggleSatelliteMode = () => {
+    setSatelliteMode(v => {
+      const next = !v;
+      try { window.storage.set("service:flugdetailSatellite3d", next ? "1" : "0"); } catch (e) {}
+      return next;
+    });
+  };
   // Route markers are redrawn onto the live map instance whenever the route
   // data itself changes, without rebuilding the map — see drawRoutePoints
   // below. Tracked per map instance so a redraw can remove exactly its own
@@ -1307,9 +1328,13 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     // Statt fragiler Pixel-Abstimmung: für die Vollbild-Karte ganz
     // abgeschaltet — Pinch-Zoom und Ziehen funktionieren ohnehin ohne sie.
     const isFullscreenMap = mapRefObj === fullMapRef;
+    // 3D-Satellit gilt bewusst nur fürs Vollbild — die kleine Vorschau-
+    // Karte bleibt immer 2D-Outdoor (in der Grösse bringt eine Schräg-
+    // ansicht keinen Mehrwert, nur verzerrte Lesbarkeit).
+    const use3DSat = isFullscreenMap && satelliteMode;
     const map = new sdk.Map({
-      container, apiKey: MAPTILER_API_KEY, style: sdk.MapStyle.OUTDOOR,
-      language: "de", center: initialCenter, zoom: 11,
+      container, apiKey: MAPTILER_API_KEY, style: use3DSat ? sdk.MapStyle.HYBRID : sdk.MapStyle.OUTDOOR,
+      language: "de", center: initialCenter, zoom: 11, pitch: use3DSat ? 55 : 0,
       ...(isFullscreenMap ? { navigationControl: false, geolocateControl: false } : {}),
     });
     mapRefObj.current = map;
@@ -1337,6 +1362,10 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     };
 
     map.on("load", () => {
+      // MapTiler SDKs enableTerrain() legt bei Bedarf selbst die nötige
+      // terrain-rgb-Quelle an — genau der Mehrwert gegenüber rohem
+      // MapLibre, der das hier so einfach macht.
+      if (use3DSat && typeof map.enableTerrain === "function") map.enableTerrain(1.4);
       const fullTrace = cleanTrack.length ? cleanTrack : track;
       if (fullTrace.length > 1) {
         map.addSource("track", {
@@ -1486,7 +1515,7 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       cancelAnimationFrame(raf);
       if (fullMapRef.current) { fullMapRef.current.remove(); fullMapRef.current = null; }
     };
-  }, [isFullscreen, flight?.id, gliderIcon]);
+  }, [isFullscreen, flight?.id, gliderIcon, satelliteMode]);
 
   // Profile pan/zoom changes land here — updates the already-live map(s) in
   // place (camera + reference marker + track segment) instead of rebuilding
@@ -1865,6 +1894,11 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
               )}
             </div>
           )}
+          <button onClick={toggleSatelliteMode}
+            title={satelliteMode ? "Zur 2D-Ansicht wechseln" : "Zur 3D-Satellit-Ansicht wechseln"}
+            style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:54,background:satelliteMode?"#1e40af":"rgba(10,15,25,0.7)",border:`1px solid ${satelliteMode?"#60a5fa":"rgba(255,255,255,0.25)"}`,borderRadius:20,width:32,height:32,color:"#fff",fontSize:15,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
+            {satelliteMode ? "🗺️" : "🛰️"}
+          </button>
           <button onClick={()=>setIsFullscreen(false)}
             style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 10px)",right:14,background:"rgba(10,15,25,0.7)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.5)",transform:"translateZ(0)",zIndex:5}}>
             ✕

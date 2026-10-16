@@ -649,11 +649,11 @@ function SeasonSection({ flights }) {
     yrBtn:(a)=>({background:a?"rgba(224,48,74,0.3)":"rgba(255,255,255,0.05)",border:a?"1px solid rgba(224,48,74,0.5)":"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:"6px 14px",color:a?"#e8f4fd":"rgba(232,244,253,0.5)",fontSize:13,cursor:"pointer",fontWeight:a?600:400}),
     sectionHead:{display:"flex",justifyContent:"flex-end",marginBottom:-6},
     gearBtn:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,width:28,height:28,fontSize:14,cursor:"pointer",color:"#e8f4fd"},
-    grid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16},
-    box:{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"9px 12px",textAlign:"center",border:"1px solid rgba(255,255,255,0.07)"},
-    bigNum:{fontSize:20,fontWeight:700,color:"#e8f4fd",letterSpacing:-1},
-    lbl:{fontSize:10,color:"rgba(232,244,253,0.4)",textTransform:"uppercase",letterSpacing:0.8,marginTop:3},
-    sub:{fontSize:10,color:"rgba(232,244,253,0.3)",marginTop:2},
+    list:{background:"rgba(224,48,74,0.06)",border:"1px solid rgba(224,48,74,0.15)",borderRadius:12,padding:"2px 14px",marginBottom:16},
+    row:(last)=>({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:last?"none":"1px solid rgba(224,48,74,0.1)"}),
+    rowLbl:{fontSize:13,color:"rgba(232,244,253,0.7)"},
+    rowSub:{fontSize:10.5,color:"rgba(232,244,253,0.3)",marginTop:1},
+    rowVal:{fontSize:16,fontWeight:800,color:"#fcd34d",textAlign:"right",flexShrink:0,marginLeft:14,letterSpacing:-0.3},
   };
 
   if (!flights.length) return null;
@@ -692,20 +692,22 @@ function SeasonSection({ flights }) {
         <div style={{color:"rgba(232,244,253,0.3)",fontSize:14}}>Keine Flüge {yr==="alle"?"vorhanden":`in ${yr}`}</div>
       ) : (<>
         <div style={S.sectionHead}>
-          <button onClick={()=>setShowTileConfig(true)} title="Kacheln bearbeiten" style={S.gearBtn}>⚙️</button>
+          <button onClick={()=>setShowTileConfig(true)} title="Kennzahlen bearbeiten" style={S.gearBtn}>⚙️</button>
         </div>
-        <div style={S.grid}>
-          {visibleTiles.map(t => (
-            <div key={t.label} style={S.box}>
-              <div style={S.bigNum}>{t.value}</div>
-              <div style={S.lbl}>{t.label}</div>
-              {t.name && <div style={S.sub}>Flug {t.name}</div>}
+        <div style={S.list}>
+          {visibleTiles.map((t,i) => (
+            <div key={t.label} style={S.row(i===visibleTiles.length-1)}>
+              <div>
+                <div style={S.rowLbl}>{t.label}</div>
+                {t.name && <div style={S.rowSub}>Flug {t.name}</div>}
+              </div>
+              <span style={S.rowVal}>{t.value}</span>
             </div>
           ))}
         </div>
       </>)}
       {showTileConfig && (
-        <ColumnConfigModal title="Saison-Kacheln" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
+        <ColumnConfigModal title="Saison-Kennzahlen" hint="Auswählen und mit ↑/↓ in die gewünschte Reihenfolge bringen."
           defs={SEASON_TILE_DEFS} columns={tileColumns} onSave={saveTileColumns} onClose={()=>setShowTileConfig(false)} />
       )}
     </div>
