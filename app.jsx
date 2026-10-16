@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.3";
+const APP_VERSION = "6.19.4";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.4", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Höhen-Track grundlegend neu umgesetzt — die bisherigen fill-extrusion-\"Vorhänge\" (v6.18.1–v6.19.3) waren immer massive 3D-Blöcke und sahen darum zwangsläufig nach Balken statt nach einer Linie aus. Jetzt eine echte, direkt per WebGL gezeichnete 3D-Linie durch die tatsächlichen IGC-Trackpunkte (leicht geglättete Höhe), unabhängig vom Gelände positioniert — kein Geländeabgleich mehr nötig, darum auch keine der früheren Lücken/Verschwinde-Probleme." },
   { v: "6.19.3", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: das Höhenband war streckenweise unsichtbar — teils weil eine bekannte MapLibre-Macke für noch nicht geladene Terrain-Kacheln 0 statt eines Fehlers zurückgab (wurde als falsche, winzige Höhe übernommen), teils weil kurz nach dem Start/beim Hangsoaring die errechnete Höhe über Gelände durch GPS-/Geländedaten-Ungenauigkeit nahe 0 werden kann. Werte unter 200 m Geländehöhe gelten jetzt als \"Kachel noch nicht geladen\" und werden übersprungen (das Band überbrückt die Lücke), eine Mindesthöhe sorgt dafür, dass das Band nicht mehr ganz im Gelände verschwindet, und der Vorhang wird nach dem Kamera-Sprung dreimal mit wachsendem Abstand neu aufgebaut, damit auch bei einem langen Streckenflug alle Terrain-Kacheln Zeit zum Laden bekommen." },
   { v: "6.19.2", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: das lückenlose Band aus v6.19.1 reichte durchgehend vom Boden bis zur Flughöhe — bei 100-500+ m Höhe über Gelände (normale Thermikhöhen) wirkte das aus der Kamera nicht wie eine Linie, sondern wie eine massive Wand (Nutzer-Screenshot). Zeigt jetzt nur noch ein dünnes, frei schwebendes Band exakt auf der echten Flughöhe (10 m dick), ohne Verbindung zum Boden." },
   { v: "6.19.1", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Track-Vorhang aus v6.18.1 nachgebessert — war als einzelne, durch Lücken getrennte Säulen kaum als zusammenhängende Linie erkennbar, zudem liess ein in dieser SDK-Version fehlerhaftes Verlaufs-Shading (fill-extrusion-vertical-gradient über Terrain) die Spur zu dunkel wirken. Jetzt ein lückenloses Band aus aneinander anschliessenden Segmenten in kräftigem, voll deckendem Gelb statt einzelner Säulen mit Verlauf. Die Boden-Trackline (zwangsläufig weiterhin am Boden) ist dafür im 3D-Satellit deutlich schmaler/blasser als in 2D, damit sie nicht mehr mit dem erhöhten Track konkurriert." },
