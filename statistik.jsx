@@ -2201,6 +2201,15 @@ function StatistikApp() {
   // dadurch überflüssig wurde.
   const [openTable, setOpenTable] = useState("schirm"); // "schirm" | "passagiere" | "landeplaetze" | "startplaetze" | ...
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Eigene Suche/Filter für Startplätze/Landeplätze/Passagiere — gleicher
+  // Zeilen-Baukasten wie überall sonst in der App (feld:wert, +wort, -wort,
+  // UND/ODER, siehe matchFlights oben), wirkt auf die Flüge VOR der
+  // Gruppierung, filtert also auch nach Feldern, die mit dem jeweiligen
+  // Eintrag selbst nichts zu tun haben (z.B. "jahr:2026" auf Startplätze).
+  // Bewusst nicht gespeichert (transient) — anders als die grossen
+  // "Gespeicherte Darstellungen" im Flugbuch ist das hier eine schnelle,
+  // flüchtige Einschränkung dieser einen Ansicht.
+  const [tableSearch, setTableSearch] = useState({ startplaetze:"", landeplaetze:"", passagiere:"" });
   // If this page was left via a Statistik-entry click (which stashes its
   // tableId here before navigating to Flugbuch), reopen the same tile once,
   // then forget it so a fresh visit doesn't get stuck.
@@ -2230,14 +2239,18 @@ function StatistikApp() {
 
   if (!loaded) return null;
 
+  const startplaetzeFlights = matchFlights(flights, tableSearch.startplaetze);
+  const landeplaetzeFlights = matchFlights(flights, tableSearch.landeplaetze);
+  const passagiereFlights = matchFlights(flights, tableSearch.passagiere);
+
   const schirmRows = aggregate(flights, f => f.glider || null);
-  const passagierRows = aggregate(flights, f => (f.customFields?.passagier || "").trim() || null);
-  const landRows = aggregate(flights, f => f.customFields?.landung || null).map(r => {
-    const withCoord = flights.find(f => f.customFields?.landung === r.name && f.endPt);
+  const passagierRows = aggregate(passagiereFlights, f => (f.customFields?.passagier || "").trim() || null);
+  const landRows = aggregate(landeplaetzeFlights, f => f.customFields?.landung || null).map(r => {
+    const withCoord = landeplaetzeFlights.find(f => f.customFields?.landung === r.name && f.endPt);
     return { ...r, alt: withCoord?.endAlt || withCoord?.endPt?.gpsAlt || null, lat: withCoord?.endPt?.lat, lon: withCoord?.endPt?.lon };
   });
-  const startRows = aggregate(flights, f => f.site || null).map(r => {
-    const withCoord = flights.find(f => f.site === r.name && f.startPt);
+  const startRows = aggregate(startplaetzeFlights, f => f.site || null).map(r => {
+    const withCoord = startplaetzeFlights.find(f => f.site === r.name && f.startPt);
     return { ...r, alt: withCoord?.startAlt || withCoord?.startPt?.gpsAlt || null, lat: withCoord?.startPt?.lat, lon: withCoord?.startPt?.lon };
   });
   const hikeFlights = flights.filter(f => f.hikeTrack?.length > 1);
@@ -2326,7 +2339,11 @@ function StatistikApp() {
     { id: "hike", icon: "🥾", label: "Hike", rows: hikeRows, color: "#fef08a", glow: "rgba(254,240,138,0.5)" },
     { id: "saison", icon: "📅", label: "Saison", rows: [], color: "#e0304a", glow: "rgba(224,48,74,0.5)" },
     { id: "graph", icon: "📈", label: "Graph", rows: [], color: "#22d3ee", glow: "rgba(34,211,238,0.5)" },
-  ].filter(t => (t.id !== "passagiere" || passagierRows.length > 0) && (t.id !== "hike" || hikeRows.length > 0));
+  // Blendet "Passagiere" nur aus, wenn im GANZEN Flugbuch nie ein Passagier
+  // erfasst wurde — unabhängig von einer gerade aktiven Suche in der Kachel
+  // selbst, sonst würde die Kachel beim Tippen (0 Treffer) mitsamt Suchfeld
+  // kurzzeitig verschwinden.
+  ].filter(t => (t.id !== "passagiere" || flights.some(f=>(f.customFields?.passagier||"").trim())) && (t.id !== "hike" || hikeRows.length > 0));
   return (
     <div style={{minHeight:"100vh",background:"#210710",color:"#e8f4fd",fontFamily:"-apple-system,BlinkMacSystemFont,sans-serif",paddingBottom:40}}>
       {/* Header */}
@@ -2388,6 +2405,9 @@ function StatistikApp() {
           : (
             <React.Fragment key={t.id}>
               {t.id === "schirm" && <SchirmTimeline flights={flights} />}
+              {["startplaetze","landeplaetze","passagiere"].includes(t.id) && (
+                <TableSearchBox value={tableSearch[t.id]} onChange={v=>setTableSearch(s=>({...s,[t.id]:v}))} />
+              )}
               <StatTable table={t} sortOptions={SORT_OPTIONS[t.id]} />
             </React.Fragment>
           )
@@ -2913,6 +2933,23 @@ function CopyBadge({ text }) {
       style={{background:copied?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.06)",border:`1px solid ${copied?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.12)"}`,borderRadius:20,padding:"1px 6px",fontSize:9,color:copied?"#4ade80":"rgba(232,244,253,0.5)",cursor:"pointer",flexShrink:0,lineHeight:"14px"}}>
       {copied ? "✓" : "📋"}
     </button>
+  );
+}
+// Suchfeld für Startplätze/Landeplätze/Passagiere — gleicher Such-Syntax
+// (feld:wert, +wort, -wort, UND/ODER) wie überall sonst in der App, via
+// matchFlights. Bewusst ein einfaches Textfeld statt des mehrzeiligen
+// Baukastens aus dem Flugbuch (SearchBar) — hier reicht das, da nur eine
+// schnelle, flüchtige Einschränkung dieser einen Kachel gebraucht wird.
+function TableSearchBox({ value, onChange }) {
+  return (
+    <div style={{position:"relative",height:38,boxSizing:"border-box",display:"flex",alignItems:"center",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"0 34px 0 12px"}}>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder="🔍 Suchen… (feld:wert, +wort, -wort)"
+        style={{flex:1,minWidth:0,width:"100%",height:"100%",background:"transparent",border:"none",outline:"none",padding:0,margin:0,color:"#e8f4fd",fontSize:12,boxSizing:"border-box",fontFamily:"inherit"}} />
+      {value && (
+        <button onClick={()=>onChange("")}
+          style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"rgba(232,244,253,0.4)",cursor:"pointer",fontSize:14}}>✕</button>
+      )}
+    </div>
   );
 }
 function StatTable({ table, sortOptions }) {

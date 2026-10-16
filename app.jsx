@@ -226,12 +226,14 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.18";
+const APP_VERSION = "6.19";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19", note: "Statistik ▸ Startplätze/Landeplätze/Passagiere: eigenes Suchfeld pro Kachel (gleiche Syntax wie überall sonst in der App: feld:wert, +wort, -wort, UND/ODER) — filtert direkt, welche Flüge in die Gruppierung einfliessen." },
+  { v: "6.18.1", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Track lag wieder flach am Boden statt über dem Gelände. MapLibre kann Linien in dieser SDK-Version nicht in echter Höhe über Terrain zeichnen — stattdessen jetzt ein \"Vorhang\" aus vielen schmalen, einzeln auf die tatsächliche GPS-Höhe extrudierten Säulen entlang des Tracks (oben heller auslaufend), der die reale Flughöhe über dem Gelände zeigt. Normale 2D-Ansicht unverändert." },
   { v: "6.18", note: "Statistik ▸ Saison: Kacheldesign durch eine Liste ersetzt (Bezeichnung links, Wert rechtsbündig hervorgehoben) — kompakter, besser lesbar bei vielen aktivierten Kennzahlen. Flugdetail ▸ Vollbild-Karte: neuer 🛰️-Knopf schaltet auf eine 3D-Satellit-Ansicht um (schräge Kamera, Gelände-Relief) — zoom-/schwenkbar wie gewohnt, Abspielen/Wendepunkte/GPS-Visualizer unverändert; die kleine Vorschau-Karte bleibt immer 2D." },
   { v: "6.17", note: "Statistik ▸ Saison: die separate Box \"Persönliche Rekorde\" entfernt und mit den Hauptkacheln zu einer einzigen, frei konfigurierbaren Liste zusammengeführt (ein Rekord war ja nur eine Kachel mit Flugname als Zusatz) — dabei gleich deutlich erweitert, u.a. um Ø/stärkstes Sinken und Ø Steigen, auf jetzt 23 wählbare Kacheln total." },
   { v: "6.16", note: "Statistik ▸ Saison: die 4 Hauptkacheln und die 3 Rekorde (Längster/Weitester/Höchster Flug) sind jetzt beide per ⚙️ frei wählbar und per ↑/↓ sortierbar, aus insgesamt 18 Kacheln-Kennzahlen bzw. 6 Rekorden. Neu bei den Rekorden: Schnellster Flug und Meister Höhengewinn." },
