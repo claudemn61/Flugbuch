@@ -617,7 +617,20 @@ function buildAltitudeCurtain(map, points) {
       let ground;
       try { ground = map.queryTerrainElevation([p.lon, p.lat]); } catch (e) { ground = null; }
       if (!Number.isFinite(ground)) return null;
-      return { lon: p.lon, lat: p.lat, h: Math.max(1, alt - ground) };
+      // queryTerrainElevation liefert für noch nicht geladene Kacheln
+      // nachweislich 0 statt null zurück (bekannter MapLibre-Fehler) —
+      // echtes Gelände in den Flugregionen dieser App liegt nie annähernd
+      // auf Meereshöhe, ein Wert darunter ist darum fast sicher "noch
+      // nicht geladen", nicht echte Geländehöhe. Lieber diesen Punkt
+      // überspringen (das Band überbrückt die Lücke zum nächsten gültigen
+      // Punkt) als eine falsche Höhe übernehmen.
+      if (ground < 200) return null;
+      // Mindesthöhe, damit das Band nicht direkt nach dem Start oder beim
+      // Hangsoaring (wo die errechnete Höhe über Gelände durch GPS-/DEM-
+      // Ungenauigkeit leicht nahe 0 oder sogar negativ werden kann)
+      // komplett im Gelände verschwindet, sondern dort zumindest als
+      // schmaler sichtbarer Streifen knapp über dem Boden erscheint.
+      return { lon: p.lon, lat: p.lat, h: Math.max(15, alt - ground) };
     }).filter(Boolean);
     if (withGround.length < 2) return;
 
@@ -1536,8 +1549,20 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       // Vorhang über dem Gelände nur im 3D-Satellit-Vollbild, erst sobald
       // die Kamera (applyHighlight/fitBounds oben) tatsächlich auf dem
       // Track steht und die Terrain-Kacheln dafür geladen sind ("idle").
+      // Ein langer Streckenflug kann nach dem Kamera-Sprung viele Terrain-
+      // Kacheln gleichzeitig brauchen — "idle" heisst nur "gerade nichts
+      // mehr unterwegs", nicht zwingend "alles im sichtbaren Bereich
+      // bereits geladen". Statt auf exaktes Timing zu vertrauen: mehrfach
+      // neu aufbauen (ersetzt die vorherige Quelle), mit wachsendem
+      // Abstand — jeder weitere Durchlauf hat mehr geladene Kacheln zur
+      // Verfügung und korrigiert dadurch Lücken/falsche Werte aus zu früh
+      // abgefragten, noch nicht geladenen Bereichen selbst nach.
       if (use3DSat && fullTrace.length > 1) {
-        map.once("idle", () => { if (mapRefObj.current === map) buildAltitudeCurtain(map, fullTrace); });
+        map.once("idle", () => {
+          [0, 900, 2200].forEach(delay => {
+            setTimeout(() => { if (mapRefObj.current === map) buildAltitudeCurtain(map, fullTrace); }, delay);
+          });
+        });
       }
     });
   };
