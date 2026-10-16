@@ -1520,8 +1520,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
     map.on("load", () => {
       // MapTiler SDKs enableTerrain() legt bei Bedarf selbst die nötige
       // terrain-rgb-Quelle an — genau der Mehrwert gegenüber rohem
-      // MapLibre, der das hier so einfach macht.
-      if (use3DSat && typeof map.enableTerrain === "function") map.enableTerrain(1.4);
+      // MapLibre, der das hier so einfach macht. Bewusst 1.0 (unverzerrte,
+      // echte Geländehöhe) statt einer Überhöhung: die Höhen-Linie
+      // (createAltitudeLineLayer) nutzt die echte, nicht überhöhte GPS-
+      // Höhe — bei Überhöhung wächst das Gelände nach dem Nachladen der
+      // Kacheln sichtbar über seine echte Höhe hinaus und kann die exakt
+      // auf echter Höhe liegende Linie an Stellen, wo nahe am Hang/Grat
+      // geflogen wurde, verschlucken ("versinkt ins Gelände", obwohl die
+      // Linie selbst richtig positioniert ist).
+      if (use3DSat && typeof map.enableTerrain === "function") map.enableTerrain(1.0);
       const fullTrace = cleanTrack.length ? cleanTrack : track;
       if (fullTrace.length > 1) {
         map.addSource("track", {
