@@ -2072,47 +2072,63 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
       }
       if (!ref.current) {
         const el = document.createElement("div");
-        el.style.cssText = `position:absolute;left:0;top:0;width:34px;height:34px;margin-left:-17px;margin-top:-17px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;pointer-events:none;`;
-        let img = null;
+        el.style.cssText = `position:absolute;left:0;top:0;width:34px;height:34px;margin-left:-17px;margin-top:-17px;pointer-events:none;`;
+        // iconWrap trägt die Neigung/Drehung getrennt vom äusseren el (das
+        // nur die Bildschirmposition setzt) — sonst würde die daneben
+        // positionierte Höhenangabe (altEl) mitgekippt und schräg/
+        // schwer lesbar.
+        const iconWrap = document.createElement("div");
+        iconWrap.style.cssText = `width:100%;height:100%;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.7));`;
+        el.appendChild(iconWrap);
         if (showBoot) {
-          el.style.fontSize = "26px";
-          el.textContent = "🥾";
+          iconWrap.style.fontSize = "26px";
+          iconWrap.textContent = "🥾";
         } else if (gliderIcon.type === "image") {
-          img = document.createElement("img");
+          const img = document.createElement("img");
           img.src = gliderIcon.value;
           img.style.cssText = `width:100%;height:100%;object-fit:contain;`;
-          el.appendChild(img);
+          iconWrap.appendChild(img);
         } else {
-          el.style.fontSize = "26px";
-          el.textContent = gliderIcon.value;
+          iconWrap.style.fontSize = "26px";
+          iconWrap.textContent = gliderIcon.value;
         }
         const altEl = document.createElement("span");
         altEl.style.cssText = `position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);color:#dc2626;font:800 13px -apple-system,sans-serif;white-space:nowrap;`;
         el.appendChild(altEl);
         map.getCanvasContainer().appendChild(el);
-        // state hält die jeweils aktuelle Position. Der render-Listener
-        // unten deckt nur die Kamerabewegung ab (Pan/Zoom/Kippen während
-        // pausiertem Abspielen) — MapLibre zeichnet aber nur neu, wenn sich
-        // am Kartenbild selbst etwas ändert, nicht automatisch bei jeder
-        // Änderung von playElapsedSec. Direkt nach dem Terrain-Aufbau (kein
-        // Kamerawechsel mehr, Karte "idle") blieb der Marker deshalb an der
-        // zuletzt gerenderten Stelle hängen, obwohl state sich längst
-        // weiterbewegt hatte — update() wird deshalb unten bei jedem
-        // Effekt-Durchlauf zusätzlich direkt aufgerufen, nicht nur hier
-        // einmalig über map.on("render", …) gebunden.
-        const state = { lon: 0, lat: 0, alt: 0 };
+        // state hält die jeweils aktuelle Position (+ Flugrichtung). Der
+        // render-Listener unten deckt nur die Kamerabewegung ab (Pan/Zoom/
+        // Kippen während pausiertem Abspielen) — MapLibre zeichnet aber nur
+        // neu, wenn sich am Kartenbild selbst etwas ändert, nicht
+        // automatisch bei jeder Änderung von playElapsedSec. Direkt nach
+        // dem Terrain-Aufbau (kein Kamerawechsel mehr, Karte "idle") blieb
+        // der Marker deshalb an der zuletzt gerenderten Stelle hängen,
+        // obwohl state sich längst weiterbewegt hatte — update() wird
+        // deshalb unten bei jedem Effekt-Durchlauf zusätzlich direkt
+        // aufgerufen, nicht nur hier einmalig über map.on("render", …)
+        // gebunden.
+        const state = { lon: 0, lat: 0, alt: 0, hdg: 0 };
         const update = () => {
           const p = layer.projectPoint(state.lon, state.lat, state.alt);
           if (!p) { el.style.display = "none"; return; }
-          el.style.display = "flex";
+          el.style.display = "block";
           el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+          // Dieselbe Neigung wie die Landschaft (rotateX um den aktuellen
+          // Kamera-Pitch) — ohne das "schwebt" das Symbol sichtbar über
+          // dem gekippten Gelände statt flach darauf zu liegen. perspective
+          // sorgt für die optische Verkürzung dabei, wie bei MapLibres
+          // eigenen pitchAlignment:"map"-Markern (die der Schirm/Wander-
+          // schuh hier nicht nutzen kann, da sie manuell positioniert
+          // werden statt über sdk.Marker).
+          const pitch = (typeof map.getPitch === "function") ? map.getPitch() : 0;
+          const hdgPart = (!showBoot && state.hdg != null) ? ` rotateZ(${state.hdg}deg)` : "";
+          iconWrap.style.transform = `perspective(500px) rotateX(${pitch}deg)${hdgPart}`;
         };
         map.on("render", update);
-        ref.current = { el, imgEl: img, altEl, kind: showBoot ? "boot" : "glider", state, update, offRender: () => map.off("render", update) };
+        ref.current = { el, altEl, kind: showBoot ? "boot" : "glider", state, update, offRender: () => map.off("render", update) };
       }
       const m = ref.current;
-      m.state.lon = lon; m.state.lat = lat; m.state.alt = alt;
-      if (!showBoot && m.imgEl) m.imgEl.style.transform = `rotate(${hdg}deg)`;
+      m.state.lon = lon; m.state.lat = lat; m.state.alt = alt; m.state.hdg = hdg;
       m.altEl.textContent = (alt!=null ? Math.round(alt) : "")+"m";
       m.update();
     };
