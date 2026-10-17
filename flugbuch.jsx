@@ -1274,12 +1274,15 @@ function FlightMap({ flight, highlightRange, onPlaybackPositionChange, onPlaybac
   // Vorschau-Karte bleibt immer 2D. "service:"-Präfix, damit die Wahl vom
   // Backup-Export/Import erfasst wird und über einen Neustart hinweg
   // erhalten bleibt.
-  const [satelliteMode, setSatelliteMode] = useState(false);
+  const [satelliteMode, setSatelliteMode] = useState(true);
   useEffect(() => {
     (async () => {
       try {
         const r = await window.storage.get("service:flugdetailSatellite3d");
-        if (r && r.value === "1") setSatelliteMode(true);
+        // Beide Zustände explizit behandeln (nicht nur "auf true setzen,
+        // wenn '1'") -- der Default oben ist jetzt true, ein gespeichertes
+        // "0" muss ihn also aktiv wieder auf false zurücksetzen können.
+        if (r) setSatelliteMode(r.value === "1");
       } catch (e) { console.error("Load error (flugdetailSatellite3d):", e); }
     })();
   }, []);
@@ -3723,9 +3726,9 @@ function evalToken(f, tok){
 // keep the saved order, anything new (a future added field) falls back to
 // its position here, and stale/removed ids are silently dropped.
 const FLUGDATEN_DEFAULT_ORDER = [
-  "date","glider","typ","startTime","endTime","site","landung","passagier","reise",
-  "startAlt","endAlt","maxAlt","distanz","maxFreieStrecke","maxFlachesDreieck","maxFaiDreieck","routenTyp","dauer","hDiff","speed",
-  "maxSteigen","maxSinken","hGew","entfernungSL","rangDauer","pctDauer","rangStrecke","pctStrecke",
+  "reise","date","glider","typ","passagier","startTime","site","startAlt","endTime","landung","endAlt","dauer","distanz",
+  "routenTyp","maxFreieStrecke","maxFlachesDreieck","maxFaiDreieck","speed","maxAlt","hDiff","maxSteigen","maxSinken","hGew",
+  "entfernungSL","rangDauer","pctDauer","rangStrecke","pctStrecke",
 ];
 // ── SORT ENGINE ──────────────────────────────────────────────────────────
 // Categorical fields offered for the optional second grouping level
@@ -4451,7 +4454,7 @@ const TILE_FIELD_OPTIONS = [
     } },
   { key: "hikeDauer",      label: "Hike-Dauer",      icon: "🥾", hikeOnly: true, get: fl => fl.customFields?.hikeDauer || "—" },
 ];
-const DEFAULT_TILE_KEYS = ["duration","maxAlt","distanz","startAlt","endAlt","hDiff","maxSinken","maxSteigen","speed"];
+const DEFAULT_TILE_KEYS = ["duration","hikeDauer","distanz","startAlt","endAlt","maxAlt","maxSinken","maxSteigen","hGew"];
 
 // Findet zusammenhängende Läufe von >=2 benachbarten "grouped"-Zeilen —
 // die werden mit runder Klammer umschlossen (im Text UND als sichtbare
@@ -6951,9 +6954,14 @@ function FlugbuchApp() {
   // gespeicherten Auswahl bewusst deaktiviert angehängt, statt wie bei
   // csvColumns automatisch aktiv zu erscheinen — die bestehende Kachel soll
   // sich für schon konfigurierte Nutzer nicht von selbst verändern.
-  const [searchStatsColumns, setSearchStatsColumns] = useState(
-    SEARCH_STATS_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
-  );
+  const [searchStatsColumns, setSearchStatsColumns] = useState([
+    { key: "zeitraum", enabled: true }, { key: "flugtage", enabled: true }, { key: "gesamtzeit", enabled: true },
+    { key: "maxKm", enabled: true }, { key: "maxDauer", enabled: true }, { key: "gesDistanz", enabled: false },
+    { key: "avgDistanz", enabled: false }, { key: "maxHoehe", enabled: true }, { key: "avgDauer", enabled: false },
+    { key: "avgHoehengewinn", enabled: false }, { key: "startplaetze", enabled: true }, { key: "landeplaetze", enabled: true },
+    { key: "biplace", enabled: false }, { key: "schirme", enabled: false }, { key: "maxSteigen", enabled: false },
+    { key: "maxSinken", enabled: false },
+  ]);
   const [showSearchStatsConfig, setShowSearchStatsConfig] = useState(false);
   useEffect(() => {
     (async () => {

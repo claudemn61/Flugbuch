@@ -498,7 +498,6 @@ const VERSION_LOG = [
 // (text, colours, font, size) round-trips through Reset cleanly.
 const DEFAULT_TITLE_CFG = {
   segments: [
-    { text: "mein", color: "#ffffff" },
     { text: "flug", color: "#f59e0b" },
     { text: "buch", color: "#ffffff" },
   ],

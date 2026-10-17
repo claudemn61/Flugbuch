@@ -623,9 +623,16 @@ function SeasonSection({ flights }) {
   // Welche Kacheln angezeigt werden und in welcher Reihenfolge — gleiches
   // Muster wie searchStatsColumns in flugbuch.jsx, "service:"-Präfix,
   // damit es vom Backup-Export/Import erfasst wird.
-  const [tileColumns, setTileColumns] = useState(
-    SEASON_TILE_DEFS.map(c => ({ key: c.key, enabled: c.defaultEnabled !== false }))
-  );
+  const [tileColumns, setTileColumns] = useState([
+    { key: "fluege", enabled: true }, { key: "flugtage", enabled: true }, { key: "flugzeit", enabled: true },
+    { key: "gesDistanz", enabled: true }, { key: "avgDauer", enabled: true }, { key: "avgDistanz", enabled: true },
+    { key: "maxDauer", enabled: true }, { key: "maxDistanz", enabled: true }, { key: "maxHoehe", enabled: false },
+    { key: "hoehengewinn", enabled: true }, { key: "avgSpeed", enabled: false }, { key: "maxSpeed", enabled: false },
+    { key: "schirme", enabled: false }, { key: "maxHoehengewinn", enabled: true }, { key: "maxSteigen", enabled: true },
+    { key: "maxSinken", enabled: true }, { key: "startplaetze", enabled: true }, { key: "landeplaetze", enabled: true },
+    { key: "biplace", enabled: false }, { key: "fuenfSterne", enabled: false }, { key: "avgHoehengewinn", enabled: false },
+    { key: "avgSteigen", enabled: false }, { key: "avgSinken", enabled: false },
+  ]);
   const [showTileConfig, setShowTileConfig] = useState(false);
   useEffect(() => {
     (async () => {
@@ -1283,12 +1290,46 @@ function GraphSection({ flights }) {
   // "gx"/"gy"/"fx"/"fy" = Gruppiert/Frei × X/Y, oder null.
   const [axisOptionsOpen, setAxisOptionsOpen] = useState(null);
   const [drillPopupOpen, setDrillPopupOpen] = useState(false);
-  // Reihenfolge der Achsen-Auswahllisten — null = Standard-Reihenfolge
-  // (wie im Code definiert). Persistiert, damit sie über einen Neustart
-  // hinweg erhalten bleibt.
-  const [xFieldOrder, setXFieldOrder] = useState(null);
-  const [yMetricOrder, setYMetricOrder] = useState(null);
-  const [freeFieldOrder, setFreeFieldOrder] = useState(null);
+  // Reihenfolge der Achsen-Auswahllisten. Persistiert, damit sie über einen
+  // Neustart hinweg erhalten bleibt. fieldOrderEntries (oben) ignoriert
+  // unbekannte Keys und hängt neu hinzugekommene Felder automatisch an, die
+  // Default-Reihenfolge unten muss also nicht exakt mit dem aktuellen
+  // Feld-Katalog übereinstimmen.
+  const [xFieldOrder, setXFieldOrder] = useState([
+    { key: "nummer", enabled: true }, { key: "jahr", enabled: true }, { key: "monat", enabled: true },
+    { key: "std", enabled: true }, { key: "glider", enabled: true }, { key: "typ", enabled: true },
+    { key: "site", enabled: true }, { key: "landung", enabled: true }, { key: "reise", enabled: true },
+    { key: "hikeOrt", enabled: true }, { key: "rating", enabled: true }, { key: "routenTyp", enabled: true },
+    { key: "dauer", enabled: true }, { key: "distanz", enabled: true }, { key: "höhe", enabled: true },
+    { key: "startalt", enabled: true }, { key: "endalt", enabled: true }, { key: "hdiff", enabled: true },
+    { key: "maxsteigen", enabled: true }, { key: "maxsinken", enabled: true }, { key: "hgew", enabled: true },
+    { key: "entfernungsl", enabled: true }, { key: "speed", enabled: true }, { key: "hikestarthoehe", enabled: true },
+    { key: "hikehoehenmeter", enabled: true },
+  ]);
+  const [yMetricOrder, setYMetricOrder] = useState([
+    { key: "count", enabled: true }, { key: "nummer:avg", enabled: false }, { key: "nummer:max", enabled: true },
+    { key: "jahr:max", enabled: true }, { key: "jahr:avg", enabled: true }, { key: "monat:max", enabled: true },
+    { key: "monat:avg", enabled: true }, { key: "std:max", enabled: true }, { key: "std:avg", enabled: true },
+    { key: "dauer:max", enabled: true }, { key: "dauer:sum", enabled: true }, { key: "dauer:avg", enabled: true },
+    { key: "distanz:max", enabled: true }, { key: "distanz:sum", enabled: true }, { key: "distanz:avg", enabled: true },
+    { key: "höhe:max", enabled: true }, { key: "höhe:avg", enabled: true }, { key: "startalt:avg", enabled: false },
+    { key: "startalt:max", enabled: true }, { key: "endalt:avg", enabled: false }, { key: "endalt:max", enabled: true },
+    { key: "hdiff:sum", enabled: true }, { key: "hdiff:avg", enabled: true }, { key: "maxsteigen:max", enabled: true },
+    { key: "maxsteigen:avg", enabled: true }, { key: "maxsinken:max", enabled: true }, { key: "maxsinken:avg", enabled: true },
+    { key: "hgew:sum", enabled: true }, { key: "hgew:avg", enabled: true }, { key: "entfernungsl:sum", enabled: false },
+    { key: "entfernungsl:avg", enabled: true }, { key: "speed:max", enabled: true }, { key: "speed:avg", enabled: true },
+    { key: "rating:avg", enabled: false }, { key: "hikestarthoehe:max", enabled: true }, { key: "hikehoehenmeter:sum", enabled: true },
+    { key: "hikestarthoehe:avg", enabled: false }, { key: "hikehoehenmeter:avg", enabled: true },
+  ]);
+  const [freeFieldOrder, setFreeFieldOrder] = useState([
+    { key: "nummer", enabled: true }, { key: "datum", enabled: true }, { key: "jahr", enabled: true },
+    { key: "monat", enabled: true }, { key: "std", enabled: true }, { key: "dauer", enabled: true },
+    { key: "distanz", enabled: true }, { key: "höhe", enabled: true }, { key: "startalt", enabled: true },
+    { key: "endalt", enabled: true }, { key: "hdiff", enabled: true }, { key: "maxsteigen", enabled: true },
+    { key: "maxsinken", enabled: true }, { key: "hgew", enabled: true }, { key: "entfernungsl", enabled: true },
+    { key: "speed", enabled: true }, { key: "rating", enabled: true }, { key: "hikestarthoehe", enabled: true },
+    { key: "hikehoehenmeter", enabled: true },
+  ]);
   const [fieldOrderModal, setFieldOrderModal] = useState(null); // "x" | "y" | "free" | null
   useEffect(() => {
     (async () => {
