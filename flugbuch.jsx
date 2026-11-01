@@ -5410,10 +5410,16 @@ function findSimilarName(value, otherNames, confirmedPairs) {
 // Dropdown for selecting the glider used on a flight, sourced from the
 // actual names entered on the Service/Schirm page's 4 category tabs — not
 // the category labels (Solo, Solo light, etc.) themselves, just whatever
-// name the person gave each of their up-to-4 gliders there.
+// name the person gave each of their up-to-4 gliders there. Vorschlagsliste
+// selbstgebaut (Ghost-Vervollständigung + Dropdown darunter), wie bei
+// PlaceInlineField, statt natives <input list>/<datalist> — letzteres ist
+// auf iOS Safari unzuverlässig bis gar nicht sichtbar.
 function SchirmSelect({ value, onSave, extra, flights }) {
   const [equipmentNames, setEquipmentNames] = useState([]);
   const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value||"");
+  const inputRef = useRef(null);
+  const prevLen = useRef((value||"").length);
   // Als "kein Tippfehler" bestätigte Namenspaare (siehe findSimilarName) —
   // dieselbe Liste, die auch Ausrüstung ▸ Wartung befüllt.
   const [confirmedPairs, setConfirmedPairs] = useState(new Set());
@@ -5452,17 +5458,37 @@ function SchirmSelect({ value, onSave, extra, flights }) {
   const flightNames = [...new Set((flights||[]).map(f => f.glider).filter(Boolean))];
   const names = [...new Set([...equipmentNames, ...flightNames])].sort((a,b)=>a.localeCompare(b,"de"));
 
-  // The current value must always be selectable, even if it isn't among the
-  // known names (e.g. a glider typed in just now) — otherwise the browser
-  // silently falls back to the first <option> ("—"), making the field look
-  // empty even though the imported name is still there.
-  const options = value && !names.includes(value) ? [value, ...names] : names;
+  // Dropdown von Namen, die den getippten Text irgendwo enthalten (nicht
+  // nur als Präfix) — gleiches Muster wie bei PlaceInlineField.
+  const partialMatches = val.trim()
+    ? names.filter(s => s !== val && s.toLowerCase().includes(val.trim().toLowerCase())).slice(0, 6)
+    : [];
+  const applySuggestion = (typed) => {
+    if (!typed) return typed;
+    const match = names.find(s => s.toLowerCase().startsWith(typed.toLowerCase()) && s.length > typed.length);
+    return match || typed;
+  };
+  const onChange = (e) => {
+    const typed = e.target.value;
+    const isDeleting = typed.length < prevLen.current;
+    prevLen.current = typed.length;
+    if (isDeleting) { setVal(typed); return; }
+    const suggested = applySuggestion(typed);
+    setVal(suggested);
+    prevLen.current = suggested.length;
+    if (suggested !== typed) {
+      requestAnimationFrame(() => {
+        inputRef.current?.setSelectionRange(typed.length, suggested.length);
+      });
+    }
+  };
+  const commit = (v) => { onSave(v); setEditing(false); };
 
   if (!editing) {
     const similarName = findSimilarName(value, names, confirmedPairs);
     return (
       <>
-        <div data-inline-row onClick={()=>setEditing(true)}
+        <div data-inline-row onClick={()=>{setVal(value||"");prevLen.current=(value||"").length;setEditing(true);}}
           style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:similarName?"none":"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
           <span style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
@@ -5484,15 +5510,30 @@ function SchirmSelect({ value, onSave, extra, flights }) {
   }
 
   return (
-    <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+    <div data-inline-row style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",position:"relative"}}>
       <span style={{fontSize:13,color:"rgba(232,244,253,0.45)",minWidth:90,userSelect:"none",WebkitUserSelect:"none"}}>Schirm</span>
-      <input list="schirm-select-datalist" defaultValue={value||""} autoFocus
-        onBlur={e=>{ onSave(e.target.value); setEditing(false); }}
+      <input ref={inputRef} value={val} onChange={onChange} autoFocus
+        onBlur={()=>commit(val)}
         onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
-        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right",maxWidth:180}} />
-      <datalist id="schirm-select-datalist">
-        {options.map(n => <option key={n} value={n} />)}
-      </datalist>
+        style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(125,211,252,0.4)",borderRadius:8,padding:"4px 8px",color:"#e8f4fd",fontSize:13,textAlign:"right",maxWidth:180}} />
+      {partialMatches.length > 0 && (
+        <div
+          style={{position:"absolute",top:"100%",right:0,zIndex:20,background:"#14253a",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:4,boxShadow:"0 8px 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",gap:2,minWidth:160,maxWidth:260}}>
+          {partialMatches.map(s => (
+            <button key={s}
+              onMouseDown={e=>{
+                // mousedown (nicht click), damit das vor dem onBlur des
+                // Inputs feuert, das sonst zuerst das Bearbeiten beenden
+                // und committen würde.
+                e.preventDefault();
+                commit(s);
+              }}
+              style={{textAlign:"right",background:"transparent",border:"none",borderRadius:6,padding:"6px 8px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
