@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.8";
+const APP_VERSION = "6.19.9";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.9", note: "Flugdetail, Schirm-Feld: Autovervollständigung nutzte ein natives <input list>/<datalist>, das auf iOS Safari unzuverlässig bis gar nicht sichtbar ist. Auf dieselbe selbstgebaute Vorschlagsliste wie Startplatz/Landeplatz umgestellt (Ghost-Vervollständigung beim Tippen + Dropdown mit Treffern darunter) — Tippfehler-Warnung unverändert." },
   { v: "6.19.8", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: temporäre Debug-Anzeige (🐞 oben rechts) zeigt GPS-Höhe am Startpunkt gegen die von der Karte tatsächlich gerenderte Geländehöhe an derselben Stelle, inkl. Differenz — hilft, einen gemeldeten Höhenversatz (Linie liegt teils im Gelände) mit echten Zahlen statt Vermutungen einzugrenzen. Wird wieder entfernt, sobald die Ursache geklärt ist." },
   { v: "6.19.7", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Höhen-Linie versank stellenweise nachträglich im Gelände, sobald die Terrain-Kacheln fertig geladen waren — Ursache war eine 1.4-fache Geländeüberhöhung, die das sichtbare Gelände über seine echte Höhe hinauswachsen liess, während die Linie auf der echten (nicht überhöhten) GPS-Höhe blieb. Geländeüberhöhung jetzt auf 1.0 (echte Höhe) reduziert." },
   { v: "6.19.6", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: tatsächlicher Grund für \"Track am Boden fixiert\" gefunden (MapLibre-Quelltext direkt geprüft, nicht mehr geraten) — die Kamera-Matrix für eigene 3D-Objekte erwartet die Koordinaten in einer anderen Skalierung (× Weltgrösse, abhängig vom Zoom) als bisher verwendet; dadurch kollabierte die ganze Höhen-Linie praktisch auf einen Punkt und war faktisch unsichtbar, übrig blieb nur die bodengebundene 2D-Linie. Jetzt korrekt skaliert." },
