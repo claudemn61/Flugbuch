@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.9";
+const APP_VERSION = "6.19.10";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.10", note: "Einstellungen ▸ Notizen: neuer 📎 Dateien-Button — jpg/heic/pdf importieren, in Ordnern organisieren (anlegen, umbenennen, per ▲▼ sortieren, per ⇄ in einen anderen Ordner verschieben), löschen. Gleiches Muster wie Anleitung-Dateien in Ausrüstung ▸ Wartung." },
   { v: "6.19.9", note: "Flugdetail, Schirm-Feld: Autovervollständigung nutzte ein natives <input list>/<datalist>, das auf iOS Safari unzuverlässig bis gar nicht sichtbar ist. Auf dieselbe selbstgebaute Vorschlagsliste wie Startplatz/Landeplatz umgestellt (Ghost-Vervollständigung beim Tippen + Dropdown mit Treffern darunter) — Tippfehler-Warnung unverändert." },
   { v: "6.19.8", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: temporäre Debug-Anzeige (🐞 oben rechts) zeigt GPS-Höhe am Startpunkt gegen die von der Karte tatsächlich gerenderte Geländehöhe an derselben Stelle, inkl. Differenz — hilft, einen gemeldeten Höhenversatz (Linie liegt teils im Gelände) mit echten Zahlen statt Vermutungen einzugrenzen. Wird wieder entfernt, sobald die Ursache geklärt ist." },
   { v: "6.19.7", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: Höhen-Linie versank stellenweise nachträglich im Gelände, sobald die Terrain-Kacheln fertig geladen waren — Ursache war eine 1.4-fache Geländeüberhöhung, die das sichtbare Gelände über seine echte Höhe hinauswachsen liess, während die Linie auf der echten (nicht überhöhten) GPS-Höhe blieb. Geländeüberhöhung jetzt auf 1.0 (echte Höhe) reduziert." },
@@ -617,6 +618,470 @@ function GliderNameInput({ defaultLabel, value, onRename, color, fontWeight }) {
   );
 }
 
+// ── Notizen-Dateien (Einstellungen ▸ Notizen) ────────────────────────────
+// Gleiches Muster wie die Anleitung-Dateien in Ausrüstung ▸ Wartung
+// (ausruestung.jsx, AnleitungButton) — dort pro Ausrüstungs-Slot, hier aber
+// ohne übergeordnetes Slot-Objekt, darum selbst ladend/speichernd statt
+// über attachments/onChange-Props gesteuert. Metadaten (Name, Typ, Ordner,
+// Reihenfolge) unter "service:notizenFiles", der Dateiinhalt separat pro
+// Datei unter "service:notizen_file_<id>" — sonst würde jede Umbenennung
+// den kompletten, womöglich grossen Dateiinhalt neu schreiben. Beide tragen
+// das "service:"-Präfix, landen also automatisch im Backup-Export/Import.
+function todayStr() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
+}
+const NOTIZEN_FILE_ICON = { jpg: "🖼️", pdf: "📄" };
+const NOTIZEN_FILE_MIME = { jpg: "image/jpeg", pdf: "application/pdf" };
+function notizenFileKey(id) { return `service:notizen_file_${id}`; }
+function notizenTypeFor(file) {
+  const ext = (file.name.split(".").pop()||"").toLowerCase();
+  if (file.type==="application/pdf" || ext==="pdf") return "pdf";
+  if (file.type==="image/jpeg" || ext==="jpg" || ext==="jpeg") return "jpg";
+  // .heic/.heif (iPhone-Kamera-Standardformat) läuft über denselben
+  // jpg-Pfad: compressJpegDataUrl versucht die Umwandlung nach JPEG (klappt
+  // v.a. in Safari, das HEIC nativ decodieren kann); scheitert es, greift
+  // dessen eigener Fallback (Originaldatei unverändert übernehmen).
+  if (file.type==="image/heic" || file.type==="image/heif" || ext==="heic" || ext==="heif") return "jpg";
+  return null;
+}
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+function canvasToCompressed(canvas, maxDim, quality) {
+  maxDim = maxDim || 1600;
+  quality = quality || 0.85;
+  let w = canvas.width, h = canvas.height;
+  if (w > maxDim || h > maxDim) {
+    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+    else { w = Math.round(w * maxDim / h); h = maxDim; }
+    const small = document.createElement("canvas");
+    small.width = w; small.height = h;
+    small.getContext("2d").drawImage(canvas, 0, 0, w, h);
+    return small.toDataURL("image/jpeg", quality);
+  }
+  return canvas.toDataURL("image/jpeg", quality);
+}
+function compressJpegDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      resolve(canvasToCompressed(canvas, 1600, 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+// Kleine Vorschau fürs Listen-Icon (ca. 100px, stärker komprimiert) — wird
+// direkt in den Metadaten gespeichert (also im selben service:*-Blob wie
+// Name/Ordner), da so klein, dass das unproblematisch ist.
+function makeThumbnailDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      resolve(canvasToCompressed(canvas, 120, 0.6));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+// data:-URL → Blob-URL: iOS Safari zeigt PDFs in einem <iframe> mit
+// data:-URL als src oft einfach nicht an (stiller Fehlschlag) — mit einer
+// echten Blob-URL funktioniert es zuverlässig, ausserdem lässt sie sich als
+// "↗ Öffnen"-Link anbieten, der den systemeigenen Betrachter aufruft, falls
+// die Inline-Vorschau trotzdem leer bleibt.
+function dataUrlToBlobUrl(dataUrl, mime) {
+  const comma = dataUrl.indexOf(",");
+  const base64 = dataUrl.slice(comma+1);
+  const byteStr = atob(base64);
+  const bytes = new Uint8Array(byteStr.length);
+  for (let i=0;i<byteStr.length;i++) bytes[i] = byteStr.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: mime || "application/octet-stream" }));
+}
+
+function NotizenFilesButton() {
+  const [list, setList] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [preview, setPreview] = useState(null); // {type, name, blobUrl} | null
+  // Navigations-Pfad in Unterordner — Array von Ordner-IDs, [] = Wurzel.
+  const [folderStack, setFolderStack] = useState([]);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState(null); // {id, name, count} | null
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("service:notizenFiles");
+        if (r) setList(JSON.parse(r.value) || []);
+      } catch (e) { console.error("Notizen-Dateien: Laden fehlgeschlagen:", e); }
+      setLoaded(true);
+    })();
+  }, []);
+  const save = (next) => {
+    setList(next);
+    try { window.storage.set("service:notizenFiles", JSON.stringify(next)); } catch (e) { console.error("Notizen-Dateien: Speichern fehlgeschlagen:", e); }
+  };
+
+  const currentFolder = folderStack.length ? folderStack[folderStack.length-1] : null;
+  const visibleList = list.filter(a => (a.parentId||null) === currentFolder);
+  const fileCount = list.filter(a => !a.isFolder).length;
+
+  const enterFolder = (id) => { setFolderStack(s => [...s, id]); setEditingId(null); };
+  const goToStackIndex = (i) => { setFolderStack(s => i<0 ? [] : s.slice(0, i+1)); setEditingId(null); };
+
+  const addFiles = async (files) => {
+    setErr("");
+    setBusy(true);
+    // Läuft über eine lokale Kopie statt über "list" selbst, das sich
+    // während dieser Schleife nicht aktualisiert (erst beim nächsten
+    // Render) — sonst würde bei mehreren gleichzeitig gewählten Dateien
+    // jeder Zwischenstand wieder vom selben alten Stand ausgehen und nur
+    // die zuletzt verarbeitete Datei überleben.
+    let acc = list;
+    for (const file of Array.from(files)) {
+      const type = notizenTypeFor(file);
+      if (!type) { setErr(`Nicht unterstützter Dateityp: ${file.name}`); continue; }
+      try {
+        let dataUrl = await readFileAsDataUrl(file);
+        let thumb = null;
+        if (type === "jpg") {
+          dataUrl = await compressJpegDataUrl(dataUrl);
+          thumb = await makeThumbnailDataUrl(dataUrl);
+        }
+        const id = `not_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+        const saved = await window.storage.set(notizenFileKey(id), JSON.stringify(dataUrl));
+        if (!saved) { setErr(`„${file.name}" konnte nicht gespeichert werden (evtl. zu gross).`); continue; }
+        const name = file.name.replace(/\.[^.]+$/, "");
+        acc = [...acc, { id, name, type, mime: file.type, thumb, parentId: currentFolder, addedAt: todayStr() }];
+        save(acc);
+      } catch (e) {
+        console.error("Notizen-Datei-Upload error:", e);
+        setErr(`„${file.name}" konnte nicht gelesen werden.`);
+      }
+    }
+    setBusy(false);
+  };
+
+  const addFolder = () => {
+    const id = `notf_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    save([...list, { id, name: "Neuer Ordner", isFolder: true, parentId: currentFolder, addedAt: todayStr() }]);
+    setEditingId(id);
+  };
+
+  // Alle Nachfahren (Dateien UND Unterordner, beliebig tief) eines Ordners —
+  // bestimmt, ob "✕" sofort löscht (leer) oder erst eine Bestätigung zeigt.
+  const collectDescendantIds = (id) => {
+    const result = [];
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const a of list) {
+        if (a.parentId === cur) { result.push(a.id); if (a.isFolder) stack.push(a.id); }
+      }
+    }
+    return result;
+  };
+
+  const deleteEntries = async (ids) => {
+    const idSet = new Set(ids);
+    for (const a of list) {
+      if (idSet.has(a.id) && !a.isFolder) {
+        try { await window.storage.delete(notizenFileKey(a.id)); } catch (e) { console.error("Notizen-Datei löschen error:", e); }
+      }
+    }
+    save(list.filter(a => !idSet.has(a.id)));
+  };
+
+  const requestDelete = (att) => {
+    if (!att.isFolder) { deleteEntries([att.id]); return; }
+    const desc = collectDescendantIds(att.id);
+    if (desc.length === 0) { deleteEntries([att.id]); return; }
+    setConfirmDeleteFolder({ id: att.id, name: att.name, count: desc.length });
+  };
+
+  const confirmDeleteFolderNow = () => {
+    if (!confirmDeleteFolder) return;
+    deleteEntries([confirmDeleteFolder.id, ...collectDescendantIds(confirmDeleteFolder.id)]);
+    setConfirmDeleteFolder(null);
+  };
+
+  const renameEntry = (id, name) => save(list.map(a => a.id===id ? {...a, name} : a));
+
+  // Verschiebt in einen anderen Ordner (inkl. Wurzel) — eigener Picker statt
+  // Drag&Drop, zuverlässiger auf Touch-Geräten. Nur Ordner wählbar, die
+  // nicht der Eintrag selbst oder einer seiner eigenen Nachfahren sind
+  // (sonst würde sich ein Ordner in sich selbst verschieben).
+  const [movingEntry, setMovingEntry] = useState(null); // attachment | null
+  const moveTo = (att, newParentId) => {
+    save(list.map(a => a.id===att.id ? {...a, parentId: newParentId} : a));
+    setMovingEntry(null);
+  };
+  const validMoveTargets = (att) => {
+    const blocked = new Set([att.id, ...(att.isFolder ? collectDescendantIds(att.id) : [])]);
+    return list.filter(a => a.isFolder && !blocked.has(a.id));
+  };
+
+  // Sortiert nur innerhalb derselben Ebene (Geschwister mit gleichem
+  // parentId) — sonst würde "hoch/runter" bei geöffnetem Unterordner
+  // versehentlich Einträge einer anderen Ebene vertauschen.
+  const move = (att, dir) => {
+    const siblings = list.filter(a => (a.parentId||null) === (att.parentId||null));
+    const idx = siblings.findIndex(a => a.id===att.id);
+    const j = idx + dir;
+    if (j < 0 || j >= siblings.length) return;
+    const iFull = list.findIndex(a => a.id===att.id);
+    const jFull = list.findIndex(a => a.id===siblings[j].id);
+    const next = [...list];
+    [next[iFull], next[jFull]] = [next[jFull], next[iFull]];
+    save(next);
+  };
+
+  const closePreview = () => {
+    if (preview?.blobUrl) { try { URL.revokeObjectURL(preview.blobUrl); } catch {} }
+    setPreview(null);
+  };
+
+  const openPreview = async (att) => {
+    setBusy(true); setErr("");
+    try {
+      const r = await window.storage.get(notizenFileKey(att.id));
+      if (!r) { setErr("Datei nicht gefunden."); setBusy(false); return; }
+      const dataUrl = JSON.parse(r.value);
+      const blobUrl = dataUrlToBlobUrl(dataUrl, att.mime || NOTIZEN_FILE_MIME[att.type]);
+      // Alte Blob-URL erst jetzt freigeben (nicht in closePreview/vorher),
+      // damit ein Wisch-Wechsel zum nächsten Element nicht kurz das Bild
+      // des vorherigen verliert, während die neue Datei noch lädt.
+      setPreview(prev => {
+        if (prev?.blobUrl) { try { URL.revokeObjectURL(prev.blobUrl); } catch {} }
+        return { id: att.id, type: att.type, name: att.name, blobUrl };
+      });
+    } catch (e) { console.error("Notizen-Datei-Vorschau error:", e); setErr("Datei konnte nicht geladen werden."); }
+    setBusy(false);
+  };
+
+  // Wischen zwischen den Dateien derselben Ordner-Ebene (Ordner selbst
+  // werden dabei übersprungen) — ersetzt Schliessen+erneutes Antippen.
+  const previewableList = visibleList.filter(a => !a.isFolder);
+  const goToPreview = (delta) => {
+    if (!preview) return;
+    const idx = previewableList.findIndex(a => a.id===preview.id);
+    const next = previewableList[idx+delta];
+    if (next) openPreview(next);
+  };
+  const previewTouchStart = useRef(null);
+  const onPreviewTouchStart = (e) => {
+    if (e.touches.length !== 1) { previewTouchStart.current = null; return; }
+    const t = e.touches[0];
+    previewTouchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onPreviewTouchEnd = (e) => {
+    if (!previewTouchStart.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - previewTouchStart.current.x;
+    const dy = t.clientY - previewTouchStart.current.y;
+    previewTouchStart.current = null;
+    const SWIPE_THRESHOLD = 60;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) goToPreview(1);  // nach links wischen -> nächste Datei
+    else goToPreview(-1);        // nach rechts wischen -> vorherige Datei
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <>
+      <button onClick={()=>setOpen(true)}
+        style={{background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"8px 16px",color:"#c4b5fd",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+        📎 Dateien{fileCount>0 ? ` (${fileCount})` : ""}
+      </button>
+
+      {open && (
+        <div onClick={()=>setOpen(false)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:310,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontSize:15,fontWeight:800}}>📎 Notizen-Dateien</div>
+              <button onClick={()=>{ setEditMode(e=>!e); setEditingId(null); }}
+                style={{background: editMode ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.08)",border:`1px solid ${editMode?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.12)"}`,borderRadius:8,padding:"4px 10px",color: editMode ? "#4ade80" : "rgba(232,244,253,0.7)",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                {editMode ? "✓ Fertig" : "✏️ Bearbeiten"}
+              </button>
+            </div>
+            <div style={{fontSize:12,color:"rgba(232,244,253,0.5)",marginBottom:10}}>jpg, heic, pdf — importieren, umbenennen, per ▲▼ sortieren/⇄ verschieben, in Ordnern organisieren.</div>
+
+            <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,marginBottom:10,fontSize:12}}>
+              <span onClick={()=>goToStackIndex(-1)}
+                style={{cursor: currentFolder ? "pointer" : "default",color: currentFolder ? "#c4b5fd" : "#e8f4fd",textDecoration: currentFolder ? "underline" : "none"}}>
+                📎 Notizen-Dateien
+              </span>
+              {folderStack.map((id,i) => {
+                const f = list.find(a=>a.id===id);
+                const isLast = i===folderStack.length-1;
+                return (
+                  <React.Fragment key={id}>
+                    <span style={{color:"rgba(232,244,253,0.3)"}}>›</span>
+                    <span onClick={()=>!isLast && goToStackIndex(i)}
+                      style={{cursor:isLast?"default":"pointer",color:isLast?"#e8f4fd":"#c4b5fd",textDecoration:isLast?"none":"underline"}}>
+                      📁 {f?.name||"Ordner"}
+                    </span>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {visibleList.length===0 && (
+              <div style={{fontSize:12,color:"rgba(232,244,253,0.3)",padding:"0 0 14px"}}>{currentFolder ? "Dieser Ordner ist leer." : "Noch keine Datei hinterlegt."}</div>
+            )}
+
+            <div style={{overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+              {visibleList.map((att, idx) => (
+                <div key={att.id} style={{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:0}}>
+                  {editMode && (
+                    <button onClick={()=>requestDelete(att)} title="Löschen"
+                      style={{position:"absolute",top:-6,right:-6,zIndex:2,background:"#ef4444",border:"2px solid #0a1628",borderRadius:"50%",width:20,height:20,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>✕</button>
+                  )}
+                  <div onClick={()=> !editMode && (att.isFolder ? enterFolder(att.id) : openPreview(att))}
+                    style={{width:"100%",aspectRatio:"1",borderRadius:10,background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:editMode?"default":"pointer"}}>
+                    {att.type==="jpg" && att.thumb ? (
+                      <img src={att.thumb} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                    ) : (
+                      <span style={{fontSize:32,lineHeight:1}}>{att.isFolder ? "📁" : NOTIZEN_FILE_ICON[att.type]}</span>
+                    )}
+                  </div>
+                  {editingId===att.id ? (
+                    <input autoFocus value={att.name}
+                      onChange={e=>renameEntry(att.id, e.target.value)}
+                      onBlur={()=>setEditingId(null)}
+                      onKeyDown={e=>{ if (e.key==="Enter") e.currentTarget.blur(); }}
+                      style={{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:5,padding:"3px 4px",color:"#e8f4fd",fontSize:10,textAlign:"center",boxSizing:"border-box"}} />
+                  ) : (
+                    <span onClick={()=> editMode && setEditingId(att.id)}
+                      style={{width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:10,color:"#e8f4fd",textAlign:"center",cursor:editMode?"text":"default"}}>
+                      {att.name}
+                    </span>
+                  )}
+                  {editMode && (
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={()=>move(att,-1)} disabled={idx===0}
+                        style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:4,width:20,height:16,color:idx===0?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:9,cursor:idx===0?"default":"pointer",padding:0}}>▲</button>
+                      <button onClick={()=>move(att,1)} disabled={idx===visibleList.length-1}
+                        style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:4,width:20,height:16,color:idx===visibleList.length-1?"rgba(232,244,253,0.2)":"#e8f4fd",fontSize:9,cursor:idx===visibleList.length-1?"default":"pointer",padding:0}}>▼</button>
+                      <button onClick={()=>setMovingEntry(att)} title="In anderen Ordner verschieben"
+                        style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:4,width:20,height:16,color:"#e8f4fd",fontSize:9,cursor:"pointer",padding:0}}>⇄</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {err && <div style={{fontSize:12,color:"#fcd34d",marginBottom:10}}>{err}</div>}
+
+            <input ref={fileRef} type="file" accept=".jpg,.jpeg,.heic,.heif,.pdf" multiple style={{display:"none"}}
+              onChange={e=>{ if (e.target.files.length) addFiles(e.target.files); e.target.value=""; }} />
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>fileRef.current?.click()} disabled={busy}
+                style={{flex:1,background:"rgba(167,139,250,0.15)",border:"1px solid rgba(167,139,250,0.35)",borderRadius:10,padding:"10px",color:"#c4b5fd",fontSize:13,fontWeight:700,cursor:busy?"default":"pointer",opacity:busy?0.6:1}}>
+                {busy ? "⏳ …" : "+ Datei"}
+              </button>
+              <button onClick={addFolder}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                + Ordner
+              </button>
+              <button onClick={()=>setOpen(false)}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
+                Schliessen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteFolder && (
+        <div onClick={()=>setConfirmDeleteFolder(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#0d2a17",borderRadius:16,padding:"20px 22px",maxWidth:320,width:"100%",border:"1px solid rgba(255,255,255,0.1)"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Ordner löschen?</div>
+            <div style={{fontSize:13,color:"rgba(232,244,253,0.6)",marginBottom:18}}>
+              „{confirmDeleteFolder.name}" enthält {confirmDeleteFolder.count} Element{confirmDeleteFolder.count===1?"":"e"} — werden mit gelöscht.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDeleteFolder(null)}
+                style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:14,cursor:"pointer"}}>Abbrechen</button>
+              <button onClick={confirmDeleteFolderNow}
+                style={{flex:1,background:"rgba(239,68,68,0.2)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:10,padding:"10px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer"}}>Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {movingEntry && (
+        <div onClick={()=>setMovingEntry(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:"#14253a",borderRadius:16,padding:"18px 20px",maxWidth:320,width:"100%",maxHeight:"70vh",overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)"}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:12}}>„{movingEntry.name}" verschieben nach:</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <button onClick={()=>moveTo(movingEntry, null)} disabled={(movingEntry.parentId||null)===null}
+                style={{textAlign:"left",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:(movingEntry.parentId||null)===null?"rgba(232,244,253,0.3)":"#e8f4fd",cursor:(movingEntry.parentId||null)===null?"default":"pointer"}}>
+                📎 Notizen-Dateien (Wurzel)
+              </button>
+              {validMoveTargets(movingEntry).map(f => (
+                <button key={f.id} onClick={()=>moveTo(movingEntry, f.id)} disabled={movingEntry.parentId===f.id}
+                  style={{textAlign:"left",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 12px",color:movingEntry.parentId===f.id?"rgba(232,244,253,0.3)":"#e8f4fd",cursor:movingEntry.parentId===f.id?"default":"pointer"}}>
+                  📁 {f.name}
+                </button>
+              ))}
+              <button onClick={()=>setMovingEntry(null)}
+                style={{textAlign:"center",background:"none",border:"none",color:"rgba(232,244,253,0.4)",fontSize:12,cursor:"pointer",marginTop:4}}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {preview && (
+        <div onClick={closePreview} onTouchStart={onPreviewTouchStart} onTouchEnd={onPreviewTouchEnd}
+          style={{position:"fixed",inset:0,background:"#000",zIndex:400,display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"calc(14px + env(safe-area-inset-top, 0px)) 16px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,gap:10}}>
+            <span style={{color:"#fff",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{preview.name}</span>
+            <a onClick={e=>e.stopPropagation()} href={preview.blobUrl} target="_blank" rel="noopener noreferrer"
+              style={{background:"rgba(255,255,255,0.15)",borderRadius:20,padding:"7px 12px",color:"#fff",fontSize:12,fontWeight:700,textDecoration:"none",flexShrink:0}}>
+              ↗ Öffnen
+            </a>
+            <button onClick={closePreview} title="Vorschau schliessen"
+              style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:20,width:32,height:32,color:"#fff",fontSize:16,cursor:"pointer",flexShrink:0}}>✕</button>
+          </div>
+          {previewableList.length>1 && (
+            <div style={{textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.4)",flexShrink:0}}>‹ wischen ›</div>
+          )}
+          <div onClick={e=>e.stopPropagation()} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",padding:preview.type==="pdf"?0:16}}>
+            {preview.type==="jpg" && <img src={preview.blobUrl} alt={preview.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}} />}
+            {preview.type==="pdf" && <iframe src={preview.blobUrl} title={preview.name} style={{width:"100%",height:"100%",border:"none",background:"#fff"}} />}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function SettingsOverlay({ onClose }) {
 
   const [openFolder, setOpenFolder] = useState(null); // "logfiles" | "notes" | "gliders" | null
@@ -824,6 +1289,9 @@ function SettingsOverlay({ onClose }) {
                 {saveStatus==="saved" && <span style={{fontSize:12,color:"#4ade80"}}>✓ Gespeichert</span>}
                 {saveStatus==="error" && <span style={{fontSize:12,color:"#f87171"}}>Fehler beim Speichern — nochmal versuchen</span>}
                 {saveStatus==="" && notesDirty && <span style={{fontSize:12,color:"rgba(251,191,36,0.8)"}}>Ungespeicherte Änderungen</span>}
+              </div>
+              <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+                <NotizenFilesButton />
               </div>
             </div>
           )}
