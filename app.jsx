@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.11";
+const APP_VERSION = "6.19.12";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.12", note: "Einstellungen: Dateien (Ordner/jpg/pdf aus v6.19.10) sind jetzt ein eigenes Badge \"📎 Dateien\" statt unter Notizen verschachtelt zu sein — inhaltlich unabhängig von den freien Textnotizen. Bereits angelegte Ordner/Dateien bleiben erhalten (gleicher Speicherort, nur an anderer Stelle in der Oberfläche)." },
   { v: "6.19.11", note: "Bugfix (v6.19.10): Einstellungen ▸ Notizen aufklappen löste einen Skriptfehler aus (dunkler Bildschirm) — der neue 📎 Dateien-Button nutzte useRef ungeschützt, app.jsx destrukturiert aber nur useState/useEffect direkt aus React (gleiches Bugmuster schon einmal in v1.19, damals in statistik.jsx). Auf React.useRef umgestellt." },
   { v: "6.19.10", note: "Einstellungen ▸ Notizen: neuer 📎 Dateien-Button — jpg/heic/pdf importieren, in Ordnern organisieren (anlegen, umbenennen, per ▲▼ sortieren, per ⇄ in einen anderen Ordner verschieben), löschen. Gleiches Muster wie Anleitung-Dateien in Ausrüstung ▸ Wartung." },
   { v: "6.19.9", note: "Flugdetail, Schirm-Feld: Autovervollständigung nutzte ein natives <input list>/<datalist>, das auf iOS Safari unzuverlässig bis gar nicht sichtbar ist. Auf dieselbe selbstgebaute Vorschlagsliste wie Startplatz/Landeplatz umgestellt (Ghost-Vervollständigung beim Tippen + Dropdown mit Treffern darunter) — Tippfehler-Warnung unverändert." },
@@ -1270,7 +1271,7 @@ function SettingsOverlay({ onClose }) {
         </div>
 
         {/* Notizen: small free-text notes field, persisted across sessions */}
-        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden",marginBottom:10}}>
           <div onClick={()=>setOpenFolder(openFolder==="notes"?null:"notes")}
             style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
             <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>📝 Notizen{notesDirty?" •":""}</span>
@@ -1291,9 +1292,25 @@ function SettingsOverlay({ onClose }) {
                 {saveStatus==="error" && <span style={{fontSize:12,color:"#f87171"}}>Fehler beim Speichern — nochmal versuchen</span>}
                 {saveStatus==="" && notesDirty && <span style={{fontSize:12,color:"rgba(251,191,36,0.8)"}}>Ungespeicherte Änderungen</span>}
               </div>
-              <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-                <NotizenFilesButton />
-              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dateien: eigenes Badge statt unter Notizen verschachtelt — die
+            Dateien/Ordner (NotizenFilesButton, siehe dort) sind inhaltlich
+            unabhängig von den freien Textnotizen. Storage-Keys bleiben
+            bewusst unverändert (service:notizenFiles/service:notizen_file_*),
+            damit bereits angelegte Ordner/Dateien hier automatisch weiter
+            auftauchen, ohne eine Migration zu brauchen. */}
+        <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
+          <div onClick={()=>setOpenFolder(openFolder==="files"?null:"files")}
+            style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+            <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>📎 Dateien</span>
+            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>{openFolder==="files"?"▾":"▸"}</span>
+          </div>
+          {openFolder==="files" && (
+            <div style={{padding:"0 14px 14px"}}>
+              <NotizenFilesButton />
             </div>
           )}
         </div>
