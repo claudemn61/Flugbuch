@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.10";
+const APP_VERSION = "6.19.11";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.11", note: "Bugfix (v6.19.10): Einstellungen ▸ Notizen aufklappen löste einen Skriptfehler aus (dunkler Bildschirm) — der neue 📎 Dateien-Button nutzte useRef ungeschützt, app.jsx destrukturiert aber nur useState/useEffect direkt aus React (gleiches Bugmuster schon einmal in v1.19, damals in statistik.jsx). Auf React.useRef umgestellt." },
   { v: "6.19.10", note: "Einstellungen ▸ Notizen: neuer 📎 Dateien-Button — jpg/heic/pdf importieren, in Ordnern organisieren (anlegen, umbenennen, per ▲▼ sortieren, per ⇄ in einen anderen Ordner verschieben), löschen. Gleiches Muster wie Anleitung-Dateien in Ausrüstung ▸ Wartung." },
   { v: "6.19.9", note: "Flugdetail, Schirm-Feld: Autovervollständigung nutzte ein natives <input list>/<datalist>, das auf iOS Safari unzuverlässig bis gar nicht sichtbar ist. Auf dieselbe selbstgebaute Vorschlagsliste wie Startplatz/Landeplatz umgestellt (Ghost-Vervollständigung beim Tippen + Dropdown mit Treffern darunter) — Tippfehler-Warnung unverändert." },
   { v: "6.19.8", note: "Flugdetail ▸ Vollbild-Karte ▸ 3D-Satellit: temporäre Debug-Anzeige (🐞 oben rechts) zeigt GPS-Höhe am Startpunkt gegen die von der Karte tatsächlich gerenderte Geländehöhe an derselben Stelle, inkl. Differenz — hilft, einen gemeldeten Höhenversatz (Linie liegt teils im Gelände) mit echten Zahlen statt Vermutungen einzugrenzen. Wird wieder entfernt, sobald die Ursache geklärt ist." },
@@ -722,7 +723,7 @@ function NotizenFilesButton() {
   // Navigations-Pfad in Unterordner — Array von Ordner-IDs, [] = Wurzel.
   const [folderStack, setFolderStack] = useState([]);
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState(null); // {id, name, count} | null
-  const fileRef = useRef(null);
+  const fileRef = React.useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -884,7 +885,7 @@ function NotizenFilesButton() {
     const next = previewableList[idx+delta];
     if (next) openPreview(next);
   };
-  const previewTouchStart = useRef(null);
+  const previewTouchStart = React.useRef(null);
   const onPreviewTouchStart = (e) => {
     if (e.touches.length !== 1) { previewTouchStart.current = null; return; }
     const t = e.touches[0];
