@@ -226,12 +226,13 @@ const GLIDER_VARIANTS_RESERVE = [
 const DEFAULT_GLIDER_VARIANT = "v3";
 
 // Single source of truth for the version number shown next to the title.
-const APP_VERSION = "6.19.12";
+const APP_VERSION = "6.19.13";
 
 // Chronological changelog, newest first, matching what's actually been
 // built and shipped in this app over the course of development. Kept here
 // so the in-app "Log Files" folder can show it without needing any backend.
 const VERSION_LOG = [
+  { v: "6.19.13", note: "Einstellungen ▸ Dateien: ein Tipp öffnete bisher nur ein Badge mit einem zweiten, identisch beschrifteten Button darin, der erst den eigentlichen Datei-Browser öffnete. Jetzt wie \"❓ Hilfe\" ein Direktaufruf — ein Tipp öffnet sofort den Datei-Browser." },
   { v: "6.19.12", note: "Einstellungen: Dateien (Ordner/jpg/pdf aus v6.19.10) sind jetzt ein eigenes Badge \"📎 Dateien\" statt unter Notizen verschachtelt zu sein — inhaltlich unabhängig von den freien Textnotizen. Bereits angelegte Ordner/Dateien bleiben erhalten (gleicher Speicherort, nur an anderer Stelle in der Oberfläche)." },
   { v: "6.19.11", note: "Bugfix (v6.19.10): Einstellungen ▸ Notizen aufklappen löste einen Skriptfehler aus (dunkler Bildschirm) — der neue 📎 Dateien-Button nutzte useRef ungeschützt, app.jsx destrukturiert aber nur useState/useEffect direkt aus React (gleiches Bugmuster schon einmal in v1.19, damals in statistik.jsx). Auf React.useRef umgestellt." },
   { v: "6.19.10", note: "Einstellungen ▸ Notizen: neuer 📎 Dateien-Button — jpg/heic/pdf importieren, in Ordnern organisieren (anlegen, umbenennen, per ▲▼ sortieren, per ⇄ in einen anderen Ordner verschieben), löschen. Gleiches Muster wie Anleitung-Dateien in Ausrüstung ▸ Wartung." },
@@ -620,7 +621,11 @@ function GliderNameInput({ defaultLabel, value, onRename, color, fontWeight }) {
   );
 }
 
-// ── Notizen-Dateien (Einstellungen ▸ Notizen) ────────────────────────────
+// ── Notizen-Dateien (Einstellungen ▸ Dateien) ────────────────────────────
+// open/onClose als Props statt eigenem State: SettingsOverlay öffnet das
+// Modal direkt beim Antippen des "📎 Dateien"-Badges (wie "❓ Hilfe" ein
+// Direktaufruf), statt ein Badge aufzuklappen, das nur einen zweiten,
+// identisch beschrifteten Button zum eigentlichen Öffnen zeigt.
 // Gleiches Muster wie die Anleitung-Dateien in Ausrüstung ▸ Wartung
 // (ausruestung.jsx, AnleitungButton) — dort pro Ausrüstungs-Slot, hier aber
 // ohne übergeordnetes Slot-Objekt, darum selbst ladend/speichernd statt
@@ -712,10 +717,9 @@ function dataUrlToBlobUrl(dataUrl, mime) {
   return URL.createObjectURL(new Blob([bytes], { type: mime || "application/octet-stream" }));
 }
 
-function NotizenFilesButton() {
+function NotizenFilesButton({ open, onClose }) {
   const [list, setList] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -742,7 +746,6 @@ function NotizenFilesButton() {
 
   const currentFolder = folderStack.length ? folderStack[folderStack.length-1] : null;
   const visibleList = list.filter(a => (a.parentId||null) === currentFolder);
-  const fileCount = list.filter(a => !a.isFolder).length;
 
   const enterFolder = (id) => { setFolderStack(s => [...s, id]); setEditingId(null); };
   const goToStackIndex = (i) => { setFolderStack(s => i<0 ? [] : s.slice(0, i+1)); setEditingId(null); };
@@ -908,13 +911,8 @@ function NotizenFilesButton() {
 
   return (
     <>
-      <button onClick={()=>setOpen(true)}
-        style={{background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:10,padding:"8px 16px",color:"#c4b5fd",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-        📎 Dateien{fileCount>0 ? ` (${fileCount})` : ""}
-      </button>
-
       {open && (
-        <div onClick={()=>setOpen(false)}
+        <div onClick={onClose}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:310,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div onClick={e=>e.stopPropagation()}
             style={{background:"#0a1628",borderRadius:16,padding:"18px 16px",maxWidth:420,width:"100%",border:"1px solid rgba(255,255,255,0.1)",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
@@ -1005,7 +1003,7 @@ function NotizenFilesButton() {
                 style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 + Ordner
               </button>
-              <button onClick={()=>setOpen(false)}
+              <button onClick={onClose}
                 style={{flex:1,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"10px",color:"#e8f4fd",fontSize:13,cursor:"pointer"}}>
                 Schliessen
               </button>
@@ -1087,6 +1085,11 @@ function NotizenFilesButton() {
 function SettingsOverlay({ onClose }) {
 
   const [openFolder, setOpenFolder] = useState(null); // "logfiles" | "notes" | "gliders" | null
+  // Eigenes Modal statt eines expandierenden Badges wie die übrigen
+  // Abschnitte — ein Tipp auf "Dateien" soll direkt den Datei-Browser
+  // öffnen, nicht erst eine Zeile mit einem zweiten, identisch
+  // beschrifteten Button aufklappen (genau das wurde gemeldet).
+  const [filesModalOpen, setFilesModalOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [notesDirty, setNotesDirty] = useState(false);
@@ -1296,25 +1299,22 @@ function SettingsOverlay({ onClose }) {
           )}
         </div>
 
-        {/* Dateien: eigenes Badge statt unter Notizen verschachtelt — die
-            Dateien/Ordner (NotizenFilesButton, siehe dort) sind inhaltlich
-            unabhängig von den freien Textnotizen. Storage-Keys bleiben
-            bewusst unverändert (service:notizenFiles/service:notizen_file_*),
-            damit bereits angelegte Ordner/Dateien hier automatisch weiter
-            auftauchen, ohne eine Migration zu brauchen. */}
+        {/* Dateien: wie Hilfe ein Direktaufruf statt eines aufklappenden
+            Badges — ein Tipp öffnet sofort den Datei-Browser (eigenes
+            Modal in NotizenFilesButton), statt erst eine Zeile mit einem
+            zweiten, identisch beschrifteten Button aufzuklappen. Storage-
+            Keys bleiben bewusst unverändert (service:notizenFiles/
+            service:notizen_file_*), damit bereits angelegte Ordner/
+            Dateien hier automatisch weiter auftauchen. */}
         <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
-          <div onClick={()=>setOpenFolder(openFolder==="files"?null:"files")}
+          <div onClick={()=>setFilesModalOpen(true)}
             style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
             <span style={{fontSize:14,fontWeight:700,color:"#e8f4fd"}}>📎 Dateien</span>
-            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>{openFolder==="files"?"▾":"▸"}</span>
+            <span style={{color:"rgba(232,244,253,0.4)",fontSize:13}}>›</span>
           </div>
-          {openFolder==="files" && (
-            <div style={{padding:"0 14px 14px"}}>
-              <NotizenFilesButton />
-            </div>
-          )}
         </div>
       </div>
+      <NotizenFilesButton open={filesModalOpen} onClose={()=>setFilesModalOpen(false)} />
     </div>
   );
 }
